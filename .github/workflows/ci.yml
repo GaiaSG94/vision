@@ -1,0 +1,45 @@
+name: CI
+
+# Budget : 5 min maximum par job (règle projet). Le build APK complet reste hors PR.
+# Le worker est le r630 (Dell) : JDK 17 et Android SDK y sont préinstallés,
+# JAVA_HOME / ANDROID_HOME viennent du fichier .env du runner.
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: [self-hosted, linux, sam-vision]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Chaîne d'outils du worker
+        run: |
+          test -n "$JAVA_HOME" || { echo "::error::JAVA_HOME absent — voir ~/toolchains/jdk17 sur le r630"; exit 1; }
+          test -n "$ANDROID_HOME" || { echo "::error::ANDROID_HOME absent — voir ~/android-sdk sur le r630"; exit 1; }
+          "$JAVA_HOME/bin/java" -version
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
+
+      - name: Tests unitaires (core) + compilation de l'app
+        run: ./gradlew --console=plain :core:testDebugUnitTest :app:compileDebugKotlin
+
+      - name: Rapport de tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-tests
+          path: '**/build/reports/tests/**'
+          retention-days: 3
+          if-no-files-found: ignore

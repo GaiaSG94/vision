@@ -1,0 +1,85 @@
+# Mergify — SAM Vision (Kotlin natif)
+# But : personne ne merge « à la main ». Une PR approuvée + CI verte entre dans la
+# file d'attente ; Mergify rebase, re-teste et merge en squash sur `master`, une par une.
+# Validation locale : `mergify config validate` depuis la racine du dépôt.
+
+queue_rules:
+  - name: default
+    queue_conditions:
+      - base = master
+      - -draft
+      - -conflict
+      - "#approved-reviews-by >= 1"
+      - "#changes-requested-reviews-by = 0"
+      - check-success = ci
+    merge_conditions:
+      - check-success = ci
+    batch_size: 1
+    merge_method: squash
+    commit_message_template: |
+      {{ title }} (#{{ number }})
+
+      {{ body }}
+
+pull_request_rules:
+  - name: Entrée automatique dans la file quand la PR est prête
+    conditions:
+      - base = master
+      - -draft
+      - -conflict
+      - "#approved-reviews-by >= 1"
+      - "#changes-requested-reviews-by = 0"
+      - check-success = ci
+    actions:
+      queue:
+        name: default
+
+  - name: Étiqueter les PR prêtes à merger
+    conditions:
+      - base = master
+      - -draft
+      - "#approved-reviews-by >= 1"
+      - check-success = ci
+    actions:
+      label:
+        add:
+          - ready-to-merge
+
+  - name: Retirer l'étiquette si la CI casse ou si une review demande des changements
+    conditions:
+      - label = ready-to-merge
+      - or:
+          - check-failure = ci
+          - "#changes-requested-reviews-by >= 1"
+          - conflict
+          - draft
+    actions:
+      label:
+        remove:
+          - ready-to-merge
+
+  - name: Demander une revue dès qu'une PR est ouverte
+    conditions:
+      - base = master
+      - -draft
+      - "#approved-reviews-by = 0"
+    actions:
+      comment:
+        message: "CI lancée sur le worker du Dell. Une approbation + `ci` verte ⇒ Mergify merge tout seul."
+
+  - name: Supprimer la branche après merge
+    conditions:
+      - merged
+      - head ~= ^(?!master$).*
+    actions:
+      delete_head_branch: {}
+
+  - name: Signaler un conflit avec master
+    conditions:
+      - base = master
+      - conflict
+      - -closed
+    actions:
+      label:
+        add:
+          - conflict
