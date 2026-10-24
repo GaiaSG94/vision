@@ -17,8 +17,11 @@ file fait déjà le travail (rebase + re-test avant merge).
 Frein : étiqueter la PR `hold` la sort de la file. Relance manuelle :
 commentaire `@Mergifyio refresh`, embarquement forcé : `@Mergifyio queue`.
 
-La Couche 0 (`couche0`, périmètre déclaré + motifs interdits) est **informative**
-tant qu'elle n'est pas calibrée ; voir `.github/couche0/check_couche0.py`.
+La Couche 0 (`couche0`, périmètre déclaré + motifs interdits) est **exigée** par la file et
+les protections : une PR qui touche un fichier non déclaré dans `## Scope`, qui ajoute une
+clé en clair ou qui modifie un fichier de garde sans `SAMVISION_ALLOW_GUARD_BUMP` n'entre
+pas dans la file. `sam-wt merge` remplit le `## Scope` tout seul. Garde :
+`.github/couche0/check_couche0.py`.
 
 **Auto-embarquement** : `merge_protections_settings.auto_merge_conditions: true` n'a d'effet
 que si le **produit Merge Protections est activé** sur le dépôt (doc Mergify,
