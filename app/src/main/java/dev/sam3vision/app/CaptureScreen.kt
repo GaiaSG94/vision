@@ -1,6 +1,7 @@
 package dev.sam3vision.app
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +17,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,89 +30,143 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import java.io.File
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Vrai si la permission CAMERA est déjà accordée. */
-fun hasCameraPermission(context: android.content.Context): Boolean =
+fun hasCameraPermission(context: Context): Boolean =
     ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
 private fun mainPost(block: () -> Unit) {
     if (Looper.myLooper() == Looper.getMainLooper()) block() else Handler(Looper.getMainLooper()).post(block)
 }
 
-/** Écran caméra : aperçu, capture, choix dans la galerie, accès aux réglages. */
+/**
+ * Écran caméra. La liaison CameraX est refaite à chaque (ré)attachement de l'aperçu :
+ * sans ça, revenir sur cet écran laissait `ImageCapture` non lié (« Not bound to a valid Camera »).
+ */
 @Composable
 fun CaptureScreen(onPhoto: (File) -> Unit, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
-    val view = LocalView.current
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
+    var attached by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
+    var bindToken by remember { mutableStateOf(0) }
+    val previewView = rememberPreviewView { attached = it }
     val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
-    val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val executor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) pickFromGallery(context, uri, onPhoto) { error = it }
     }
 
-    LaunchedEffect(granted) {
-        if (!granted) return@LaunchedEffect
-        bindCamera(context, view.findViewTreeLifecycleOwner(), previewView, imageCapture)
+    LaunchedEffect(granted, attached, bindToken) {
+        if (!granted || !attached) return@LaunchedEffect
+        bindCamera(context, previewView.findViewTreeLifecycleOwner(), previewView, imageCapture)
             .onFailure { error = it.message }
     }
 
+    CameraSurface(
+        granted = granted,
+        attached = attached,
+        previewView = previewView,
+        error = error,
+        onAllow = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+        onCapture = {
+            captureToFile(imageCapture, executor, context, onPhoto, onError = { message ->
+                error = message
+                bindToken += 1
+            })
+        },
+        onGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onSettings = onOpenSettings,
+    )
+}
+
+/** Aperçu + bandeau d'erreur + commandes (les trois boutons). */
+@Composable
+private fun CameraSurface(
+    granted: Boolean,
+    attached: Boolean,
+    previewView: PreviewView,
+    error: String?,
+    onAllow: () -> Unit,
+    onCapture: () -> Unit,
+    onGallery: () -> Unit,
+    onSettings: () -> Unit,
+) {
     Box(Modifier.fillMaxSize()) {
         if (granted) {
-            androidx.compose.ui.viewinterop.AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
         } else {
-            PermissionGate(onAllow = { permissionLauncher.launch(Manifest.permission.CAMERA) })
+            PermissionGate(onAllow)
         }
         error?.let { StatusBanner(it, AppColors.danger, Modifier.align(Alignment.TopCenter)) }
         CaptureControls(
             modifier = Modifier.align(Alignment.BottomCenter),
-            enabled = granted,
-            onCapture = { captureToFile(imageCapture, cameraExecutor, context, onPhoto) { error = it } },
-            onGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            onSettings = onOpenSettings,
+            ready = granted && attached,
+            onCapture = onCapture,
+            onGallery = onGallery,
+            onSettings = onSettings,
         )
     }
 }
 
-private fun pickFromGallery(
-    context: android.content.Context,
-    uri: android.net.Uri,
-    onPhoto: (File) -> Unit,
-    onError: (String) -> Unit,
-) {
+/** PreviewView mémorisé, avec notification de (d')attachement pour piloter la liaison caméra. */
+@Composable
+private fun rememberPreviewView(onAttached: (Boolean) -> Unit): PreviewView {
+    val context = LocalContext.current
+    return remember(context) {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            addOnAttachStateChangeListener(object : android.view.View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: android.view.View) = onAttached(true)
+                override fun onViewDetachedFromWindow(view: android.view.View) = onAttached(false)
+            })
+        }
+    }
+}
+
+private fun pickFromGallery(context: Context, uri: android.net.Uri, onPhoto: (File) -> Unit, onError: (String) -> Unit) {
     val target = newCacheFile(context)
     if (copyUriToCache(context, uri, target)) onPhoto(target) else onError("Impossible de copier l'image choisie.")
 }
 
 private suspend fun bindCamera(
-    context: android.content.Context,
-    owner: androidx.lifecycle.LifecycleOwner?,
+    context: Context,
+    owner: LifecycleOwner?,
     previewView: PreviewView,
     imageCapture: ImageCapture,
-): Result<Unit> = runCatching {
-    if (owner == null) error("Cycle de vie indisponible")
-    val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(context).get() }
-    val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-    provider.unbindAll()
-    provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
-    Unit
-}.mapFailure("Aucune caméra accessible")
+): Result<Unit> {
+    if (owner == null) return Result.failure(IllegalStateException("Cycle de vie indisponible pour lier la caméra"))
+    val provider = try {
+        withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(context).get() }
+    } catch (cancel: CancellationException) {
+        throw cancel // effet annulé par recomposition : pas une panne de caméra
+    } catch (e: Exception) {
+        return Result.failure(IllegalStateException("Aucune caméra accessible : ${e.message}"))
+    }
+    return runCatching {
+        val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+        provider.unbindAll()
+        provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+        Unit
+    }
+}
 
 private fun captureToFile(
     imageCapture: ImageCapture,
-    executor: java.util.concurrent.ExecutorService,
-    context: android.content.Context,
+    executor: ExecutorService,
+    context: Context,
     onPhoto: (File) -> Unit,
     onError: (String) -> Unit,
 ) {
@@ -122,16 +178,16 @@ private fun captureToFile(
         object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) = mainPost { onPhoto(target) }
 
-            override fun onError(exception: ImageCaptureException) =
-                mainPost { onError("Capture impossible : ${exception.message}") }
+            override fun onError(exception: ImageCaptureException) = mainPost { onError("Capture impossible : ${exception.message}") }
         },
     )
 }
 
+/** Commandes d'action sous l'aperçu : capture pleine largeur, galerie et réglages. */
 @Composable
 private fun CaptureControls(
     modifier: Modifier,
-    enabled: Boolean,
+    ready: Boolean,
     onCapture: () -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
@@ -141,24 +197,19 @@ private fun CaptureControls(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        BigButton("Photographier", enabled, AppColors.primary, onCapture)
-        Row2(
-            left = { BigButton("Galerie", enabled, AppColors.surfaceHigh, onGallery, 0.5f) },
+        BigButton("Photographier", ready, AppColors.primary, onCapture)
+        HalfRow(
+            left = { BigButton("Galerie", true, AppColors.surfaceHigh, onGallery, 0.5f) },
             right = { BigButton("Réglages", true, AppColors.surfaceHigh, onSettings, 0.5f) },
         )
     }
 }
 
+/** Deux boutons côte à côte, poids égaux. */
 @Composable
-private fun Row2(left: @Composable () -> Unit, right: @Composable () -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
+private fun HalfRow(left: @Composable () -> Unit, right: @Composable () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.weight(1f)) { left() }
         Box(Modifier.weight(1f)) { right() }
     }
 }
-
-private fun <T> Result<T>.mapFailure(prefix: String): Result<T> =
-    fold(onSuccess = { Result.success(it) }, onFailure = { Result.failure(IllegalStateException("$prefix : ${it.message}")) })

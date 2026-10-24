@@ -1,5 +1,6 @@
 package dev.sam3vision.app
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,44 +16,44 @@ sealed interface Route {
     data object Settings : Route
 }
 
-/** Racine de navigation : distribue l'état du [AppViewModel] aux quatre écrans. */
+/** Racine de navigation : pile de routes + distribution de l'état du [AppViewModel]. */
 @Composable
 fun AppNav(viewModel: AppViewModel) {
     val state by viewModel.state.collectAsState()
-    var route by remember { mutableStateOf<Route>(Route.Capture) }
+    var stack by remember { mutableStateOf(listOf<Route>(Route.Capture)) }
+    val route = stack.first()
+    val push: (Route) -> Unit = { stack = listOf(it) + stack }
+    val pop: () -> Unit = { if (stack.size > 1) stack = stack.drop(1) }
+    BackHandler(enabled = stack.size > 1) { pop() }
 
     when (route) {
         Route.Capture -> CaptureScreen(
             onPhoto = { file ->
                 viewModel.onPhoto(file)
-                route = Route.Analysis
+                push(Route.Analysis)
             },
-            onOpenSettings = { route = Route.Settings },
+            onOpenSettings = { push(Route.Settings) },
         )
 
         Route.Analysis -> AnalysisScreen(
             state = state,
-            onBack = { route = Route.Capture },
-            onOpenChat = { route = Route.Chat },
+            onBack = pop,
+            onOpenChat = { push(Route.Chat) },
             onToggleMasks = viewModel::toggleMasks,
             onRetry = viewModel::retryAnalysis,
-            onOpenSettings = { route = Route.Settings },
+            onOpenSettings = { push(Route.Settings) },
         )
 
-        Route.Chat -> ChatScreen(
-            state = state,
-            onBack = { route = Route.Analysis },
-            onAsk = viewModel::ask,
-        )
+        Route.Chat -> ChatScreen(state = state, onBack = pop, onAsk = viewModel::ask)
 
         Route.Settings -> SettingsScreen(
             settings = state.settings,
             statusLine = state.statusLine,
             llmConfigured = state.settings.llmConfigured,
-            onSave = { viewModel.saveSettings(it); route = if (state.hasPhoto) Route.Analysis else Route.Capture },
+            onSave = { viewModel.saveSettings(it); pop() },
             onTestLlm = viewModel::testLlm,
             onTestSam = viewModel::testSam,
-            onBack = { route = if (state.hasPhoto) Route.Analysis else Route.Capture },
+            onBack = pop,
         )
     }
 }
