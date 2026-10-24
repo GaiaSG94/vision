@@ -115,3 +115,5 @@ Verdict de PR : **≈ 45 s** pour du code, **≈ 10 s** pour de la doc — budge
 passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 
 - Mesure de référence du flux (2026-10-24 22:20).
+
+- Flux mesuré : PR de doc, checks ~15 s, file déclenchée dès le vert.
