@@ -17,6 +17,9 @@ queue_rules:
       - check-success = ci-budget
       # CI reelle du depot (tests core+app, APK debug, garde anti-secret).
       - check-success = ci
+      # Couche 0 (portée de duello) : informatif au lancement, comme là-bas.
+      # Une fois le taux de faux positifs à ~0, décommenter la ligne suivante.
+      # - check-success = couche0
       # Frein manuel : etiqueter `hold` sort la PR de la file.
       - -label = hold
       - -conflict
@@ -27,6 +30,14 @@ queue_rules:
       max: 3
     batch_max_wait_time: "30 seconds"
     max_checks_retries: 1
+    # Évaluées sur la DRAFT PR du batch (doc Mergify), pas sur la PR d'origine :
+    # on n'y met que les checks publiés partout. `ci` (gradle) devient `pending`
+    # sur les refs mergify/* et bloquerait le merge du batch — la qualité reste
+    # garantie par les queue_conditions, évaluées sur la vraie PR après rebase
+    # (update_method: rebase relance la CI).
+    merge_conditions:
+      - check-success = ci-budget
+      - check-success = stale-base-guard
     merge_method: rebase
     update_method: rebase
 
