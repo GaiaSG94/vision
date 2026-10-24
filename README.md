@@ -139,6 +139,27 @@ avec `xi-api-key`, le corps MP3 est mis en cache privé puis lu par `android.med
   (bouton Écouter, lecture automatique) et aux bandeaux de dictée (`VoiceAnnouncer`).
 - Le reste (LLM, SAM) reste utilisable sans clé ElevenLabs : la voix est une option.
 
+## Endpoint du Direct (vidéo) — 2026-10-24
+
+App Modal déployée : **`sam3-eu-a100`** (1 × A100-40GB, `eu-west`, web function `Sam3Live.*`),
+qui sert `/health`, `/segment` et `/live` :
+
+```
+sam.base.url=https://baptiste-faisy--sam3-eu-a100-sam3live-web.eu-west.modal.run
+```
+
+L'ancienne URL `baptiste-faisy--sam3-live-sam3live-web.us-east.modal.run` n'existe plus côté
+Modal : elle répond `404 modal-http: invalid function call` sur tous les chemins (app non
+déployée). Pour retrouver l'URL courante, sans deviner le slug :
+
+```bash
+cd ~/sam3-modal && .venv/bin/modal app list          # app déployée
+.venv/bin/python -c 'import modal; print(modal.Cls.from_name("sam3-eu-a100", "Sam3Live")().web.get_web_url())'
+```
+
+Le premier appel après veille réveille le GPU en ~30 s : c'est le rôle des retours `/health`
+de `LiveViewModel` (« Réveil du GPU A100 en cours… »).
+
 ## ⚠️ Sécurité — clé embarquée en debug
 
 Un APK debug construit avec `llm.api.key` dans `local.properties` **contient la clé en clair**

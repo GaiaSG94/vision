@@ -144,6 +144,13 @@ Signal user : « quand je lâche, ça n'envoie pas ». Reproduit et corrigé.
   lançait le Direct dans la pile d'origine (`StartLiveOnTap`) ; master a depuis donné ce
   geste au mode vidéo tap, gardé ici. Le Direct reste accessible par son bouton dédié, à
   côté de « Vidéo (tap) » (`CaptureScreen.kt`).
+- **Correctif : le mode Direct pointait sur une app Modal disparue** — l'URL
+  `baptiste-faisy--sam3-live-sam3live-web.us-east.modal.run` répond `404 modal-http: invalid
+  function call` sur tous les chemins (app `sam3-live` non déployée). Le backend vivant est
+  l'app `sam3-eu-a100` (A100-40GB, eu-west) : `sam.base.url` corrigé, URL documentée dans le
+  README avec la commande `modal` qui la donne. Vérifié sur téléphone : `Direct · 1,2 ips ·
+  635 ms · 6 objets · NVIDIA A100-SXM4-40GB`.
+
 - **Direct : un tap relance la session quand le flux est arrêté ou en erreur** — zone
   `RecoveryTap` sous les bandeaux de l'écran Direct, avec l'invite « Touche l'écran pour
   relancer le direct ». Jamais active pendant que le flux tourne (pas de coupure
