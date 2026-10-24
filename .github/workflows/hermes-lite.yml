@@ -7,6 +7,11 @@ on:
     types: [opened, reopened, ready_for_review, synchronize]
   check_run:
     types: [completed]
+  # Secours du reveil externe (cron sur le poste de travail) : si la machine
+  # qui declenche le balayage est éteinte, GitHub relance quand meme le gate
+  # toutes les 10 minutes. Sur runner self-hosted, ca ne coute rien.
+  schedule:
+    - cron: '*/10 * * * *'
   workflow_dispatch:
     inputs:
       pr_number:

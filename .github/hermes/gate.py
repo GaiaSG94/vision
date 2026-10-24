@@ -106,7 +106,10 @@ def env_flag(name, default):
 
 
 def refresh_branch(repo, token, pr):
-    """Rebase serveur d'une PR en retard. Renvoie 'refreshed'/'conflict'/'error'."""
+    """Rebase serveur d'une PR en retard.
+
+    Renvoie 'refreshed' / 'conflict' / 'behind' / 'error'.
+    """
     num = pr['number']
     expected = pr['head']['sha']
     sc, resp = api('PUT', '/repos/%s/pulls/%d/update-branch' % (repo, num),
@@ -115,7 +118,21 @@ def refresh_branch(repo, token, pr):
     if sc == 202:
         return 'refreshed'
     if sc in (409, 422):
-        return 'conflict'
+        # GitHub refuse parfois le rebase alors qu'il calcule encore la
+        # fusionnabilite : un 422 transitoire ne veut PAS dire conflit. On
+        # relit la PR avant de conclure — sinon le gate publie un check ROUGE
+        # sur une PR parfaitement fusionnable, et Mergify refuse ensuite de
+        # l'embarquer (constat 24/10 : #30 verte, « unstable », verdict
+        # rouge jamais leve → PR bloquee jusqu'au prochain commit).
+        sc2, pr2 = api('GET', '/repos/%s/pulls/%d' % (repo, num), token=token)
+        mergeable = (pr2 or {}).get('mergeable')
+        state = (pr2 or {}).get('mergeable_state') or ''
+        if mergeable is False and state == 'dirty':
+            return 'conflict'
+        print('[gate] #%d : rebase refuse (HTTP %s) mais PR fusionnable '
+              '(mergeable=%s, etat=%s) — la file la prendra en charge.' %
+              (num, sc, mergeable, state), flush=True)
+        return 'behind'
     print('[gate] #%d update-branch %s : %s' % (num, sc, resp), flush=True)
     return 'error'
 
