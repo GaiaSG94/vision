@@ -1,5 +1,23 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-24 — un tap lance la vidéo, un appui long parle (les deux ensemble)
+
+- **Tap sur l'aperçu de Capture = mode vidéo, enregistrement lancé d'office.** Le bouton
+  « Vidéo (tap) » reste l'entrée explicite (sans auto-démarrage, pour se placer). Le tap est
+  classé au lever par `core/gesture/TapOrHold` avec les seuils de l'appui long (300 ms,
+  ~8 dp) : un appui tenu ne déclenche donc jamais la vidéo, et les commandes au-dessus
+  gardent leurs taps.
+- **Appui long = voix, y compris pendant la vidéo.** Android n'autorisant qu'un `AudioRecord`
+  par app, la vidéo renonce à sa piste audio (`TapConfig.VIDEO_WITH_AUDIO = false`) :
+  l'analyse demandée à SAM 3.1 est visuelle, et le micro reste libre pour la dictée.
+  `MicBus` continue d'arbitrer (le mode tap ne réserve le micro que si l'audio revient).
+- **Rappel visible** sur l'accueil : « Tap : vidéo · Appui long : parler ».
+- Recette sur téléphone réel (1220×2712, API 35) : tap → « Enregistrement » ; appui long
+  pendant l'enregistrement → « J'ÉCOUTE » puis « DICTÉE : [clicking] » (le micro a bien
+  capté pendant que la vidéo tournait) ; second tap → « Échec — endpoint SAM 3.1 vide »
+  (aucun envoi, l'endpoint n'est pas configuré). 156 tests JVM verts (122 `core` + 34 `app`,
+  +4 `TapOrHoldTest`), `assembleDebug` vert.
+
 ## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
 
 - **Le gate ne dit plus « intervention humaine » et s'arrête là.** Sur

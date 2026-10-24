@@ -1,12 +1,15 @@
 # Mode tap court — vidéo → SAM 3.1, annonces ElevenLabs
 
-Écran « Vidéo (tap) » depuis Capture. Conçu pour une utilisation sans regard :
-**un** tap court n'importe où lance l'enregistrement, **un second** l'arrête et l'envoie.
+Conçu pour une utilisation sans regard. **Un tap sur l'aperçu de Capture ouvre le mode
+vidéo et démarre l'enregistrement** (le bouton « Vidéo (tap) » reste là, sans démarrage
+automatique : on a le temps de se placer). Sur l'écran vidéo, **un second tap** arrête et
+envoie. **L'appui long parle** — y compris pendant l'enregistrement vidéo.
 
 ## Interaction
 
 | Événement | Verbe prononcé (anglais, mot unique) | Écran |
 |---|---|---|
+| Tap sur l'aperçu de Capture | `Launched` | « Enregistrement » (démarré d'office) |
 | Tap court relâché, caméra ouverte | `Launched` | « Enregistrement » |
 | Second tap relâché, envoi réussi | `Sent` | « Envoyé » + résumé texte |
 | Permission refusée / caméra KO / envoi KO | `Failed` | « Échec » + motif |
@@ -20,6 +23,24 @@
   (`TapZones.kt`, testé en JVM). Les boutons retour/accueil/récents restent au système.
 - TalkBack : `contentDescription` sur la surface + `performClick()` comme action — un
   double-tap TalkBack fait exactement ce que fait un tap du doigt, une seule fois.
+- **Tap contre appui long, sans double déclenchement** : la couche de tap de l'accueil est
+  classée **au lever** par `core/gesture/TapOrHold` avec les seuils de l'appui long de l'app
+  (300 ms, ~8 dp) ; un appui tenu est un appui long, il ne lance donc jamais la vidéo. Les
+  commandes posées au-dessus (Photographier, Galerie, Réglages) gardent leurs taps.
+
+## Parler pendant la vidéo
+
+Android n'autorise **qu'un seul `AudioRecord` par application**. Une vidéo qui prend le micro
+interdit donc la dictée pendant l'enregistrement : `MicBus` refuse le second demandeur, et
+c'est une panne silencieuse pour l'utilisateur (l'un des deux part muet).
+
+Le mode vidéo renonce donc à sa piste audio (`TapConfig.VIDEO_WITH_AUDIO = false`) : la
+demande faite à SAM 3.1 est **visuelle** (`UPLOAD_PROMPT` est fixe), le son de la vidéo
+n'apporte rien, et le micro reste disponible pour la voix. Un appui long pendant
+l'enregistrement ouvre la dictée, la vidéo continue, le relâchement rend la parole.
+
+Repasser `VIDEO_WITH_AUDIO` à `true` rend la vidéo sonore mais rétablit l'arbitrage
+strict : la dictée est alors refusée (« micro occupé par la vidéo »).
 
 ## Voix
 
@@ -51,7 +72,8 @@ déclarée « aucune vidéo à envoyer » alors qu'elle venait de s'écrire.
 ## Caméra et fichier
 
 CameraX `VideoCapture` + `Recorder` (couche la maigre, sélection simple caméra arrière,
-`Quality.HD`), audio inclus (`withAudioEnabled`). La vidéo est écrite dans
+`Quality.HD`), **sans piste audio** par défaut (voir « Parler pendant la vidéo »). La vidéo
+est écrite dans
 `context.getExternalFilesDir(DIRECTORY_MOVIES)` = `Android/data/dev.sam3vision.app/files/Movies/`
 — le périmètre exact purgé par le module de nettoyage.
 
