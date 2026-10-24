@@ -1,7 +1,24 @@
 package dev.sam3vision.app
 
 import dev.sam3vision.core.live.LiveSession
+import dev.sam3vision.core.model.SeenTrack
 import dev.sam3vision.core.settings.Settings
+
+/**
+ * Mémoire du direct : les objets suivis (avec leur dernière vue), l'instant
+ * demandé et la question en cours. C'est ce qui permet de demander « qu'y
+ * avait-il à gauche il y a 5 s ? » sans quitter le flux.
+ */
+data class LiveMemoryState(
+    val tracks: List<SeenTrack> = emptyList(),
+    val focusSeconds: Int = 0,
+    val asking: Boolean = false,
+    val question: String = "",
+    val answer: String? = null,
+    val error: String? = null,
+) {
+    val empty: Boolean get() = tracks.isEmpty()
+}
 
 /** État du mode Direct, observé par [LiveScreen]. */
 data class LiveUiState(
@@ -16,6 +33,7 @@ data class LiveUiState(
     val error: String? = null,
     val lastJpegB64: String = "",
     val prompts: List<String> = emptyList(),
+    val memory: LiveMemoryState = LiveMemoryState(),
 ) {
     val statusLine: String get() = formatLiveStatus(running, fps, latencyMs, gpu, objectsCount)
 }
@@ -36,3 +54,25 @@ fun nextIntervalMs(session: LiveSession?): Long = session?.intervalMsAdaptive() 
 
 /** Endpoint du direct : celui saisi dans Réglages, sinon celui injecté au build. */
 fun Settings.liveBaseUrl(): String = samBaseUrl.ifBlank { BuildConfig.SAM_BASE_URL }
+
+/** Demi-largeur de la fenêtre demandée autour de « il y a N s » : ±2,5 s. */
+const val FOCUS_HALF_SPAN_MS = 2_500L
+
+/** Instants proposés dans l'UI, en secondes écoulées (0 = maintenant). */
+val FOCUS_CHOICES = listOf(0, 5, 15, 30)
+
+/** Fenêtre observée pour « il y a [seconds] s », élargie de part et d'autre. */
+fun focusWindow(nowMs: Long, seconds: Int, halfSpanMs: Long = FOCUS_HALF_SPAN_MS): LongRange {
+    val target = nowMs - seconds.coerceAtLeast(0) * 1_000L
+    return (target - halfSpanMs)..(target + halfSpanMs)
+}
+
+/** Libellé du point focal, affiché sur les pastilles et envoyé au LLM. */
+fun focusLabel(seconds: Int, halfSpanMs: Long = FOCUS_HALF_SPAN_MS): String {
+    val half = String.format("%.1f", halfSpanMs / 1_000.0).replace('.', ',')
+    return if (seconds <= 0) {
+        "À l'instant (dernières $half s)"
+    } else {
+        "Il y a $seconds s (± $half s)"
+    }
+}

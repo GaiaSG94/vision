@@ -1,6 +1,6 @@
 # TESTING — sam-vision-kotlin
 
-## Tests JVM (147 = 118 `:core` + 29 `:app`, réseau simulé)
+## Tests JVM (209 = 166 `:core` + 43 `:app`, réseau simulé)
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
@@ -91,6 +91,37 @@ vidéo MP4 de 590 ko → 1,09 Mo envoyée en multipart (champs `model`, `video`,
 vide » + annonce `Failed`. Clips `launched/sent/failed.mp3` présents dans
 `files/announcements/` dès l'ouverture de l'écran.
 
+### Direct et mémoire du flux
+
+- `live.LiveTimelineTest` 9 : identité stable d'une frame à l'autre (même label + centre
+  proche), nouvel identifiant quand l'objet se déplace ou revient après 2,5 s, rétention des
+  frames et plafond de frames, fenêtre de résumé, détection inexploitable ignorée, `clear`.
+- `live.TimelineTextTest` 7 : heures relatives (« il y a 3 s », « il y a 1 min 05 s »),
+  positions (gauche/centre/droite, haut/bas), ligne de journal, fenêtre vide, contexte global
+  + point focal, étiquette de pastille.
+- `live.LiveMemoryFlowTest` 2 : la fenêtre demandée isole bien le passé (« il y a 5 s » ne
+  contient pas l'objet disparu avant), et le contexte envoyé au LLM cite objet, position et
+  heure. Ce sont les tests qui répondent à la question « qu'y avait-il il y a 5 s ? ».
+- `usecase.UseCasesTest` : le `context` est transmis tel quel au LLM, `null` quand aucune
+  mémoire n'est jointe.
+- `app.LiveStateTest` 9 : ligne d'état, cadence par défaut, fenêtre autour de « il y a N s »
+  (±2,5 s), libellés du point focal, état mémoire vide.
+
+Aucun test ne touche le GPU : `/live` est simulé par `TestHttpServer`
+(`net.LiveClientTest` 9) et la mémoire est testée sans réseau.
+
+### Recette manuelle du direct (nécessite l'endpoint Modal réveillé)
+
+1. Bouton « Direct (vidéo) » sur l'accueil → écran Direct ; attendre « Réveil du GPU A100… »
+   puis la ligne d'état (un tap sur l'aperçu, lui, lance le mode vidéo tap).
+2. Bouger devant la caméra : les pastilles de labels changent, `X ips` reste entre 0,3 et 3.
+3. « Poser une question » → pastilles « label · il y a N s » ; choisir « il y a 5 s ».
+4. Demander « qu'est-ce qui était à gauche il y a 5 s ? » : la réponse doit nommer un objet
+   réellement passé, et non l'état présent de l'image.
+5. Sortir de l'écran : le direct s'arrête, la caméra est relâchée, la mémoire est vidée.
+
+Modal est actuellement fermé (0 GPU) : cette recette attend un redéploiement de
+`sam3-live` ; les tests JVM couvrent la logique sans GPU.
 
 ## Recette manuelle émulateur (1080×2400 @ 420 dpi — serial par défaut emulator-5554)
 

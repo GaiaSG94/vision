@@ -20,6 +20,13 @@ private val DESCRIBE_SYSTEM =
 private val ASK_SYSTEM =
     "Tu réponds en français, en quelques phrases, à partir de la photo fournie."
 
+private val ASK_MEMORY_SYSTEM =
+    "Tu es l'assistant mémoire d'une caméra. Tu réponds en français, en quelques phrases. " +
+        "La photo montre l'instant présent ; le contexte joint liste ce que la caméra a vu " +
+        "les secondes précédentes, avec la position et l'heure de chaque objet. " +
+        "Pour une question sur le passé (« il y a 5 s »), réponds d'après ce contexte. " +
+        "Si le contexte ne dit rien de ce qui est demandé, dis-le franchement."
+
 /**
  * Implémentation OkHttp d'un endpoint compatible OpenAI (`POST {baseUrl}/chat/completions`).
  * Aucune clé en dur : [apiKey] vient des réglages. Erreurs typées : 401 / 429 / timeout / réseau.
@@ -46,8 +53,11 @@ class InferHubLlmClient(
         jpegB64: String,
         question: String,
         history: List<ChatTurn>,
+        context: String?,
     ): Result<String> {
-        val messages = JSONArray().put(system(ASK_SYSTEM))
+        val withContext = !context.isNullOrBlank()
+        val messages = JSONArray().put(system(if (withContext) ASK_MEMORY_SYSTEM else ASK_SYSTEM))
+        if (withContext) messages.put(system("Contexte observé par la caméra :\n$context"))
         history.takeLast(maxHistoryTurns).forEach { messages.put(role(it.role, it.content)) }
         messages.put(userWithImage(question, jpegB64))
         return postChat(messages).map { it.trim() }

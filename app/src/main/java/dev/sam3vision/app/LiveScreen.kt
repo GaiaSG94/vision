@@ -16,7 +16,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -64,6 +66,7 @@ fun LiveScreen(
     var attached by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf("") }
+    var memoryOpen by remember { mutableStateOf(false) }
     val previewView = rememberLivePreview(context) { attached = it }
 
     LaunchedEffect(Unit) { viewModel.startFromSettings() }
@@ -91,6 +94,10 @@ fun LiveScreen(
         onOpenSettings = onOpenSettings,
         onApplyPrompts = { viewModel.restartWith(draft) },
         onRecover = { viewModel.restartActive() },
+        memoryOpen = memoryOpen,
+        onToggleMemory = { memoryOpen = !memoryOpen },
+        onFocus = viewModel::setFocus,
+        onAskMemory = viewModel::askMemory,
     )
 }
 
@@ -120,6 +127,10 @@ private fun LiveStage(
     onOpenSettings: () -> Unit,
     onApplyPrompts: () -> Unit,
     onRecover: () -> Unit,
+    memoryOpen: Boolean,
+    onToggleMemory: () -> Unit,
+    onFocus: (Int) -> Unit,
+    onAskMemory: (String) -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -143,7 +154,39 @@ private fun LiveStage(
             onOpenSettings = onOpenSettings,
             modifier = Modifier.align(Alignment.TopCenter),
         )
-        LiveBottomBar(state, onAsk, Modifier.align(Alignment.BottomCenter))
+        LiveFooter(
+            state = state,
+            memoryOpen = memoryOpen,
+            onToggleMemory = onToggleMemory,
+            onOpenChat = onAsk,
+            onFocus = onFocus,
+            onAskMemory = onAskMemory,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+/** Bas de l'écran : panneau mémoire (si ouvert) au-dessus de la barre d'actions. */
+@Composable
+private fun LiveFooter(
+    state: LiveUiState,
+    memoryOpen: Boolean,
+    onToggleMemory: () -> Unit,
+    onOpenChat: () -> Unit,
+    onFocus: (Int) -> Unit,
+    onAskMemory: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.fillMaxWidth()) {
+        if (memoryOpen) {
+            LiveMemoryPanel(
+                memory = state.memory,
+                onFocus = onFocus,
+                onAsk = onAskMemory,
+                onClose = onToggleMemory,
+            )
+        }
+        LiveBottomBar(state, memoryOpen, onToggleMemory, onOpenChat)
     }
 }
 

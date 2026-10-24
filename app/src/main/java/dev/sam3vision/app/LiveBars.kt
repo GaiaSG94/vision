@@ -53,9 +53,18 @@ fun LiveTopBar(
     }
 }
 
-/** Bandeau du bas : labels suivis et accès aux questions. */
+/**
+ * Bandeau du bas : labels vus, accès aux questions sur la mémoire du direct,
+ * et analyse de la frame courante.
+ */
 @Composable
-fun LiveBottomBar(state: LiveUiState, onAsk: () -> Unit, modifier: Modifier = Modifier) {
+fun LiveBottomBar(
+    state: LiveUiState,
+    memoryOpen: Boolean,
+    onToggleMemory: () -> Unit,
+    onOpenChat: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -67,7 +76,15 @@ fun LiveBottomBar(state: LiveUiState, onAsk: () -> Unit, modifier: Modifier = Mo
                 labels.forEach { Chip(it, AppColors.primary, null) }
             }
         }
-        BigButton("Poser une question", true, AppColors.primary, onAsk)
+        BigButton(
+            if (memoryOpen) "Fermer les questions" else "Poser une question",
+            true,
+            AppColors.primary,
+            onToggleMemory,
+        )
+        if (state.lastJpegB64.isNotBlank()) {
+            Chip("Analyser la frame", AppColors.surfaceHigh, onOpenChat)
+        }
     }
 }
 

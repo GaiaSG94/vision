@@ -10,10 +10,15 @@ import dev.sam3vision.core.model.SegmentResult
 interface LlmClient {
     suspend fun describe(jpegB64: String, labels: List<String>): Result<Analysis>
 
+    /**
+     * Question/réponse sur l'image courante. [context] est un contexte libre
+     * (journal caméra, notes…) joint à la question ; `null` = question simple.
+     */
     suspend fun ask(
         jpegB64: String,
         question: String,
         history: List<ChatTurn>,
+        context: String? = null,
     ): Result<String>
 }
 

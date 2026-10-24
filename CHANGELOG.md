@@ -113,6 +113,33 @@ Signal user : « quand je lâche, ça n'envoie pas ». Reproduit et corrigé.
   Voix par défaut **Sarah** (`EXAVITQu4vr4xnSDxMaL`), modèle `eleven_v4_turbo` : le TTS
   fonctionne sur le compte free, seules les voix de bibliothèque (ex. Rachel) répondent 402.
 
+## 2026-10-24 — mémoire du direct : on peut interroger ce que la caméra a vu
+
+- **Le flux filmé laisse une trace.** Chaque frame analysée par `/live` est consignée dans
+  `core/.../live/LiveTimeline.kt` : anneau de 60 s (600 frames maximum), boîtes normalisées
+  0..1 et **identité stable** — un objet qui reste à la même place garde son numéro d'une
+  frame à l'autre (même label + centre à ±0,18 de largeur ; piste oubliée après 2,5 s sans
+  apparition, donc un objet qui revient est une nouvelle piste).
+- **Le journal devient le contexte du LLM.** `LiveTimeline.summary(from, to)` agrège une
+  fenêtre (première/dernière vue, position, nombre d'images) et `TimelineText` la met en
+  français avec des heures **relatives** : « « personne » (suivi n°1) : à gauche, vue la
+  dernière fois il y a 3 s, apparue il y a 9 s, présente sur 5 image(s) ». `LlmClient.ask`
+  et `AskUseCase.invoke` acceptent un `context` optionnel, envoyé en second message système
+  avec une consigne dédiée : la question porte sur l'image présente **et** sur ce qui précède.
+- **Écran Direct** : « Poser une question » ouvre le panneau mémoire (`LiveMemoryPanel.kt`) —
+  pastilles des objets suivis (« personne · il y a 3 s », horloge rafraîchie chaque seconde),
+  choix de l'instant (« maintenant », « il y a 5 s », « 15 s », « 30 s », fenêtre ±2,5 s),
+  champ de question, attente, réponse. « Analyser la frame » garde l'ancien Chat photo.
+- **Fenêtre envoyée au modèle** : 30 s de journal + la fenêtre demandée, plus la dernière
+  image analysée (celle qui a produit la détection courante, et non la frame en attente).
+- Tests : `LiveTimelineTest` 9, `TimelineTextTest` 7, `LiveMemoryFlowTest` 2,
+  `UseCasesTest` +2 (contexte transmis / absent), `LiveStateTest` +4 → **108 core + 12 app**
+  verts, `assembleDebug` OK, garde de taille OK.
+- **`gradle.properties`** : le chemin en dur du JDK 17 (déjà refusé par la CI « pas de
+  java.home codé en dur ») part — `JAVA_HOME` fait le travail, ici comme sur le worker.
+- Reste ouvert : écrire le journal sur disque (revoir une session après coup), et brancher
+  la mémoire sur le tracker (`TrackRunner`, ids serveur) quand l'endpoint `sam3-track` tourne.
+
 ## 2026-10-24
 
 - **Voix 100 % ElevenLabs + repli de dictée** (`longpress-muse-dictation`) : le TTS système

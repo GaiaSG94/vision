@@ -33,6 +33,16 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   durée) est transcrit par `muse-voice-transcribe-1.0`, à défaut par Scribe ; le texte s'insère
   dans le champ de question (bouton) ou s'affiche en gros caractères dans un bandeau plein
   écran, lui même lu à voix haute. Contrat, pièges et facturation : `docs/META-ASR.md`.
+- **Direct (vidéo)** : aperçu plein écran, frames 512 px/q65 poussées à `/live` une à la fois
+  (cadence adaptative 350–900 ms), masques SAM superposés, ligne d'état
+  « Direct · 1,4 ips · 780 ms · 8 objets · A100 », concepts éditables à chaud (« Suivre »).
+- **Mémoire du direct** : bouton « Poser une question » dans l'écran Direct → panneau qui garde
+  les **60 dernières secondes** de flux avec un identifiant stable par objet. Pastilles
+  « personne · il y a 3 s », choix de l'instant (« maintenant », « il y a 5 s », « 15 s »,
+  « 30 s »), question libre. Le LLM reçoit la dernière image **et** le journal traduit en
+  français (« à gauche, vue la dernière fois il y a 3 s, apparue il y a 9 s, 5 images ») : on
+  peut demander ce qui est passé, pas seulement ce qu'on voit. Chip « Analyser la frame »
+  conserve le Chat photo sur la frame courante.
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
   9 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, clé ElevenLabs
   masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteur « Lire les

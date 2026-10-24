@@ -32,6 +32,10 @@ class AnalyzeUseCase(
 /**
  * Question/réponse sur la photo courante. L'historique envoyé au modèle est
  * tronqué aux [MAX_HISTORY_TURNS] derniers tours.
+ *
+ * [context] (journal caméra, notes) est joint à la question : il permet de
+ * répondre sur ce qui a été vu il y a quelques secondes, et pas seulement sur
+ * l'image présente.
  */
 class AskUseCase(
     private val llm: LlmClient,
@@ -41,7 +45,8 @@ class AskUseCase(
         jpegB64: String,
         question: String,
         history: List<ChatTurn>,
-    ): Result<String> = llm.ask(jpegB64, question, history.takeLast(maxTurns)).map { stripMarkdown(it) }
+        context: String? = null,
+    ): Result<String> = llm.ask(jpegB64, question, history.takeLast(maxTurns), context).map { stripMarkdown(it) }
 
     /** Historique mis à jour après une réponse (borné à 2 × maxTurns messages). */
     fun nextHistory(history: List<ChatTurn>, question: String, answer: String): List<ChatTurn> =

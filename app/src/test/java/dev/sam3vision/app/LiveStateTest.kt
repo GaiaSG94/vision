@@ -42,4 +42,35 @@ class LiveStateTest {
         assertEquals(0, s.objectsCount)
         assertEquals("", s.lastJpegB64)
     }
+
+    @Test
+    fun `la fenetre demandee entoure l instant vise`() {
+        val now = 100_000L
+        val window = focusWindow(now, 5)
+
+        assertEquals(now - 5_000L - FOCUS_HALF_SPAN_MS, window.first)
+        assertEquals(now - 5_000L + FOCUS_HALF_SPAN_MS, window.last)
+    }
+
+    @Test
+    fun `maintenant regarde les dernieres secondes`() {
+        val now = 100_000L
+        val window = focusWindow(now, 0)
+
+        assertEquals(now - FOCUS_HALF_SPAN_MS, window.first)
+        assertEquals(now + FOCUS_HALF_SPAN_MS, window.last)
+    }
+
+    @Test
+    fun `le libelle du point focal annonce l instant`() {
+        assertTrue(focusLabel(5).contains("Il y a 5 s"))
+        assertTrue(focusLabel(0).contains("l'instant"))
+    }
+
+    @Test
+    fun `la memoire expose les objets suivis`() {
+        val state = LiveMemoryState()
+        assertTrue(state.empty)
+        assertEquals(0, state.focusSeconds)
+    }
 }

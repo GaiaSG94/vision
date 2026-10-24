@@ -18,6 +18,7 @@ private val CHAIR = SegObject("chaise", 0.9f, listOf(1f, 2f, 3f, 4f), "AAAA")
 private class FakeLlm : LlmClient {
     var lastLabels: List<String> = emptyList()
     var lastHistory: List<ChatTurn> = emptyList()
+    var lastContext: String? = null
     var describeResult: Result<Analysis> =
         Result.success(Analysis("une pièce", listOf("intérieur"), emptyList()))
     var askResult: Result<String> = Result.success("réponse")
@@ -27,8 +28,14 @@ private class FakeLlm : LlmClient {
         return describeResult
     }
 
-    override suspend fun ask(jpegB64: String, question: String, history: List<ChatTurn>): Result<String> {
+    override suspend fun ask(
+        jpegB64: String,
+        question: String,
+        history: List<ChatTurn>,
+        context: String?,
+    ): Result<String> {
         lastHistory = history
+        lastContext = context
         return askResult
     }
 }
@@ -86,6 +93,22 @@ class UseCasesTest {
 
         assertEquals(AskUseCase.MAX_HISTORY_TURNS, llm.lastHistory.size)
         assertEquals("tour-25", llm.lastHistory.first().content)
+    }
+
+    @Test
+    fun `ask transmet le contexte camera au LLM`() = runBlocking {
+        val llm = FakeLlm()
+        AskUseCase(llm).invoke("QUJD", "qu'y avait-il à gauche ?", emptyList(), "il y a 5 s : personne").getOrThrow()
+
+        assertEquals("il y a 5 s : personne", llm.lastContext)
+    }
+
+    @Test
+    fun `ask sans contexte n'envoie rien de particulier`() = runBlocking {
+        val llm = FakeLlm()
+        AskUseCase(llm).invoke("QUJD", "question", emptyList()).getOrThrow()
+
+        assertEquals(null, llm.lastContext)
     }
 
     @Test
