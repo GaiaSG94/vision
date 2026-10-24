@@ -6,35 +6,42 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sam3vision.core.settings.Settings
 
-/** Réglages : LLM (base URL, clé, modèle) + endpoint SAM optionnel, avec tests d'accès. */
+/**
+ * Réglages : LLM (base URL, clé, modèle) + endpoint SAM optionnel + section
+ * « Voix ElevenLabs » (clé, voix, lecture automatique, test) + section « Dictée
+ * Meta » (base URL, clé, modèle ASR, test). Chaque section a son bouton de test.
+ */
 @Composable
 fun SettingsScreen(
     settings: Settings,
     statusLine: String?,
     llmConfigured: Boolean,
+    speaking: SpeakState,
     onSave: (Settings) -> Unit,
     onTestLlm: () -> Unit,
     onTestSam: () -> Unit,
     onTestAsr: () -> Unit,
+    onSpeak: (String) -> Unit,
+    onStopVoice: () -> Unit,
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(settings) }
@@ -53,32 +60,77 @@ fun SettingsScreen(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            LabeledField("Base URL LLM", draft.llmBaseUrl, false) { draft = draft.copy(llmBaseUrl = it) }
-            LabeledField("Clé API LLM", draft.llmApiKey, true) { draft = draft.copy(llmApiKey = it) }
-            LabeledField("Modèle LLM (vision)", draft.llmModel, false) { draft = draft.copy(llmModel = it) }
-            LabeledField("Base URL SAM 3.1 (vide = désactivé)", draft.samBaseUrl, false) {
-                draft = draft.copy(samBaseUrl = it)
-            }
-            LabeledField("Dictée Meta — base URL (ASR)", draft.asrBaseUrl, false) {
-                draft = draft.copy(asrBaseUrl = it)
-            }
-            LabeledField("Dictée Meta — clé API", draft.asrApiKey, true) {
-                draft = draft.copy(asrApiKey = it)
-            }
-            LabeledField("Dictée Meta — modèle", draft.asrModel, false) {
-                draft = draft.copy(asrModel = it)
-            }
-            BigButton("Enregistrer", true, AppColors.primary, onClick = { onSave(draft) })
-            BigButton("Tester le LLM", llmConfigured, AppColors.surfaceHigh, onTestLlm)
-            BigButton("Tester SAM", draft.samBaseUrl.isNotBlank(), AppColors.surfaceHigh, onTestSam)
-            BigButton("Tester la dictée Meta", draft.asrConfigured, AppColors.surfaceHigh, onTestAsr)
+            BackendFields(draft) { draft = it }
+            TtsSettings(
+                draft = draft,
+                speaking = speaking,
+                onChange = { draft = it },
+                onSpeak = onSpeak,
+                onStop = onStopVoice,
+            )
+            DictationSettings(draft) { draft = it }
+            SettingsActions(draft, llmConfigured, onSave, onTestLlm, onTestSam, onTestAsr)
             statusLine?.let { StatusBanner(it, AppColors.surfaceHigh) }
         }
     }
 }
 
+/** Section « Backend » : LLM (base URL, clé, modèle) et endpoint SAM 3.1 optionnel. */
 @Composable
-private fun LabeledField(label: String, value: String, secret: Boolean, onChange: (String) -> Unit) {
+private fun BackendFields(draft: Settings, onChange: (Settings) -> Unit) {
+    LabeledField("Base URL LLM", draft.llmBaseUrl, false) { onChange(draft.copy(llmBaseUrl = it)) }
+    LabeledField("Clé API LLM", draft.llmApiKey, true) { onChange(draft.copy(llmApiKey = it)) }
+    LabeledField("Modèle LLM (vision)", draft.llmModel, false) { onChange(draft.copy(llmModel = it)) }
+    LabeledField("Base URL SAM 3.1 (vide = désactivé)", draft.samBaseUrl, false) {
+        onChange(draft.copy(samBaseUrl = it))
+    }
+}
+
+/** Enregistrement + un bouton de test par moteur (LLM, SAM, dictée Meta). */
+@Composable
+private fun SettingsActions(
+    draft: Settings,
+    llmConfigured: Boolean,
+    onSave: (Settings) -> Unit,
+    onTestLlm: () -> Unit,
+    onTestSam: () -> Unit,
+    onTestAsr: () -> Unit,
+) {
+    BigButton("Enregistrer", true, AppColors.primary, onClick = { onSave(draft) })
+    BigButton("Tester le LLM", llmConfigured, AppColors.surfaceHigh, onTestLlm)
+    BigButton("Tester SAM", draft.samBaseUrl.isNotBlank(), AppColors.surfaceHigh, onTestSam)
+    BigButton("Tester la dictée Meta", draft.asrConfigured, AppColors.surfaceHigh, onTestAsr)
+}
+
+/** Section « Dictée Meta » : base URL, clé et modèle du moteur principal (repli ElevenLabs Scribe). */
+@Composable
+private fun DictationSettings(draft: Settings, onChange: (Settings) -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            "Dictée Meta Muse (repli automatique sur ElevenLabs Scribe",
+            color = AppColors.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        LabeledField("Dictée Meta — base URL (ASR)", draft.asrBaseUrl, false) {
+            onChange(draft.copy(asrBaseUrl = it))
+        }
+        LabeledField("Dictée Meta — clé API", draft.asrApiKey, true) {
+            onChange(draft.copy(asrApiKey = it))
+        }
+        LabeledField("Dictée Meta — modèle", draft.asrModel, false) { onChange(draft.copy(asrModel = it)) }
+        Text(
+            "Sans clé Meta, la dictée utilise la clé ElevenLabs ci-dessus (Scribe). " +
+                "Appui long n'importe où = dictée annoncée en gros caractères.",
+            color = AppColors.textMuted,
+            fontSize = 11.sp,
+        )
+    }
+}
+
+/** Champ libellé réutilisé par les réglages backend et la section voix. */
+@Composable
+internal fun LabeledField(label: String, value: String, secret: Boolean, onChange: (String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Text(label, color = AppColors.textMuted, fontSize = 12.sp)
         OutlinedTextField(

@@ -11,9 +11,13 @@ sealed class ApiError(message: String, cause: Throwable? = null) : Exception(mes
 
     class RateLimited(message: String = "limite atteinte (429)") : ApiError(message)
 
-    /** 402 : compte sans crédits (ElevenLabs) ou facturation non configurée (Meta). */
+    /**
+     * 402 : compte sans crédits ou facturation non configurée (Meta ASR), ou voix de
+     * bibliothèque ElevenLabs refusée en plan free — prendre alors une voix premade.
+     */
     class PaymentRequired(
-        message: String = "paiement requis (402) : compte sans crédits ou facturation non configurée",
+        message: String = "paiement requis (402) : compte sans crédits ou facturation non " +
+            "configurée (voix ElevenLabs de bibliothèque ? prends une premade, ex. Sarah)",
     ) : ApiError(message)
 
     class Timeout(message: String = "backend injoignable : délai dépassé") : ApiError(message)
@@ -27,4 +31,7 @@ sealed class ApiError(message: String, cause: Throwable? = null) : Exception(mes
         ApiError("erreur HTTP $code" + if (body.isBlank()) "" else " : ${body.take(160)}")
 
     class BadResponse(detail: String) : ApiError("réponse inattendue : $detail")
+
+    /** Le moteur principal et son repli ont tous deux échoué (messages déjà rédigés). */
+    class AllProviders(detail: String) : ApiError("dictée impossible : $detail")
 }

@@ -56,7 +56,7 @@ private fun mainPost(block: () -> Unit) {
  * sans ça, revenir sur cet écran laissait `ImageCapture` non lié (« Not bound to a valid Camera »).
  */
 @Composable
-fun CaptureScreen(onPhoto: (File) -> Unit, onOpenSettings: () -> Unit) {
+fun CaptureScreen(onPhoto: (File) -> Unit, onOpenSettings: () -> Unit, onOpenTap: () -> Unit) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
     var attached by remember { mutableStateOf(false) }
@@ -90,6 +90,7 @@ fun CaptureScreen(onPhoto: (File) -> Unit, onOpenSettings: () -> Unit) {
         },
         onGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
         onSettings = onOpenSettings,
+        onOpenTap = onOpenTap,
     )
 }
 
@@ -104,6 +105,7 @@ private fun CameraSurface(
     onCapture: () -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
+    onOpenTap: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         if (granted) {
@@ -118,6 +120,7 @@ private fun CameraSurface(
             onCapture = onCapture,
             onGallery = onGallery,
             onSettings = onSettings,
+            onOpenTap = onOpenTap,
         )
     }
 }
@@ -192,6 +195,7 @@ private fun CaptureControls(
     onCapture: () -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
+    onOpenTap: () -> Unit,
 ) {
     Column(
         modifier = modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
@@ -200,9 +204,10 @@ private fun CaptureControls(
     ) {
         BigButton("Photographier", ready, AppColors.primary, onCapture)
         HalfRow(
-            left = { BigButton("Galerie", true, AppColors.surfaceHigh, onGallery, 0.5f) },
-            right = { BigButton("Réglages", true, AppColors.surfaceHigh, onSettings, 0.5f) },
+            left = { BigButton("Vidéo (tap)", true, AppColors.success, onOpenTap, 0.5f) },
+            right = { BigButton("Galerie", true, AppColors.surfaceHigh, onGallery, 0.5f) },
         )
+        BigButton("Réglages", true, AppColors.surfaceHigh, onSettings)
     }
 }
 

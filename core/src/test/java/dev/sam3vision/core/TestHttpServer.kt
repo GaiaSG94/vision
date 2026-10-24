@@ -20,7 +20,14 @@ class TestHttpServer(private val handler: (RecordedRequest) -> Response) : Close
         val body: String,
     )
 
-    data class Response(val code: Int, val body: String, val delayMs: Long = 0)
+    data class Response(
+        val code: Int,
+        val body: String,
+        val delayMs: Long = 0,
+        /** Corps binaire (audio TTS) ; prioritaire sur [body] quand non nul. */
+        val bodyBytes: ByteArray? = null,
+        val contentType: String = "application/json",
+    )
 
     val requests: MutableList<RecordedRequest> = Collections.synchronizedList(mutableListOf())
 
@@ -93,9 +100,9 @@ class TestHttpServer(private val handler: (RecordedRequest) -> Response) : Close
     }
 
     private fun writeResponse(socket: Socket, response: Response) {
-        val body = response.body.toByteArray(Charsets.UTF_8)
+        val body = response.bodyBytes ?: response.body.toByteArray(Charsets.UTF_8)
         val head = "HTTP/1.1 ${response.code} ${statusText(response.code)}\r\n" +
-            "Content-Type: application/json\r\n" +
+            "Content-Type: ${response.contentType}\r\n" +
             "Content-Length: ${body.size}\r\n" +
             "Connection: close\r\n\r\n"
         socket.getOutputStream().apply {
@@ -109,6 +116,8 @@ class TestHttpServer(private val handler: (RecordedRequest) -> Response) : Close
         200 -> "OK"
         400 -> "Bad Request"
         401 -> "Unauthorized"
+        402 -> "Payment Required"
+        403 -> "Forbidden"
         429 -> "Too Many Requests"
         else -> "Error"
     }

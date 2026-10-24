@@ -159,3 +159,44 @@ fun ObjectList(objects: List<SegObject>) {
         }
     }
 }
+
+/**
+ * Bouton « écouter » + libellé d'état, partagé par l'analyse, le chat et les réglages :
+ * une seule implémentation, donc un comportement identique partout.
+ */
+@Composable
+fun SpeakRow(
+    state: SpeakState,
+    text: String,
+    onSpeak: (String) -> Unit,
+    onStop: () -> Unit,
+    actionLabel: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    if (text.isBlank()) return
+    val active = speakIsActive(state, text)
+    val label = speakLabel(state, text)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedButton(onClick = { if (active) onStop() else onSpeak(text) }) {
+            Text(glyphWithLabel(active, actionLabel), fontSize = 13.sp)
+        }
+        if (label != null) {
+            Text(
+                label,
+                color = if (state is SpeakState.Error) AppColors.danger else AppColors.textMuted,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+/** Libellé du bouton : « Écouter », une action nommée, ou « Stop » pendant la lecture. */
+private fun glyphWithLabel(active: Boolean, actionLabel: String?): String = when {
+    active -> "$STOP_GLYPH Stop"
+    actionLabel != null -> "$SPEAK_GLYPH $actionLabel"
+    else -> "$SPEAK_GLYPH Écouter"
+}

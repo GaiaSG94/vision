@@ -39,12 +39,14 @@ import androidx.core.content.ContextCompat
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Role
 
-/** Chat sur la photo courante : historique visible, question écrite ou dictée, réponse du LLM. */
+/** Chat sur la photo courante : historique visible, question écrite ou dictée, réponse lisible à voix haute. */
 @Composable
 fun ChatScreen(
     state: UiState,
     onBack: () -> Unit,
     onAsk: (String) -> Unit,
+    onSpeak: (String) -> Unit,
+    onStopVoice: () -> Unit,
     onStartDictation: () -> Unit,
     onStopDictation: () -> Unit,
 ) {
@@ -64,7 +66,7 @@ fun ChatScreen(
         if (state.chat.isEmpty() && !state.asking) {
             StatusBanner("Pose ta question sur la photo — le modèle répond à partir de l'image.", AppColors.surfaceHigh)
         }
-        MessageList(state, Modifier.weight(1f))
+        MessageList(state, onSpeak, onStopVoice, Modifier.weight(1f))
         state.statusLine?.let { StatusBanner(it, AppColors.warning) }
         ChatComposer(
             state = state,
@@ -83,13 +85,18 @@ fun mergeDraft(draft: String, dictated: String): String =
 
 /** Fil des bulles + indicateur d'attente. */
 @Composable
-private fun MessageList(state: UiState, modifier: Modifier = Modifier) {
+private fun MessageList(
+    state: UiState,
+    onSpeak: (String) -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         reverseLayout = false,
     ) {
-        items(state.chat) { turn -> ChatBubble(turn) }
+        items(state.chat) { turn -> ChatBubble(turn, state.speak, onSpeak, onStop) }
         if (state.asking) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -104,7 +111,7 @@ private fun MessageList(state: UiState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Champ de saisie + bouton « Dicter » (Meta Muse) + envoi. */
+/** Champ de saisie + bouton « Dicter » (Meta, repli Scribe) + envoi. */
 @Composable
 private fun ChatComposer(
     state: UiState,
@@ -163,23 +170,30 @@ private fun DictationButton(dictation: DictationState, onClick: () -> Unit) {
     }
 }
 
-/** Bulle de conversation, alignée selon le rôle. */
+/** Bulle de conversation, alignée selon le rôle ; une réponse de l'assistant s'écoute. */
 @Composable
-private fun ChatBubble(turn: ChatTurn) {
+private fun ChatBubble(
+    turn: ChatTurn,
+    speaking: SpeakState,
+    onSpeak: (String) -> Unit,
+    onStop: () -> Unit,
+) {
     val fromUser = turn.role == Role.USER
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
     ) {
-        Text(
-            turn.content,
-            color = if (fromUser) ColorWhite else AppColors.text,
-            fontSize = 14.sp,
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .background(if (fromUser) AppColors.primary else AppColors.surface, RoundedCornerShape(14.dp))
-                .padding(12.dp),
-        )
+        Column(Modifier.widthIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                turn.content,
+                color = if (fromUser) ColorWhite else AppColors.text,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .background(if (fromUser) AppColors.primary else AppColors.surface, RoundedCornerShape(14.dp))
+                    .padding(12.dp),
+            )
+            if (!fromUser) SpeakRow(state = speaking, text = turn.content, onSpeak = onSpeak, onStop = onStop)
+        }
     }
 }
 

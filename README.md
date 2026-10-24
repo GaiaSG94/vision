@@ -16,27 +16,39 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   masques togglables + liste label/score), tags en petits caractères sous le titre, puis bloc
   « Description » en texte libre, bouton « Poser une question » → Chat.
 - **Chat** : fil de bulles user/assistant sur la photo courante, champ « Ex. : qu'y a-t-il à
-  gauche ? », bouton « Dicter » (dictée Meta Muse, devient « Stop » pendant l'enregistrement),
-  bouton « Envoyer », état « en cours… » et réessai.
-- **Dictée Meta Muse** : le micro (16 kHz mono, 60 s max) est transcrit par
-  `muse-voice-transcribe-1.0` et le texte est inséré dans le champ de question. Contrat,
-  pièges et blocage de facturation : `docs/META-ASR.md`.
+  gauche ? », bouton « Dicter » (dictée, devient « Stop » pendant l'enregistrement),
+  bouton « Envoyer », bouton « 🔊 Écouter » sous chaque réponse de l'assistant, état
+  « en cours… » et réessai.
+- **Vidéo (tap)** : depuis Capture, quatrième bouton vert « Vidéo (tap) ». Un tap court
+  n'importe où lance l'enregistrement caméra arrière (« Launched »), un second l'arrête et
+  l'envoie à SAM 3.1 (« Sent », ou « Failed »). Barre système jamais déclenchante, TalkBack
+  compris. Détail : `docs/MODE-TAP.md`.
+- **Dictée (Meta Muse, repli ElevenLabs Scribe)** : bouton « Dicter » du chat **ou appui long
+  n'importe où** (300 ms, sur n'importe quel écran). Le micro (16 kHz mono, sans limite de
+  durée) est transcrit par `muse-voice-transcribe-1.0`, à défaut par Scribe ; le texte s'insère
+  dans le champ de question (bouton) ou s'affiche en gros caractères dans un bandeau plein
+  écran, lui même lu à voix haute. Contrat, pièges et facturation : `docs/META-ASR.md`.
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
-  7 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, base URL ASR,
-  clé Meta masquée, modèle ASR), boutons « Enregistrer », « Tester le LLM » (mini-image 16×16,
-  statut « LLM OK — … »), « Tester SAM », « Tester la dictée Meta » (1 s de silence).
+  9 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, clé ElevenLabs
+  masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteur « Lire les
+  réponses automatiquement », boutons « Enregistrer », « Tester le LLM » (mini-image 16×16,
+  statut « LLM OK — … »), « Tester SAM », « 🔊 Tester la voix », « Tester la dictée Meta »
+  (1 s de silence).
 
 ## Arborescence
 
 ```
 sam-vision-kotlin/
-├── core/                    # module :core — domaine + réseau, pur JVM (31 tests)
+├── core/                    # module :core — domaine + réseau, pur JVM (118 tests)
 │   └── src/{main,test}/java/dev/sam3vision/core/{model,net,mask,settings,text,usecase}/
 ├── app/                     # module :app — Compose + CameraX (écrans, ViewModel, navigation)
 │   └── src/main/java/dev/sam3vision/app/   # Capture/Analysis/Chat/Settings/AppNav/AppViewModel…
+├── app/src/main/java/dev/sam3vision/app/tap/       # mode tap : tap court → vidéo → SAM 3.1
+├── app/src/main/java/dev/sam3vision/app/cleanup/    # purge horaire silencieuse (Room + WorkManager)
 ├── tools/check-kotlin-limits.py   # garde-fou < 500 lignes/fichier, < 50 lignes/fonction
 ├── scripts/build.sh · install-emulator.sh
-├── docs/TESTING.md          # tests JVM + recette émulateur
+├── docs/TESTING.md · MODE-TAP.md · NETTOYAGE.md · META-ASR.md · TEST-LONGPRESS-DICTEE.md
+├── app/schemas/             # schéma Room exporté (traced_captures, v1)
 ├── gradle/libs.versions.toml · settings.gradle.kts · local.properties (gitignoré)
 ```
 
@@ -52,7 +64,8 @@ sam-vision-kotlin/
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
-./gradlew :core:testDebugUnitTest --offline        # 31 tests JVM, 0 réseau
+./gradlew :core:testDebugUnitTest --offline        # 118 tests JVM, 0 réseau
+./gradlew :app:testDebugUnitTest --offline         # 29 tests JVM (tap, nettoyage, voix, dictée)
 ./gradlew assembleDebug --offline                  # app/build/outputs/apk/debug/app-debug.apk (~21 Mo)
 bash scripts/build.sh                              # idem, environnement inclus
 EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # install + CAMERA + lancement + screenshot
@@ -98,6 +111,29 @@ LLM_BASE_URL=https://api.inferhub.dev/v1 LLM_API_KEY=unused LLM_MODEL=unused \
    ou celle du nouveau déploiement), la coller dans « Base URL SAM 3.1 » des Réglages,
    Enregistrer puis « Tester SAM » (`/health`). Vide = segmentation désactivée.
 
+## Voix — ElevenLabs (TTS)
+
+Les réponses se lisent **automatiquement** : dès qu'une réponse du chat arrive, elle est
+synthétisée puis jouée (interrupteur « Lire les réponses automatiquement » dans Réglages,
+activé par défaut). Un bouton « 🔊 Écouter » reste disponible sous la description (Analyse) et
+sous chaque bulle de l'assistant, plus « 🔊 Tester la voix » dans les Réglages.
+`core/net/ElevenLabsTtsClient.kt` appelle `POST {base}/text-to-speech/{voice}?output_format=mp3_44100_128`
+avec `xi-api-key`, le corps MP3 est mis en cache privé puis lu par `android.media.MediaPlayer`
+(aucune dépendance audio ajoutée).
+
+- Réglages : « Clé API ElevenLabs » (chiffrée comme la clé LLM) + « ID de voix »
+  (défaut `EXAVITQu4vr4xnSDxMaL` = Sarah). Défauts de debug via `local.properties` :
+  `tts.api.key`, `tts.voice.id` → `BuildConfig.TTS_API_KEY` / `TTS_VOICE_ID`.
+- **Compte free (vérifié le 24/10/2026)** : les voix **premade** passent (Sarah
+  `EXAVITQu4vr4xnSDxMaL`, George `JBFqnCBsd6RMkjVDRZzb`, `pFZP5JQG7iQjIQuC4Bku`, et d'autres),
+  modèle `eleven_v4_turbo` ou `eleven_multilingual_v2`. Les voix de **bibliothèque**
+  (ex. Rachel `21m00Tcm4TlvDq8ikWAM`) répondent `HTTP 402 paid_plan_required` : l'app affiche
+  alors « voix ElevenLabs refusée (402) : voix de bibliothèque payante ou compte sans crédits —
+  choisis une voix premade (ex. Sarah) ou ajoute des crédits ».
+- **Une seule classe par moteur ElevenLabs** : `ElevenLabsTtsClient` sert à la fois au chat
+  (bouton Écouter, lecture automatique) et aux bandeaux de dictée (`VoiceAnnouncer`).
+- Le reste (LLM, SAM) reste utilisable sans clé ElevenLabs : la voix est une option.
+
 ## ⚠️ Sécurité — clé embarquée en debug
 
 Un APK debug construit avec `llm.api.key` dans `local.properties` **contient la clé en clair**
@@ -105,10 +141,22 @@ dans son `BuildConfig`. Ne distribuez jamais cet APK, ne le poussez sur aucun st
 « clé absente » en retirant la ligne. En release : clé vide au build, saisie utilisateur
 chiffrée uniquement. Les logs et captures d'écran ne montrent jamais la clé (champ masqué).
 
+## Protection du dépôt (CI + file d'attente)
+
+- Checks **`ci`** et **`ci-budget`** obligatoires, merge par la **file Mergify du r630**
+  (`.mergify.yml`, contrat dans `docs/CI-QUEUE.md`) — pas de push direct sur `master`.
+- `ci` échoue si : `local.properties` versionné, une clé `sk-…` / `sk_…` / `ghp_…` quelque part
+  dans le dépôt, une ligne `org.gradle.java.home=` dans `gradle.properties` (le worker du r630
+  n'a pas ce chemin — le JDK se règle dans `~/.gradle/gradle.properties`, non versionné), ou un
+  fichier `.kt` ≥ 500 lignes / une fonction ≥ 50 lignes (`tools/check-kotlin-limits.py`).
+- Le **périmètre** d'une PR se déclare dans son corps (`## Scope`, puces `- \`chemin\` — raison`) :
+  chaque fichier touché doit être déclaré, et chaque déclaration doit servir.
+- `app/DEPS.txt` liste les artefacts Gradle requis : Room, KSP, WorkManager, `camera-video` et
+  `androidx.test` y sont désormaisdéclarés — un ajout de dépendance non listée = téléchargement froid
+  sur le worker, et le budget CI est de 5 minutes.
+
 ## Limites connues
 
 - `docs/TESTING.md` § limites : recette émulateur et points vigilants.
 - Le garde-fou `tools/check-kotlin-limits.py` signale un dépassement connu :
   `AnalysisScreen()` (64 lignes) dans `app/src/main/java/dev/sam3vision/app/AnalysisScreen.kt`.
-
-- Le dépôt est protégé : `ci` + `ci-budget` obligatoires, merge par la file Mergify du r630 (voir `.mergify.yml`).

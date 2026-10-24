@@ -25,6 +25,17 @@ interface SamClient {
 }
 
 /**
+ * SAM 3.1 en mode **vidéo** : le fichier enregistré est envoyé tel quel (multipart),
+ * la réponse est un résumé texte court. [sendVideo] renvoie [Result.failure] avec une
+ * [ApiError] typée — l'UI traduit n'importe quel échec par l'annonce « Failed ».
+ */
+interface VideoClient {
+    suspend fun sendVideo(video: java.io.File, prompt: String?): Result<String>
+
+    suspend fun health(): Result<Boolean>
+}
+
+/**
  * Flux live (endpoint `/live` du direct) : une frame à la fois, jamais de file d'attente.
  * [live] renvoie [Result.failure] avec une [ApiError] typée sur erreur réseau/HTTP/parsing.
  */

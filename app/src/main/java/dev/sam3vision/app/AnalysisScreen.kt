@@ -31,6 +31,8 @@ fun AnalysisScreen(
     onOpenChat: () -> Unit,
     onToggleMasks: () -> Unit,
     onRetry: () -> Unit,
+    onSpeak: (String) -> Unit,
+    onStopVoice: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     Column(
@@ -51,7 +53,7 @@ fun AnalysisScreen(
         state.photo?.let { PhotoStage(it, state.overlays, state.showMasks) }
         state.segmentationNote?.let { StatusBanner(it, AppColors.warning) }
         PhaseBlock(state.phase, onRetry)
-        state.analysis?.description?.let { DescriptionCard(it) }
+        state.analysis?.description?.let { DescriptionCard(it, state.speak, onSpeak, onStopVoice) }
         ObjectList(state.objects)
         AnalysisActions(state, onOpenChat, onToggleMasks)
     }
@@ -97,18 +99,23 @@ private fun AnalysisActions(state: UiState, onOpenChat: () -> Unit, onToggleMask
     }
 }
 
-/** Bloc de description produit par le LLM. */
+/** Bloc de description produit par le LLM, avec lecture à voix haute (ElevenLabs). */
 @Composable
-private fun DescriptionCard(description: String) {
-    Text(
-        description,
-        color = AppColors.text,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.Normal,
-        modifier = Modifier
+private fun DescriptionCard(
+    description: String,
+    speaking: SpeakState,
+    onSpeak: (String) -> Unit,
+    onStop: () -> Unit,
+) {
+    Column(
+        Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .background(AppColors.surface, RoundedCornerShape(14.dp))
             .padding(14.dp),
-    )
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(description, color = AppColors.text, fontSize = 15.sp, fontWeight = FontWeight.Normal)
+        SpeakRow(state = speaking, text = description, onSpeak = onSpeak, onStop = onStop)
+    }
 }

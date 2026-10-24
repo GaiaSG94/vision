@@ -7,7 +7,7 @@ import android.net.Uri
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
+import dev.sam3vision.app.cleanup.CapturePaths
 import kotlin.math.max
 import kotlin.math.min
 
@@ -15,9 +15,12 @@ import kotlin.math.min
 const val MAX_IMAGE_EDGE = 1024
 const val JPEG_QUALITY = 85
 
-/** Fichier JPEG temporaire dans le cache interne (jamais sur le stockage partagé). */
-fun newCacheFile(context: Context): File =
-    File(context.cacheDir, "capture-${UUID.randomUUID()}.jpg")
+/**
+ * Fichier JPEG neuf dans le stockage **privé** de l'app (`Android/data/<pkg>/files/Pictures`),
+ * jamais sur le stockage partagé : c'est exactement le périmètre que purge
+ * `CaptureCleanupWorker` chaque heure. Le nom garde le préfixe `capture-`.
+ */
+fun newCacheFile(context: Context): File = CapturePaths.newImageFile(context)
 
 /** Copie l'URI choisi (galerie) vers un fichier du cache interne. */
 fun copyUriToCache(context: Context, uri: Uri, target: File): Boolean = runCatching {
