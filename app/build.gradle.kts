@@ -34,6 +34,8 @@ android {
         buildConfigField("String", "TTS_VOICE_ID", "\"${localProp("tts.voice.id")}\"")
         // Tap court : endpoint vidéo SAM 3.1 (laisser vide → annonce « Failed », aucun envoi).
         buildConfigField("String", "SAM31_ENDPOINT", "\"${localProp("sam31.endpoint")}\"")
+        // Direct : base de l'app Modal sam3-eu-a100 (/live).
+        buildConfigField("String", "SAM_BASE_URL", "\"${localProp("sam.base.url")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

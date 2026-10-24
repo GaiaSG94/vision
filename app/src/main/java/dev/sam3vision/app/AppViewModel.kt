@@ -118,6 +118,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             llmApiKey = fromBuild,
             llmBaseUrl = loaded.llmBaseUrl.ifBlank { BuildConfig.LLM_BASE_URL },
             llmModel = loaded.llmModel.ifBlank { BuildConfig.LLM_MODEL },
+            samBaseUrl = loaded.samBaseUrl.ifBlank { BuildConfig.SAM_BASE_URL },
         )
     }
 
@@ -244,6 +245,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(phase = Phase.Analyzing) }
             analyze(encoded)
         }
+    }
+
+    /** Le mode direct alimente le chat sans passer par une capture. */
+    fun useLiveFrame(jpegB64: String) {
+        if (jpegB64.isBlank()) return
+        _state.update { it.copy(photoB64 = jpegB64) }
     }
 
     fun toggleMasks() = _state.update { it.copy(showMasks = !it.showMasks) }

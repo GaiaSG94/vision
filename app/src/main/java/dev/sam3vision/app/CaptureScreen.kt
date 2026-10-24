@@ -66,6 +66,7 @@ fun CaptureScreen(
     onPhoto: (File) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTap: (startNow: Boolean) -> Unit,
+    onOpenLive: () -> Unit,
 ) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
@@ -101,6 +102,7 @@ fun CaptureScreen(
         onGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
         onSettings = onOpenSettings,
         onOpenTap = onOpenTap,
+        onLive = onOpenLive,
     )
 }
 
@@ -116,6 +118,7 @@ private fun CameraSurface(
     onGallery: () -> Unit,
     onSettings: () -> Unit,
     onOpenTap: (startNow: Boolean) -> Unit,
+    onLive: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         if (granted) {
@@ -139,6 +142,7 @@ private fun CameraSurface(
             onGallery = onGallery,
             onSettings = onSettings,
             onOpenTap = { onOpenTap(false) }, // le bouton ouvre l'écran : l'utilisateur se place
+            onLive = onLive,
         )
     }
 }
@@ -214,6 +218,7 @@ private fun CaptureControls(
     onGallery: () -> Unit,
     onSettings: () -> Unit,
     onOpenTap: () -> Unit,
+    onLive: () -> Unit,
 ) {
     Column(
         modifier = modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
@@ -221,6 +226,7 @@ private fun CaptureControls(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         BigButton("Photographier", ready, AppColors.primary, onCapture)
+        BigButton("Direct (vidéo)", ready, AppColors.success, onLive)
         HalfRow(
             left = { BigButton("Vidéo (tap)", true, AppColors.success, onOpenTap, 0.5f) },
             right = { BigButton("Galerie", true, AppColors.surfaceHigh, onGallery, 0.5f) },

@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.sam3vision.app.tap.TapCaptureScreen
 
 /** Routes de l'app (navigation par état, sans dépendance navigation-compose). */
@@ -17,6 +18,7 @@ sealed interface Route {
     data object Capture : Route
     data object Analysis : Route
     data object Chat : Route
+    data object Live : Route
     data object Settings : Route
 
     /**
@@ -33,7 +35,7 @@ sealed interface Route {
  * n'importe quel écran, même après un appui long.
  */
 @Composable
-fun AppNav(viewModel: AppViewModel) {
+fun AppNav(viewModel: AppViewModel, liveViewModel: LiveViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
     var stack by remember { mutableStateOf(listOf<Route>(Route.Capture)) }
     val route = stack.first()
@@ -42,7 +44,7 @@ fun AppNav(viewModel: AppViewModel) {
     BackHandler(enabled = stack.size > 1) { pop() }
 
     Box(Modifier.fillMaxSize()) {
-        RouteContent(route, state, viewModel, push, pop)
+        RouteContent(route, state, viewModel, liveViewModel, push, pop)
         state.dictation.overlay?.let { overlay ->
             DictationOverlay(overlay = overlay, onDismiss = viewModel::dismissOverlay)
         }
@@ -55,6 +57,7 @@ private fun RouteContent(
     route: Route,
     state: UiState,
     viewModel: AppViewModel,
+    liveViewModel: LiveViewModel,
     push: (Route) -> Unit,
     pop: () -> Unit,
 ) {
@@ -69,6 +72,7 @@ private fun RouteContent(
                 viewModel.stopSpeaking() // aucune voix du chat ne doit couvrir les annonces tap
                 push(Route.Tap(autoStart = startNow))
             },
+            onOpenLive = { push(Route.Live) },
         )
 
         Route.Analysis -> AnalysisScreen(
@@ -79,6 +83,16 @@ private fun RouteContent(
             onRetry = viewModel::retryAnalysis,
             onSpeak = viewModel::speak,
             onStopVoice = viewModel::stopSpeaking,
+            onOpenSettings = { push(Route.Settings) },
+        )
+
+        Route.Live -> LiveScreen(
+            viewModel = liveViewModel,
+            onBack = { liveViewModel.stop(); pop() },
+            onAsk = {
+                viewModel.useLiveFrame(liveViewModel.state.value.lastJpegB64)
+                push(Route.Chat)
+            },
             onOpenSettings = { push(Route.Settings) },
         )
 
