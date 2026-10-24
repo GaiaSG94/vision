@@ -46,6 +46,19 @@ jobs:
           fi
           echo "OK — aucun secret versionné"
 
+      - name: Anti-régression — pas de java.home codé en dur
+        run: |
+          # Déjà vu : org.gradle.java.home en dur dans gradle.properties casse
+          # le build sur le worker (chemin inexistant). La chaîne d'outils vient
+          # de l'environnement du runner, jamais du dépôt.
+          if grep -E '^[[:space:]]*org\.gradle\.java\.home' gradle.properties; then
+            echo "::error::org.gradle.java.home ne doit pas être fixé dans gradle.properties (voir ~/.gradle/gradle.properties du poste)"; exit 1
+          fi
+          echo "OK — java.home non codé en dur"
+
+      - name: Garde de taille Kotlin (< 500 lignes/fichier, < 50 lignes/fonction)
+        run: python3 tools/check-kotlin-limits.py
+
       - name: Tests unitaires (core + app) + APK debug
         run: ./gradlew --console=plain :core:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 
