@@ -1,85 +1,51 @@
-# Mergify — SAM Vision (Kotlin natif)
-# But : personne ne merge « à la main ». Une PR approuvée + CI verte entre dans la
-# file d'attente ; Mergify rebase, re-teste et merge en squash sur `master`, une par une.
-# Validation locale : `mergify config validate` depuis la racine du dépôt.
-
+# File de merge Mergify — socle CI self-hosted (R630).
+#
+# Le depot demarre sans gate IA ni batterie de tests : les queue_conditions
+# n'exigent donc aucun check inexistant (le socle CI est en dry-run —
+# variable de depot HERMES_LITE_DRY_RUN=1). Le seul check exige est
+# `ci-budget`, livre par le socle : aucune PR ne peut entrer dans la file
+# avec un job declare a plus de 5 minutes. Quand la CI reelle du depot
+# existera, ajouter dans queue_conditions :
+#   - check-success = "<check reel>"
+# Fait le 2026-10-24 : check reel `ci` ajoute, plus le frein `hold`.
+# Structure copiée du .mergify.yml de BaptisteFaisy/duello (décision
+# user 2026-10-10) : inline labels urgent / priority-low identiques.
 queue_rules:
   - name: default
     queue_conditions:
-      - base = master
-      - -draft
+      # Budget CI 5 min (règle user 2026-10-24) : le garde-fou du socle.
+      - check-success = ci-budget
+      # CI reelle du depot (tests core+app, APK debug, garde anti-secret).
+      - check-success = ci
+      # Frein manuel : etiqueter `hold` sort la PR de la file.
+      - -label = hold
       - -conflict
-      - "#approved-reviews-by >= 1"
-      - "#changes-requested-reviews-by = 0"
-      - check-success = ci
-    merge_conditions:
-      - check-success = ci
-    batch_size: 1
-    merge_method: squash
-    commit_message_template: |
-      {{ title }} (#{{ number }})
-
-      {{ body }}
-
-pull_request_rules:
-  - name: Entrée automatique dans la file quand la PR est prête
-    conditions:
-      - base = master
       - -draft
-      - -conflict
-      - "#approved-reviews-by >= 1"
-      - "#changes-requested-reviews-by = 0"
-      - check-success = ci
-    actions:
-      queue:
-        name: default
-
-  - name: Étiqueter les PR prêtes à merger
-    conditions:
       - base = master
-      - -draft
-      - "#approved-reviews-by >= 1"
-      - check-success = ci
-    actions:
-      label:
-        add:
-          - ready-to-merge
+    batch_size:
+      min: 1
+      max: 3
+    batch_max_wait_time: "30 seconds"
+    max_checks_retries: 1
+    merge_method: rebase
+    update_method: rebase
 
-  - name: Retirer l'étiquette si la CI casse ou si une review demande des changements
+priority_rules:
+  - name: urgent
     conditions:
-      - label = ready-to-merge
-      - or:
-          - check-failure = ci
-          - "#changes-requested-reviews-by >= 1"
-          - conflict
-          - draft
-    actions:
-      label:
-        remove:
-          - ready-to-merge
+      - label = urgent
+    priority: high
+  - name: priority-low
+    conditions:
+      - label = priority-low
+    priority: low
 
-  - name: Demander une revue dès qu'une PR est ouverte
-    conditions:
-      - base = master
-      - -draft
-      - "#approved-reviews-by = 0"
-    actions:
-      comment:
-        message: "CI lancée sur le worker du Dell. Une approbation + `ci` verte ⇒ Mergify merge tout seul."
+merge_queue:
+  # N workers self-hosted (R630, labels sam-vision-worker) ; la speculation
+  # Mergify reste bornee a 4, ajustable.
+  max_parallel_checks: 2
 
-  - name: Supprimer la branche après merge
-    conditions:
-      - merged
-      - head ~= ^(?!master$).*
-    actions:
-      delete_head_branch: {}
-
-  - name: Signaler un conflit avec master
-    conditions:
-      - base = master
-      - conflict
-      - -closed
-    actions:
-      label:
-        add:
-          - conflict
+# Auto-queue natif (produit Merge Queue) : évite de dépendre du produit
+# « Workflow Automation » (pull_request_rules), constaté désactivé le 24/10.
+merge_protections_settings:
+  auto_merge_conditions: true

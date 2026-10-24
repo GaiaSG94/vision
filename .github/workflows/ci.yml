@@ -1,8 +1,10 @@
 name: CI
 
-# Budget : 5 min maximum par job (règle projet). Le build APK complet reste hors PR.
-# Le worker est le r630 (Dell) : JDK 17 et Android SDK y sont préinstallés,
-# JAVA_HOME / ANDROID_HOME viennent du fichier .env du runner.
+# Budget : 5 min maximum (règle projet — ~/Bureau/CI-BUDGET-5MIN.md).
+# Worker = r630 (Dell), JDK 17 + Android SDK préinstallés ; JAVA_HOME/ANDROID_HOME
+# viennent du .env du runner. Cache Gradle persistant sur la machine.
+# Pas de `paths-ignore` : `ci` est exigé par la file Mergify, donc il doit
+# exister sur TOUTES les PR (sinon la PR resterait bloquée en attente de check).
 on:
   pull_request:
   push:
@@ -18,7 +20,7 @@ permissions:
 jobs:
   ci:
     name: ci
-    runs-on: [self-hosted, linux, sam-vision]
+    runs-on: [self-hosted, sam-vision-worker]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +34,20 @@ jobs:
           "$JAVA_HOME/bin/java" -version
           ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
 
-      - name: Tests unitaires (core) + compilation de l'app
-        run: ./gradlew --console=plain :core:testDebugUnitTest :app:compileDebugKotlin
+      - name: Aucun secret ni fichier local dans le dépôt
+        run: |
+          # Régression déjà vue sur ce projet : des clés API en clair dans un
+          # fichier de config. Ici on refuse tout ajout de ce genre.
+          if git ls-files --error-unmatch local.properties >/dev/null 2>&1; then
+            echo "::error::local.properties ne doit jamais être versionné (clés API)"; exit 1
+          fi
+          if git grep -nEI 'sk-[A-Za-z0-9_-]{24,}|sk_[a-f0-9]{32}|ghp_[A-Za-z0-9]{36}' -- . ':!.github' ':!docs' ':!*.md'; then
+            echo "::error::clé API en clair détectée ci-dessus"; exit 1
+          fi
+          echo "OK — aucun secret versionné"
+
+      - name: Tests unitaires (core + app) + APK debug
+        run: ./gradlew --console=plain :core:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rapport de tests
         if: always()
