@@ -7,6 +7,8 @@ Règles :
   le rebase déclenche un événement `synchronize` qui re-run ce workflow → cycle auto.
 - vrai conflit         → check rouge + label `hermes/conflit` (escalade humaine).
 - frais + checks requis verts → merge (rebase), une PR à la fois.
+- run resté en `action_required` (push d'API) → relancé, puis verdict au
+  passage suivant : sans ça la PR est immobile pour toujours.
 """
 
 API = 'https://api.github.com'
@@ -137,6 +139,37 @@ def refresh_branch(repo, token, pr):
     return 'error'
 
 
+def rerun_blocked_runs(repo, token, sha, max_reruns=20):
+    """Relance les workflow runs restés en `action_required`.
+
+    Un push fait par l'API GitHub (`PUT /pulls/N/update-branch`, rebase
+    serveur, commit de `github-actions[bot]`) crée des runs que GitHub met en
+    attente d'approbation : conclusion `action_required`. Aucun check n'est
+    publié — ni vert ni rouge — et la PR reste immobile indéfiniment, la file
+    Mergify attendant un `check-success` qui n'arrivera jamais
+    (constat 24/10 : #30 et #87, 15 runs bloqués).
+
+    `POST /actions/runs/{id}/rerun` les exécute normalement (essai 2).
+    Idempotent : un run relancé n'est plus `action_required`.
+    Renvoie le nombre de runs relancés.
+    """
+    sc, data = api('GET', '/repos/%s/actions/runs?head_sha=%s&per_page=50'
+                   % (repo, sha), token=token)
+    if sc != 200 or not isinstance(data, dict):
+        return 0
+    reruns = 0
+    for run in data.get('workflow_runs') or []:
+        if reruns >= max_reruns:
+            break
+        if run.get('conclusion') != 'action_required':
+            continue
+        sc2, _ = api('POST', '/repos/%s/actions/runs/%s/rerun'
+                     % (repo, run.get('id')), token=token)
+        if sc2 in (200, 201, 202):
+            reruns += 1
+    return reruns
+
+
 def create_check(repo, token, sha, ok, title, summary):
     api('POST', '/repos/%s/check-runs' % repo, token=token, body={
         'name': CHECK_NAME,
@@ -231,6 +264,14 @@ def handle_pr(pr, repo, token, required, dry=False, refresh=True):
     base_ref = pr['base']['ref']
     mergeable = pr.get('mergeable')           # None = calcul en cours
     mergeable_state = pr.get('mergeable_state') or ''
+
+    # Débloquer d'abord : un run en attente d'approbation ne produit aucun
+    # check, donc juger maintenant donnerait un verdict sur du vide.
+    blocked = rerun_blocked_runs(repo, token, sha)
+    if blocked:
+        print('[gate] #%d : %d run(s) en action_required relancé(s) — '
+              'verdict au prochain passage' % (num, blocked), flush=True)
+        return 'rerun'
 
     sc, cmp_ = api('GET', '/repos/%s/compare/%s...%s' % (repo, base_ref, sha),
                    token=token)

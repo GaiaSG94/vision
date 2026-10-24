@@ -171,3 +171,40 @@ passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 - Huitième mesure : lease explicite.
 
 - Neuvième mesure : seuls les checks requis sont attendus.
+
+## Pièges connus (et leur correctif)
+
+### Runs bloqués en `action_required`
+
+Un push fait par l'**API GitHub** (`PUT /pulls/N/update-branch`, rebase serveur) — ou
+plus généralement un commit dont le committer est `github-actions[bot]` — crée des
+workflow runs que GitHub met **en attente d'approbation** : conclusion
+`action_required`. Aucun check n'est publié, ni vert ni rouge. La PR paraît immobile
+alors que la CI n'a jamais tourné, et la file attend un `check-success` qui n'arrivera
+jamais (constat 24/10 : #30 et #87, 15 runs bloqués, PR figées une heure).
+
+Double correctif :
+
+1. **Automatique** — le gate relance ces runs avant de juger
+   (`rerun_blocked_runs` dans `.github/hermes/gate.py`), puis rend la main : le verdict
+   tombe au passage suivant, quand la CI a réellement tourné.
+2. **Manuel** — pour un run précis :
+
+```bash
+gh api -X POST repos/BaptisteFaisy/sam-vision/actions/runs/<run_id>/rerun
+```
+
+Le `rerun` exécute les jobs normalement (essai 2). Un push humain produit aussi des runs
+normaux : c'est pourquoi « pousser soi-même » débloque là où le rebase serveur échoue.
+
+### File qui n'embarque pas après un `--force-with-lease`
+
+Une tête de PR déjà évaluée par Mergify, remplacée par un push forcé, peut laisser la
+file inerte : tous les checks sont verts, les protections passent, et rien ne bouge.
+Le geste de réentrée est explicite :
+
+```bash
+gh pr comment <n> --body "@Mergifyio queue"
+```
+
+Constaté sur #30 (vert, `MERGEABLE`, immobile 5 min, mergée 30 s après la commande).
