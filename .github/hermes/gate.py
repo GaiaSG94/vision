@@ -208,7 +208,7 @@ def try_merge(repo, token, pr, required):
     return 'error'
 
 
-def handle_pr(pr, repo, token, required, dry=False):
+def handle_pr(pr, repo, token, required, dry=False, refresh=True):
     num = pr['number']
     sha = pr['head']['sha']
     base_ref = pr['base']['ref']
@@ -229,8 +229,13 @@ def handle_pr(pr, repo, token, required, dry=False):
     set_label(pr, repo, token, LABEL_CONFLIT, False)
 
     if not fresh:
-        if dry:
-            print('[gate] #%d : en retard de %s commit(s) — rebase serveur (dry-run)' % (num, behind))
+        # Le rebase serveur n'est PAS un geste de merge : il remet la PR à
+        # niveau pour que la file Mergify puisse l'embarquer. Le dry-run
+        # (un seul pilote de merge) ne doit donc pas le bloquer — sinon une
+        # PR devenue en retard sans nouveau push reste en rade pour toujours
+        # (constat 24/10 : #30 et #63 déquées, vertes, immobiles 1 h).
+        if dry and not refresh:
+            print('[gate] #%d : en retard de %s commit(s) — rebase serveur (dry-run, refresh coupé)' % (num, behind))
             return 'dry'
         r = refresh_branch(repo, token, pr)
         print('[gate] #%d : en retard de %s → refresh %s' % (num, behind, r), flush=True)
@@ -277,6 +282,9 @@ def main():
     required = [s.strip() for s in
                 os.environ.get('HERMES_REQUIRED_CHECKS', '').split(',') if s.strip()]
     dry = os.environ.get('HERMES_LITE_DRY_RUN') == '1'
+    # HERMES_LITE_REFRESH=0 : coupe le rebase serveur (défaut : actif,
+    # y compris en dry-run — cf. commentaire de handle_pr).
+    refresh = os.environ.get('HERMES_LITE_REFRESH', '1') != '0'
 
     for lbl in (LABEL_OK, LABEL_CONFLIT):
         ensure_label(repo, token, lbl, '0e8a16' if lbl == LABEL_OK else 'd73a4a',
@@ -305,7 +313,7 @@ def main():
         if pr.get('draft') or pr.get('state') != 'open':
             continue
         try:
-            r = handle_pr(pr, repo, token, required, dry)
+            r = handle_pr(pr, repo, token, required, dry, refresh)
             if r == 'merged':
                 merged += 1
         except Exception as e:

@@ -34,21 +34,33 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
         run: |
           # Une PR de docs/config n'a pas besoin de Gradle : on économise ~45 s
           # de CI et le verdict tombe en quelques secondes. La liste des fichiers
           # vient de l'API (le checkout est superficiel, la base n'y est pas).
+          # Même règle pour un push sur master : sinon chaque push relançait le
+          # build complet (39–49 s mesurés) et faisait bouger la base sous les
+          # PR en file (rebase + re-test de tout le monde).
           code=1
+          fichiers=""
           if [ -n "$PR_NUMBER" ]; then
             fichiers="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
               | python3 -c 'import json,sys;print("\n".join(f["filename"] for f in json.load(sys.stdin)))' 2>/dev/null || true)"
-            if [ -n "$fichiers" ]; then
-              if printf '%s\n' "$fichiers" | grep -qE '^(app|core)/.*\.(kt|kts)$|^gradle/|^gradle\.properties$'; then
-                code=1; echo "Code touché : Gradle complet."
-              else
-                code=0; echo "PR sans code (${fichiers//$'\n'/, }) : étapes Gradle sautées."
-              fi
+          elif [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            # Push : compare de l'avant au sommet poussé (robuste aux pushes
+            # multi-commits, contrairement a `git show HEAD`).
+            fichiers="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/compare/$PUSH_BEFORE...$PUSH_SHA" \
+              | python3 -c 'import json,sys;print("\n".join(f["filename"] for f in json.load(sys.stdin).get("files") or []))' 2>/dev/null || true)"
+          fi
+          if [ -n "$fichiers" ]; then
+            if printf '%s\n' "$fichiers" | grep -qE '^(app|core)/.*\.(kt|kts)$|^gradle/|^gradle\.properties$'; then
+              code=1; echo "Code touché : Gradle complet."
+            else
+              code=0; echo "Sans code (${fichiers//$'\n'/, }) : étapes Gradle sautées."
             fi
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
