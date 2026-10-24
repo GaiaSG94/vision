@@ -23,7 +23,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Enregistreur vidéo du mode tap : CameraX `VideoCapture` (couche la maigre demandée). */
+/**
+ * Enregistreur vidéo du mode tap : CameraX `VideoCapture` (couche la maigre demandée).
+ *
+ * Contrat d'audio : le micro est **optionnel**. Si `RECORD_AUDIO` n'est pas accordé,
+ * l'enregistrement continue en vidéo muette — sinon l'utilisateur qui refuse le micro
+ * perdait toute la capture (`SecurityException` au démarrage, `lintDebug` : MissingPermission).
+ */
 class TapVideoSession(private val context: Context) {
 
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
