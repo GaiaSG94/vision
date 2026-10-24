@@ -67,10 +67,12 @@ fun BigButton(
     ) {
         Text(
             label,
-            fontSize = 15.sp,
+            fontSize = if (widthFactor >= 1f) 16.sp else 13.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
+            maxLines = if (widthFactor >= 1f) 1 else 2,
             overflow = TextOverflow.Visible,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
