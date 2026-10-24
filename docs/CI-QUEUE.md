@@ -94,3 +94,16 @@ python3 .github/hermes/conflict_agent.py --run --repo BaptisteFaisy/sam-vision \
 Traces : `~/.cache/hermes-agent/pr-<N>.log` sur le worker. Check
 `hermes-agent/conflit`, étiquette `hermes/agent-conflit` quand l'agent a rendu son
 compte rendu.
+
+## Chronologie mesurée (worker `r630-sam-vision-0N`, 24/10)
+
+| Étape | Durée |
+|---|---|
+| `:core:testDebugUnitTest` + `:app:testDebugUnitTest` + `:app:assembleDebug` | 15 s |
+| `:app:assembleRelease` | 41 s |
+| `:app:lintDebug` | 22 s |
+| job `ci` complet | **46 s** (1 min 00 en CI, cache froid) |
+| `couche0` / `ci-budget` / `stale-base-guard` / `Verdict` | 6 à 10 s, en parallèle |
+
+Verdict de PR : **≈ 1 min 10** pour un budget de 5 min. Toute évolution qui ferait
+passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
