@@ -50,14 +50,21 @@ class TapVideoSession(private val context: Context) {
         }.recoverCatching { IllegalStateException("liaison vidéo impossible : ${it.message}") }
     }
 
-    /** Démarre l'enregistrement vers [file] ; audio seulement si le micro est autorisé. */
-    fun start(file: File): Result<Unit> {
+    /**
+     * Démarre l'enregistrement vers [file] ; [withAudio] ajoute la piste micro **seulement si
+     * l'autorisation `RECORD_AUDIO` est accordée** (sinon la capture est muette, jamais perdue).
+     */
+    fun start(file: File, withAudio: Boolean = TapConfig.VIDEO_WITH_AUDIO): Result<Unit> {
         val capture = videoCapture ?: return Result.failure(IllegalStateException("caméra non liée"))
         if (recording != null) return Result.failure(IllegalStateException("enregistrement déjà en cours"))
         return runCatching {
             val done = CompletableDeferred<File>()
             finalizing = done
-            val pending = prepareRecording(capture, file)
+            val base = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
+            // Sans audio, le micro reste au dictaphone : c'est ce qui permet de parler
+            // pendant la vidéo (voir TapConfig.VIDEO_WITH_AUDIO). Avec audio, on repasse par
+            // prepareRecording : il teste RECORD_AUDIO avant withAudioEnabled().
+            val pending = if (withAudio) prepareRecording(capture, file) else base
             recording = pending.start(executor) { event ->
                 if (event is VideoRecordEvent.Finalize) finalize(event, file, done)
             }

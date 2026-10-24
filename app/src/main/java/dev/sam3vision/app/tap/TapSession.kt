@@ -115,14 +115,15 @@ class TapSession(
 
     /** Corps du démarrage, une fois la caméra liée et les permissions acquises. */
     private fun record() {
-        if (!MicBus.acquire(MicBus.Owner.TAP_VIDEO)) {
+        val needsMic = TapConfig.VIDEO_WITH_AUDIO
+        if (needsMic && !MicBus.acquire(MicBus.Owner.TAP_VIDEO)) {
             fail("micro occupé par la dictée", Announcement.FAILED)
             return
         }
         val file = CapturePaths.newVideoFile(context)
-        val started = video.start(file)
+        val started = video.start(file, withAudio = needsMic)
         if (started.isFailure) {
-            MicBus.release(MicBus.Owner.TAP_VIDEO)
+            if (needsMic) MicBus.release(MicBus.Owner.TAP_VIDEO)
             fail(started.exceptionOrNull()?.message ?: "démarrage vidéo refusé", Announcement.FAILED)
             return
         }

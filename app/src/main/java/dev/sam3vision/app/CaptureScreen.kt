@@ -14,6 +14,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,8 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -56,7 +62,11 @@ private fun mainPost(block: () -> Unit) {
  * sans ça, revenir sur cet écran laissait `ImageCapture` non lié (« Not bound to a valid Camera »).
  */
 @Composable
-fun CaptureScreen(onPhoto: (File) -> Unit, onOpenSettings: () -> Unit, onOpenTap: () -> Unit) {
+fun CaptureScreen(
+    onPhoto: (File) -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenTap: (startNow: Boolean) -> Unit,
+) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
     var attached by remember { mutableStateOf(false) }
@@ -105,7 +115,7 @@ private fun CameraSurface(
     onCapture: () -> Unit,
     onGallery: () -> Unit,
     onSettings: () -> Unit,
-    onOpenTap: () -> Unit,
+    onOpenTap: (startNow: Boolean) -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         if (granted) {
@@ -113,6 +123,14 @@ private fun CameraSurface(
         } else {
             PermissionGate(onAllow)
         }
+        // Un tap sur l'aperçu lance le mode vidéo **et** son enregistrement ; les commandes
+        // posées ensuite restent prioritaires (Compose livre le geste au plus haut).
+        Box(
+            Modifier
+                .fillMaxSize()
+                .tapOnce { onOpenTap(true) },
+        )
+        GestureHint(Modifier.align(Alignment.TopCenter))
         error?.let { StatusBanner(it, AppColors.danger, Modifier.align(Alignment.TopCenter)) }
         CaptureControls(
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -120,7 +138,7 @@ private fun CameraSurface(
             onCapture = onCapture,
             onGallery = onGallery,
             onSettings = onSettings,
-            onOpenTap = onOpenTap,
+            onOpenTap = { onOpenTap(false) }, // le bouton ouvre l'écran : l'utilisateur se place
         )
     }
 }
@@ -218,4 +236,23 @@ private fun HalfRow(left: @Composable () -> Unit, right: @Composable () -> Unit)
         Box(Modifier.weight(1f)) { left() }
         Box(Modifier.weight(1f)) { right() }
     }
+}
+
+/**
+ * Rappel visible des deux gestes de l'écran d'accueil : sans lui, personne ne devine que
+ * l'appui long parle et que le tap lance la vidéo. Posé sous la barre d'état, il ne masque
+ * ni l'aperçu ni les commandes.
+ */
+@Composable
+private fun GestureHint(modifier: Modifier = Modifier) {
+    Text(
+        text = "Tap : vidéo · Appui long : parler",
+        color = Color.White,
+        fontSize = 13.sp,
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(top = 12.dp, start = 12.dp, end = 12.dp)
+            .background(AppColors.surfaceHigh.copy(alpha = 0.92f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
 }

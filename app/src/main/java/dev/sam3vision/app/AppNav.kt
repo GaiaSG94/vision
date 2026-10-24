@@ -19,8 +19,12 @@ sealed interface Route {
     data object Chat : Route
     data object Settings : Route
 
-    /** Mode tap court : vidéo → SAM 3.1, annonces ElevenLabs. */
-    data object Tap : Route
+    /**
+     * Mode vidéo (tap court) : vidéo → SAM 3.1, annonces ElevenLabs.
+     * [autoStart] = lancé par un tap sur l'aperçu de l'accueil : la session démarre
+     * d'elle-même, sans deuxième tap.
+     */
+    data class Tap(val autoStart: Boolean = false) : Route
 }
 
 /**
@@ -61,9 +65,9 @@ private fun RouteContent(
                 push(Route.Analysis)
             },
             onOpenSettings = { push(Route.Settings) },
-            onOpenTap = {
+            onOpenTap = { startNow ->
                 viewModel.stopSpeaking() // aucune voix du chat ne doit couvrir les annonces tap
-                push(Route.Tap)
+                push(Route.Tap(autoStart = startNow))
             },
         )
 
@@ -88,7 +92,7 @@ private fun RouteContent(
             onStopDictation = viewModel::stopDictation,
         )
 
-        Route.Tap -> TapCaptureScreen(settings = state.settings, onBack = pop)
+        is Route.Tap -> TapCaptureScreen(state.settings, pop, route.autoStart)
 
         Route.Settings -> SettingsRoute(viewModel, state, pop)
     }

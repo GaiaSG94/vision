@@ -34,6 +34,16 @@ object TapConfig {
     /** Endpoint SAM 3.1 vidéo. Vide = envoi impossible → annonce « Failed ». */
     val sam31Endpoint: String get() = BuildConfig.SAM31_ENDPOINT.trim()
 
+    /**
+     * Piste audio de la vidéo. **Faux par défaut** : Android n'autorise qu'un seul
+     * `AudioRecord` par app, donc une vidéo qui prend le micro interdit la dictée pendant
+     * l'enregistrement. L'analyse demandée à SAM 3.1 est visuelle ([UPLOAD_PROMPT] est
+     * fixe) : la vidéo se contente de l'image et laisse le micro à la voix.
+     * Passer à `true` rend le mode tap sonore mais rétablit l'arbitrage [dev.sam3vision.app.MicBus]
+     * (la dictée sera alors refusée « micro occupé » pendant la capture).
+     */
+    const val VIDEO_WITH_AUDIO: Boolean = false
+
     /** Mode « SAM 3.1 tourne sur le téléphone » : l'upload cloud est alors désactivé. */
     const val ON_DEVICE_INFERENCE: Boolean = false
 

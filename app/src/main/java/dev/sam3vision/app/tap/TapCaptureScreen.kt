@@ -49,13 +49,15 @@ import java.io.File
 fun TapCaptureScreen(
     settings: Settings,
     onBack: () -> Unit,
+    /** Lancé par un tap sur l'accueil : la session démarre sans second tap. */
+    autoStart: Boolean = false,
     longPressAction: (() -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val insets = WindowInsets.systemBars
     var status by remember { mutableStateOf<TapStatus>(TapStatus.Idle) }
     val dependencies = rememberTapDependencies(LocalContext.current, rememberCoroutineScope(), settings)
-    val session = rememberTapSession(dependencies) { status = it }
+    val session = rememberTapSession(dependencies, autoStart) { status = it }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -74,6 +76,7 @@ fun TapCaptureScreen(
 @Composable
 private fun rememberTapSession(
     dependencies: TapDependencies,
+    autoStart: Boolean,
     onStatus: (TapStatus) -> Unit,
 ): TapSession {
     val context = LocalContext.current
@@ -97,6 +100,9 @@ private fun rememberTapSession(
         }
         dependencies.announcements.prewarm()
         if (!tapPermissionsGranted(context)) permissions.launch(TAP_PERMISSIONS)
+        // Un tap sur l'accueil vaut premier tap : la session démarre d'elle-même.
+        // `onTap` est prévu pour ne rien perdre (liaison caméra en cours, permissions).
+        if (autoStart) session.onTap()
     }
     DisposableEffect(dependencies) {
         onDispose {
