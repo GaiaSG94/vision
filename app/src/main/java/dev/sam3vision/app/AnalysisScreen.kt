@@ -44,47 +44,52 @@ fun AnalysisScreen(
             onBack = onBack,
             onSettings = onOpenSettings,
         )
-        state.photo?.let {
-            PhotoStage(
-                bitmap = it,
-                overlays = state.overlays,
-                showMasks = state.showMasks,
-                modifier = Modifier.fillMaxWidth().height(340.dp).padding(horizontal = 12.dp),
-            )
-        }
+        state.photo?.let { PhotoStage(it, state.overlays, state.showMasks) }
         state.segmentationNote?.let { StatusBanner(it, AppColors.warning) }
-        when (val phase = state.phase) {
-            Phase.Analyzing -> Row(
-                Modifier.fillMaxWidth().padding(24.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) { CircularProgressIndicator(color = AppColors.primary) }
-
-            is Phase.Failed -> Column(
-                Modifier.padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                StatusBanner(phase.message, AppColors.danger)
-                BigButton("Réessayer", true, AppColors.danger, onRetry)
-            }
-
-            else -> Unit
-        }
+        PhaseBlock(state.phase, onRetry)
         state.analysis?.description?.let { DescriptionCard(it) }
         ObjectList(state.objects)
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        AnalysisActions(state, onOpenChat, onToggleMasks)
+    }
+}
+
+/** Le bloc central dépend de l'étape : chargement, échec + réessai, ou rien. */
+@Composable
+private fun PhaseBlock(phase: Phase, onRetry: () -> Unit) {
+    when (phase) {
+        Phase.Analyzing -> Row(
+            Modifier.fillMaxWidth().padding(24.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) { CircularProgressIndicator(color = AppColors.primary) }
+
+        is Phase.Failed -> Column(
+            Modifier.padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            BigButton("Poser une question", state.hasPhoto, AppColors.primary, onOpenChat, 0.62f)
-            BigButton(
-                if (state.showMasks) "Masques on" else "Masques off",
-                state.overlays.isNotEmpty(),
-                AppColors.surfaceHigh,
-                onToggleMasks,
-                0.38f,
-            )
+            StatusBanner(phase.message, AppColors.danger)
+            BigButton("Réessayer", true, AppColors.danger, onRetry)
         }
+
+        else -> Unit
+    }
+}
+
+/** Boutons d'action : question au modèle et bascule des masques. */
+@Composable
+private fun AnalysisActions(state: UiState, onOpenChat: () -> Unit, onToggleMasks: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BigButton("Poser une question", state.hasPhoto, AppColors.primary, onOpenChat, 0.62f)
+        BigButton(
+            if (state.showMasks) "Masques on" else "Masques off",
+            state.overlays.isNotEmpty(),
+            AppColors.surfaceHigh,
+            onToggleMasks,
+            0.38f,
+        )
     }
 }
 
