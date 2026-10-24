@@ -1,0 +1,131 @@
+package dev.sam3vision.core.live
+
+import dev.sam3vision.core.model.LiveFrame
+import dev.sam3vision.core.model.LiveHealth
+import dev.sam3vision.core.net.ApiError
+import dev.sam3vision.core.net.LiveClient
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class LiveSessionTest {
+
+    private class FakeLiveClient : LiveClient {
+        var result: Result<LiveFrame> = Result.success(LiveFrame(640, 480, 321, emptyList()))
+        var onCall: () -> Unit = {}
+        var calls = 0
+        var lastPrompts: List<String>? = null
+        var lastWorkEdge = 0
+        var lastMaxObjects = 0
+
+        override suspend fun live(
+            jpegB64: String,
+            prompts: List<String>?,
+            workEdge: Int,
+            maxObjects: Int,
+        ): Result<LiveFrame> {
+            calls++
+            onCall()
+            lastPrompts = prompts
+            lastWorkEdge = workEdge
+            lastMaxObjects = maxObjects
+            return result
+        }
+
+        override suspend fun health(): Result<LiveHealth> =
+            Result.success(LiveHealth(true, "sam3.1", "cuda", "A100"))
+    }
+
+    private fun sessionWith(stats: LiveStats, vararg latencies: Long): LiveSession {
+        latencies.forEach(stats::record)
+        return LiveSession(FakeLiveClient(), stats = stats)
+    }
+
+    @Test
+    fun `runFrame consigne elapsed_ms et latence bout-en-bout`() = runBlocking {
+        val client = FakeLiveClient()
+        var now = 1_000L
+        client.onCall = { now += 420 }
+        val session = LiveSession(client, clock = { now })
+
+        val frame = session.runFrame("QQ==")?.getOrThrow()
+
+        assertEquals(640, frame?.width)
+        assertEquals(1, session.stats.samples)
+        assertEquals(420L, session.stats.averageMs)
+        assertEquals(321L, session.serverStats.averageMs)
+        assertFalse(session.inFlight)
+    }
+
+    @Test
+    fun `le gate occupe jette la frame sans appeler le client`() = runBlocking {
+        val client = FakeLiveClient()
+        val gate = FrameGate()
+        assertTrue(gate.tryStart())
+        val session = LiveSession(client, gate)
+
+        assertNull(session.runFrame("QQ=="))
+        assertEquals(0, client.calls)
+        gate.finish()
+        assertNotNull(session.runFrame("QQ=="))
+        assertEquals(1, client.calls)
+    }
+
+    @Test
+    fun `les prompts sont normalises avant l'envoi`() = runBlocking {
+        val client = FakeLiveClient()
+        val session = LiveSession(
+            client,
+            prompts = listOf(" person ", "person", "", "x".repeat(40), "tree"),
+        )
+        session.runFrame("QQ==")
+        assertEquals(listOf("person", "tree"), client.lastPrompts)
+        assertEquals(640, client.lastWorkEdge)
+        assertEquals(12, client.lastMaxObjects)
+    }
+
+    @Test
+    fun `un echec note la latence mais pas le serveur`() = runBlocking {
+        val client = FakeLiveClient()
+        client.result = Result.failure(ApiError.Timeout())
+        val session = LiveSession(client)
+
+        val failure = session.runFrame("QQ==")?.exceptionOrNull()
+
+        assertTrue(failure is ApiError.Timeout)
+        assertEquals(1, session.stats.samples)
+        assertEquals(0, session.serverStats.samples)
+        assertFalse(session.inFlight)
+    }
+
+    @Test
+    fun `l'intervalle adaptatif ralentit quand la latence moyenne depasse 900 ms`() {
+        assertEquals(900L, sessionWith(LiveStats(), 1_000L, 1_400L).intervalMsAdaptive())
+    }
+
+    @Test
+    fun `l'intervalle adaptatif accelere quand la latence moyenne est sous 350 ms`() {
+        assertEquals(350L, sessionWith(LiveStats(), 120L, 300L).intervalMsAdaptive())
+    }
+
+    @Test
+    fun `l'intervalle adaptatif reste a 500 ms entre les deux seuils`() {
+        assertEquals(500L, sessionWith(LiveStats(), 400L, 600L).intervalMsAdaptive())
+        assertEquals(500L, sessionWith(LiveStats(), 900L).intervalMsAdaptive())
+        assertEquals(500L, sessionWith(LiveStats(), 350L).intervalMsAdaptive())
+    }
+
+    @Test
+    fun `reset vide le gate et les stats`() = runBlocking {
+        val session = LiveSession(FakeLiveClient())
+        session.runFrame("QQ==")
+        session.reset()
+        assertEquals(0, session.stats.samples)
+        assertEquals(0, session.serverStats.samples)
+        assertFalse(session.inFlight)
+    }
+}

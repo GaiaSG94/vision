@@ -56,12 +56,35 @@ internal fun Throwable.toApiError(): ApiError = when (this) {
     else -> ApiError.Network(message = message ?: "backend injoignable", cause = this)
 }
 
-/** 401/429 ont des messages dédiés, le reste tombe dans [ApiError.Http]. */
+/** 401/402/429 ont des messages dédiés, le reste tombe dans [ApiError.Http]. */
 internal fun httpError(code: Int, body: String): ApiError = when (code) {
     401, 403 -> ApiError.InvalidKey(if (code == 403) "accès refusé (403)" else "clé invalide (401)")
+    402 -> ApiError.PaymentRequired()
     429 -> ApiError.RateLimited()
     else -> ApiError.Http(code, body)
 }
+
+/**
+ * Comme [execute], mais conserve les octets bruts (corps audio du TTS). Le corps n'est
+ * jamais converti en String sauf en cas d'erreur, où il sert de message.
+ */
+internal suspend fun OkHttpClient.executeBytes(request: Request): Result<ByteArray> =
+    withContext(Dispatchers.IO) {
+        try {
+            newCall(request).execute().use { response ->
+                val bytes = response.body?.bytes() ?: ByteArray(0)
+                if (response.code in 200..299) {
+                    Result.success(bytes)
+                } else {
+                    Result.failure(httpError(response.code, bytes.toString(Charsets.UTF_8)))
+                }
+            }
+        } catch (c: CancellationException) {
+            throw c
+        } catch (e: Exception) {
+            Result.failure(e.toApiError())
+        }
+    }
 
 /** Vérifie un code 2xx, sinon renvoie l'erreur typée correspondante. */
 internal fun HttpOutcome.requireSuccess(): Result<String> =

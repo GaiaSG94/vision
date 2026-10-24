@@ -11,6 +11,12 @@ sealed class ApiError(message: String, cause: Throwable? = null) : Exception(mes
 
     class RateLimited(message: String = "limite atteinte (429)") : ApiError(message)
 
+    /** ElevenLabs refuse la voix tant que le compte n'a pas de crédits (plan free). */
+    class PaymentRequired(
+        message: String = "voix ElevenLabs refusée (402) : compte sans crédits — " +
+            "ajoute 5 \$ de crédits ou passe au plan Creator",
+    ) : ApiError(message)
+
     class Timeout(message: String = "backend injoignable : délai dépassé") : ApiError(message)
 
     class Network(

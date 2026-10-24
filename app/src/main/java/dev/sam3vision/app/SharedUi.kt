@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,7 +64,15 @@ fun BigButton(
             contentColor = if (color == AppColors.surfaceHigh) AppColors.text else Color.White,
         ),
         modifier = Modifier.fillMaxWidth(widthFactor).height(54.dp),
-    ) { Text(label, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+    ) {
+        Text(
+            label,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Visible,
+        )
+    }
 }
 
 /** Écran d'absence de permission caméra. */

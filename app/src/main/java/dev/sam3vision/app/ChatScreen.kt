@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -42,7 +43,7 @@ fun ChatScreen(state: UiState, onBack: () -> Unit, onAsk: (String) -> Unit) {
             draft = ""
         }
     }
-    Column(Modifier.fillMaxSize().background(AppColors.background).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(AppColors.background).statusBarsPadding().navigationBarsPadding()) {
         ScreenHeader("Questions sur la photo", null, onBack, null)
         if (state.chat.isEmpty() && !state.asking) {
             StatusBanner("Pose ta question sur la photo — le modèle répond à partir de l'image.", AppColors.surfaceHigh)

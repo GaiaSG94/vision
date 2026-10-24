@@ -26,3 +26,19 @@ data class Analysis(
 data class ChatTurn(val role: Role, val content: String)
 
 enum class Role { USER, ASSISTANT }
+
+/** Résultat brut d'un appel /live : une frame du direct, avec sa durée serveur. */
+data class LiveFrame(
+    val width: Int,
+    val height: Int,
+    val elapsedMs: Long,
+    val objects: List<SegObject>,
+)
+
+/** État du backend live : `GET /health`. */
+data class LiveHealth(
+    val ok: Boolean,
+    val model: String,
+    val device: String,
+    val gpu: String,
+)

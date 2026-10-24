@@ -9,16 +9,23 @@ data class Settings(
     val llmApiKey: String,
     val llmModel: String,
     val samBaseUrl: String,
+    val ttsApiKey: String = "",
+    val ttsVoiceId: String = DEFAULT_TTS_VOICE_ID,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
         const val DEFAULT_LLM_MODEL = "ali/qwen3.8-omni-flash"
+
+        /** Voix ElevenLabs de départ ; modifiable dans Réglages. */
+        const val DEFAULT_TTS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 
         val Default = Settings(
             llmBaseUrl = DEFAULT_LLM_BASE_URL,
             llmApiKey = "",
             llmModel = DEFAULT_LLM_MODEL,
             samBaseUrl = "",
+            ttsApiKey = "",
+            ttsVoiceId = DEFAULT_TTS_VOICE_ID,
         )
     }
 
@@ -27,6 +34,9 @@ data class Settings(
 
     /** Vrai si l'app peut appeler le LLM. */
     val llmConfigured: Boolean get() = llmBaseUrl.isNotBlank() && llmApiKey.isNotBlank()
+
+    /** Vrai si l'app peut appeler ElevenLabs (clé + voix renseignées). */
+    val ttsConfigured: Boolean get() = ttsApiKey.isNotBlank() && ttsVoiceId.isNotBlank()
 }
 
 interface SettingsStore {
