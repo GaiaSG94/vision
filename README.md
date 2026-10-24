@@ -95,3 +95,5 @@ chiffrée uniquement. Les logs et captures d'écran ne montrent jamais la clé (
 - `docs/TESTING.md` § limites : recette émulateur et points vigilants.
 - Le garde-fou `tools/check-kotlin-limits.py` signale un dépassement connu :
   `AnalysisScreen()` (64 lignes) dans `app/src/main/java/dev/sam3vision/app/AnalysisScreen.kt`.
+
+- Le dépôt est protégé : `ci` + `ci-budget` obligatoires, merge par la file Mergify du r630 (voir `.mergify.yml`).
