@@ -1,15 +1,19 @@
 package dev.sam3vision.app.tap
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.camera.core.CameraSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
+import androidx.camera.video.PendingRecording
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -46,19 +50,36 @@ class TapVideoSession(private val context: Context) {
         }.recoverCatching { IllegalStateException("liaison vidéo impossible : ${it.message}") }
     }
 
-    /** Démarre l'enregistrement vers [file] (back caméra, audio inclus). */
+    /** Démarre l'enregistrement vers [file] ; audio seulement si le micro est autorisé. */
     fun start(file: File): Result<Unit> {
         val capture = videoCapture ?: return Result.failure(IllegalStateException("caméra non liée"))
         if (recording != null) return Result.failure(IllegalStateException("enregistrement déjà en cours"))
         return runCatching {
             val done = CompletableDeferred<File>()
             finalizing = done
-            val pending = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
-                .withAudioEnabled()
+            val pending = prepareRecording(capture, file)
             recording = pending.start(executor) { event ->
                 if (event is VideoRecordEvent.Finalize) finalize(event, file, done)
             }
         }.recoverCatching { IllegalStateException("démarrage vidéo refusé : ${it.message}") }
+    }
+
+    /**
+     * Prépare l'enregistrement. L'audio n'est demandé que si `RECORD_AUDIO` est accordé :
+     * le mode tap filme quand même quand l'utilisateur refuse le micro — avant, l'appel
+     * `withAudioEnabled()` levait une `SecurityException` et la capture était perdue
+     * (relevé par `lintDebug`, `MissingPermission`).
+     */
+    private fun prepareRecording(capture: VideoCapture<Recorder>, file: File): PendingRecording {
+        val base = capture.output.prepareRecording(context, FileOutputOptions.Builder(file).build())
+        val audioAllowed = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!audioAllowed) return base
+        return try {
+            base.withAudioEnabled()
+        } catch (_: SecurityException) {
+            base // permission révoquée entre le test et l'appel
+        }
     }
 
     /** Stoppe l'enregistrement ; la finalisation du fichier est attendue par [stopAndAwait]. */
