@@ -47,3 +47,12 @@ interface LiveClient {
 interface TtsClient {
     suspend fun synthesize(text: String): Result<ByteArray>
 }
+
+/**
+ * Transcription vocale (Meta Muse ASR) : un WAV PCM 16 bits mono -> texte.
+ * [transcribe] renvoie [Result.failure] avec une [ApiError] typée ; un texte
+ * vide n'est pas une erreur réseau (le cas d'usage décide quoi en faire).
+ */
+interface SpeechClient {
+    suspend fun transcribe(wav: ByteArray): Result<String>
+}

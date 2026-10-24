@@ -5,20 +5,25 @@ import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.ui.graphics.toArgb
+import dev.sam3vision.core.audio.Wav
 import dev.sam3vision.core.mask.colorizeMask
 import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.SegObject
+import dev.sam3vision.core.net.ApiError
 import dev.sam3vision.core.net.HttpSamClient
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LlmClient
+import dev.sam3vision.core.net.MetaAsrClient
 import dev.sam3vision.core.net.SamClient
+import dev.sam3vision.core.net.SpeechClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
 import dev.sam3vision.core.usecase.AnalyzeUseCase
+import dev.sam3vision.core.usecase.DictationUseCase
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +40,15 @@ sealed interface Phase {
     data class Failed(val message: String) : Phase
 }
 
+/** Dictée Meta : micro ouvert, transcription en cours, dernier texte produit. */
+data class DictationState(
+    val recording: Boolean = false,
+    val busy: Boolean = false,
+    val text: String = "",
+    /** Incrémenté à chaque nouveau texte : l'écran sait qu'il doit l'insérer. */
+    val seq: Int = 0,
+)
+
 /** État complet observé par les écrans Compose. */
 data class UiState(
     val photo: Bitmap? = null,
@@ -50,6 +64,7 @@ data class UiState(
     val settings: Settings = Settings.Default,
     val settingsReady: Boolean = false,
     val statusLine: String? = null,
+    val dictation: DictationState = DictationState(),
 ) {
     val objects: List<SegObject> get() = analysis?.objects.orEmpty()
     val canAsk: Boolean get() = photoB64.isNotBlank() && settings.llmConfigured && !asking
@@ -62,6 +77,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val store: SettingsStore = SettingsStoreFactory.create(app)
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state
+
+    /** Micro réutilisé d'une dictée à l'autre (AudioRecord coûteux à créer). */
+    private var recorder: DictationRecorder? = null
 
     init {
         viewModelScope.launch { _state.update { it.copy(settings = seeded(store.load()), settingsReady = true) } }
@@ -83,6 +101,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun sam(settings: Settings): SamClient? =
         if (settings.samBaseUrl.isBlank()) null else HttpSamClient(settings.samBaseUrl)
+
+    private fun speech(settings: Settings): SpeechClient? =
+        if (!settings.asrConfigured) {
+            null
+        } else {
+            MetaAsrClient(settings.asrBaseUrl, settings.asrApiKey, settings.asrModel)
+        }
 
     /** Une photo capturée ou choisie : on l'affiche tout de suite, puis on l'analyse. */
     fun onPhoto(file: File) = viewModelScope.launch {
@@ -213,7 +238,84 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Ouvre le micro (le PCM reste en mémoire, jamais sur disque). */
+    fun startDictation() {
+        val snapshot = _state.value
+        if (snapshot.dictation.recording || snapshot.dictation.busy) return
+        if (speech(snapshot.settings) == null) {
+            _state.update { it.copy(statusLine = "Dictée KO — clé Meta absente (Réglages).") }
+            return
+        }
+        val mic = recorder ?: DictationRecorder().also { recorder = it }
+        if (!mic.start()) {
+            _state.update { it.copy(statusLine = "Dictée KO — micro indisponible (permission refusée ?).") }
+            return
+        }
+        _state.update {
+            it.copy(
+                dictation = it.dictation.copy(recording = true),
+                statusLine = "Enregistrement… parle, puis appuie sur Stop.",
+            )
+        }
+    }
+
+    /** Coupe le micro puis transcrit le PCM capturé via Meta Muse. */
+    fun stopDictation() = viewModelScope.launch {
+        val mic = recorder ?: return@launch
+        if (!_state.value.dictation.recording) return@launch
+        _state.update {
+            it.copy(
+                dictation = it.dictation.copy(recording = false, busy = true),
+                statusLine = "Transcription Meta en cours…",
+            )
+        }
+        val pcm = withContext(Dispatchers.IO) { mic.stopAndCollect() }
+        val client = speech(_state.value.settings)
+        val outcome = if (client == null) {
+            Result.failure(ApiError.InvalidKey("clé Meta absente"))
+        } else {
+            DictationUseCase(client).invoke(pcm)
+        }
+        _state.update { current ->
+            outcome.fold(
+                onSuccess = { text ->
+                    current.copy(
+                        dictation = current.dictation.copy(busy = false, text = text, seq = current.dictation.seq + 1),
+                        statusLine = null,
+                    )
+                },
+                onFailure = { error ->
+                    current.copy(
+                        dictation = current.dictation.copy(busy = false),
+                        statusLine = "Dictée KO — ${error.message}",
+                    )
+                },
+            )
+        }
+    }
+
+    /** Vérifie l'endpoint Meta avec 1 s de silence : seule la connexion est testée. */
+    fun testAsr() = viewModelScope.launch {
+        val client = speech(_state.value.settings)
+        if (client == null) {
+            _state.update { it.copy(statusLine = "ASR KO — clé Meta absente (Réglages).") }
+            return@launch
+        }
+        _state.update { it.copy(statusLine = "Test Meta Muse ASR en cours…") }
+        val silence = ByteArray(Wav.SAMPLE_RATE * Wav.BYTES_PER_SAMPLE)
+        val outcome = client.transcribe(Wav.pcm16(silence))
+        _state.update {
+            it.copy(
+                statusLine = outcome.fold(
+                    onSuccess = { text -> "ASR OK — endpoint joignable (${text.ifBlank { "texte vide" }.take(40)})" },
+                    onFailure = { error -> "ASR KO — ${error.message}" },
+                ),
+            )
+        }
+    }
+
     fun reset() {
+        viewModelScope.launch(Dispatchers.IO) { recorder?.stopAndCollect() }
         _state.update { UiState(settings = it.settings, settingsReady = it.settingsReady) }
     }
 }

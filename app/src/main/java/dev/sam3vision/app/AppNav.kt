@@ -44,7 +44,13 @@ fun AppNav(viewModel: AppViewModel) {
             onOpenSettings = { push(Route.Settings) },
         )
 
-        Route.Chat -> ChatScreen(state = state, onBack = pop, onAsk = viewModel::ask)
+        Route.Chat -> ChatScreen(
+            state = state,
+            onBack = pop,
+            onAsk = viewModel::ask,
+            onStartDictation = viewModel::startDictation,
+            onStopDictation = viewModel::stopDictation,
+        )
 
         Route.Settings -> SettingsScreen(
             settings = state.settings,
@@ -53,6 +59,7 @@ fun AppNav(viewModel: AppViewModel) {
             onSave = { viewModel.saveSettings(it); pop() },
             onTestLlm = viewModel::testLlm,
             onTestSam = viewModel::testSam,
+            onTestAsr = viewModel::testAsr,
             onBack = pop,
         )
     }

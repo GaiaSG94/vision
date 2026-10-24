@@ -2,6 +2,16 @@
 
 ## 2026-10-24
 
+- **Dictée vocale Meta Muse dans le Chat** (`feat/muse-dictation`) : bouton « Dicter »,
+  micro 16 kHz mono (60 s max, PCM en mémoire seulement), client `MetaAsrClient`
+  (`POST https://api.meta.ai/v1/asr/transcribe`, multipart `request` + `audio`), texte inséré
+  dans le champ de question. Réglages : base URL / clé / modèle ASR + « Tester la dictée Meta ».
+  15 tests JVM ajoutés (79 core + 4 app), `assembleDebug` vert, recette émulateur jouée.
+  **Blocage externe** : le compte Meta n'a pas de moyen de paiement → `402
+  billing_not_configured` sur tout appel ; la trajectoire est validée jusqu'à cet code
+  (plus de `400 Malformed multipart` — OkHttp ajoutait un `Content-Length` par part).
+  Détail : `docs/META-ASR.md`.
+
 - **L'app Expo est remplacée par une app Android native Kotlin/Compose**
   (`~/Bureau/sam-vision-kotlin`, modules `:core` pur-JVM testé + `:app` Compose/CameraX).
   L'app Expo part en `legacy-expo-app/` dans l'ancien dépôt.

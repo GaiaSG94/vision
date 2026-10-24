@@ -16,10 +16,15 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   masques togglables + liste label/score), tags en petits caractères sous le titre, puis bloc
   « Description » en texte libre, bouton « Poser une question » → Chat.
 - **Chat** : fil de bulles user/assistant sur la photo courante, champ « Ex. : qu'y a-t-il à
-  gauche ? », bouton « Envoyer », état « en cours… » et réessai.
+  gauche ? », bouton « Dicter » (dictée Meta Muse, devient « Stop » pendant l'enregistrement),
+  bouton « Envoyer », état « en cours… » et réessai.
+- **Dictée Meta Muse** : le micro (16 kHz mono, 60 s max) est transcrit par
+  `muse-voice-transcribe-1.0` et le texte est inséré dans le champ de question. Contrat,
+  pièges et blocage de facturation : `docs/META-ASR.md`.
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
-  4 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM), boutons
-  « Enregistrer », « Tester le LLM » (mini-image 16×16, statut « LLM OK — … »), « Tester SAM ».
+  7 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, base URL ASR,
+  clé Meta masquée, modèle ASR), boutons « Enregistrer », « Tester le LLM » (mini-image 16×16,
+  statut « LLM OK — … »), « Tester SAM », « Tester la dictée Meta » (1 s de silence).
 
 ## Arborescence
 
@@ -68,6 +73,16 @@ llm.model=ali/qwen3.8-omni-flash
 
 Ces valeurs sont injectées dans `BuildConfig` et servent de **défauts** ; la saisie dans
 l'écran Réglages prime sur la valeur embarquée.
+
+## Brancher la dictée Meta Muse
+
+1. Renseigner « Dictée Meta — clé API » dans Réglages (base URL et modèle ont des défauts :
+   `https://api.meta.ai/v1`, `muse-voice-transcribe-1.0`), Enregistrer, puis
+   « Tester la dictée Meta ».
+2. **Prérequis côté compte** : la facturation Meta doit être réglée
+   (`https://dev.meta.ai/billing/?action=resolve_billing`). Sans ça, chaque appel — dictée
+   comme test — renvoie `402 billing_not_configured` et l'app l'affiche tel quel.
+3. La clé est stockée chiffrée (Keystore), jamais embarquée dans l'APK ni dans le dépôt.
 
 ## Réactiver la segmentation SAM 3.1
 

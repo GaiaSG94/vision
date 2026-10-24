@@ -26,6 +26,14 @@ class UiLogicTest {
     }
 
     @Test
+    fun `la dictee s'ajoute au brouillon sans coller les mots`() {
+        assertEquals("quelle heure", mergeDraft("", "  quelle heure "))
+        assertEquals("decris la photo quelle heure", mergeDraft("decris la photo", "quelle heure"))
+        assertEquals("deja la", mergeDraft("deja la", "   "))
+        assertEquals("seule", mergeDraft("  ", "seule"))
+    }
+
+    @Test
     fun `les couleurs de theme sont distinctes`() {
         assertNotEquals(AppColors.primary, AppColors.danger)
         assertNotEquals(AppColors.background, AppColors.surface)

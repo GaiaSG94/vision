@@ -55,5 +55,55 @@ internal fun extractFirstJsonObject(text: String): String? {
     return null
 }
 
+/** Chemins connus du texte dans les réponses de transcription (Meta et autres). */
+private val TRANSCRIPT_PATHS = listOf(
+    "text",
+    "transcript",
+    "transcription",
+    "output_text",
+    "result.text",
+    "result.transcript",
+    "output.text",
+    "data.text",
+)
+
+/**
+ * Texte d'une réponse de transcription : JSON (champs connus, `segments`
+ * recollés) ou texte brut. `null` si rien d'exploitable n'est trouvé.
+ */
+internal fun extractTranscript(raw: String): String? {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return null
+    val json = runCatching { JSONObject(trimmed) }.getOrNull() ?: return trimmed
+    TRANSCRIPT_PATHS.forEach { path -> json.textAt(path)?.let { return it } }
+    val segments = json.segments("").ifEmpty { json.segments("result") }
+    return segments.joinToString(" ").takeIf { it.isNotBlank() }
+}
+
+/** Valeur texte à un chemin pointé (`result.text`), `null` si absente ou nulle. */
+internal fun JSONObject.textAt(path: String): String? {
+    val parent = path.substringBeforeLast('.', "")
+    val key = path.substringAfterLast('.')
+    val node = objectAt(parent) ?: return null
+    if (!node.has(key) || node.isNull(key)) return null
+    return node.optString(key)
+}
+
+/** Sous-objet pointé (`""` = soi-même), `null` si un étage manque. */
+internal fun JSONObject.objectAt(path: String): JSONObject? =
+    if (path.isBlank()) this else path.split('.').fold(this as JSONObject?) { node, part -> node?.optJSONObject(part) }
+
+/** `segments` = liste de chaînes ou d'objets `{text}`, recollés par une espace. */
+internal fun JSONObject.segments(path: String): List<String> {
+    val arr = objectAt(path)?.optJSONArray("segments") ?: return emptyList()
+    return (0 until arr.length()).mapNotNull { i ->
+        when (val item = arr.opt(i)) {
+            is String -> item.takeIf { it.isNotBlank() }
+            is JSONObject -> item.optString("text").takeIf { it.isNotBlank() }
+            else -> null
+        }
+    }
+}
+
 /** Construit un tableau JSON de chaînes. */
 internal fun jsonArrayOf(values: List<String>): JSONArray = JSONArray().apply { values.forEach { put(it) } }

@@ -11,10 +11,18 @@ data class Settings(
     val samBaseUrl: String,
     val ttsApiKey: String = "",
     val ttsVoiceId: String = DEFAULT_TTS_VOICE_ID,
+    /** Dictée Meta (muse-voice-transcribe-1.0) : endpoint et clé distincts du LLM. */
+    val asrBaseUrl: String = DEFAULT_ASR_BASE_URL,
+    val asrApiKey: String = "",
+    val asrModel: String = DEFAULT_ASR_MODEL,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
         const val DEFAULT_LLM_MODEL = "ali/qwen3.8-omni-flash"
+
+        /** API Meta (non compatible OpenAI) : la route est `{base}/asr/transcribe`. */
+        const val DEFAULT_ASR_BASE_URL = "https://api.meta.ai/v1"
+        const val DEFAULT_ASR_MODEL = "muse-voice-transcribe-1.0"
 
         /** Voix ElevenLabs de départ ; modifiable dans Réglages. */
         const val DEFAULT_TTS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
@@ -26,6 +34,9 @@ data class Settings(
             samBaseUrl = "",
             ttsApiKey = "",
             ttsVoiceId = DEFAULT_TTS_VOICE_ID,
+            asrBaseUrl = DEFAULT_ASR_BASE_URL,
+            asrApiKey = "",
+            asrModel = DEFAULT_ASR_MODEL,
         )
     }
 
@@ -37,6 +48,9 @@ data class Settings(
 
     /** Vrai si l'app peut appeler ElevenLabs (clé + voix renseignées). */
     val ttsConfigured: Boolean get() = ttsApiKey.isNotBlank() && ttsVoiceId.isNotBlank()
+
+    /** Vrai si la dictée Meta est utilisable (endpoint + clé renseignés). */
+    val asrConfigured: Boolean get() = asrBaseUrl.isNotBlank() && asrApiKey.isNotBlank()
 }
 
 interface SettingsStore {

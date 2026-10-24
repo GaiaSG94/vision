@@ -27,6 +27,11 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             llmModel = prefs.getString(KEY_LLM_MODEL, default.llmModel).orEmpty()
                 .ifBlank { default.llmModel },
             samBaseUrl = prefs.getString(KEY_SAM_BASE_URL, default.samBaseUrl).orEmpty(),
+            asrBaseUrl = prefs.getString(KEY_ASR_BASE_URL, default.asrBaseUrl).orEmpty()
+                .ifBlank { default.asrBaseUrl },
+            asrApiKey = prefs.getString(KEY_ASR_API_KEY, default.asrApiKey).orEmpty(),
+            asrModel = prefs.getString(KEY_ASR_MODEL, default.asrModel).orEmpty()
+                .ifBlank { default.asrModel },
         )
     }
 
@@ -36,6 +41,9 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_LLM_API_KEY, s.llmApiKey)
             .putString(KEY_LLM_MODEL, s.llmModel)
             .putString(KEY_SAM_BASE_URL, s.samBaseUrl)
+            .putString(KEY_ASR_BASE_URL, s.asrBaseUrl)
+            .putString(KEY_ASR_API_KEY, s.asrApiKey)
+            .putString(KEY_ASR_MODEL, s.asrModel)
             .apply()
     }
 
@@ -44,6 +52,9 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_LLM_API_KEY = "llm_api_key"
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_SAM_BASE_URL = "sam_base_url"
+        const val KEY_ASR_BASE_URL = "asr_base_url"
+        const val KEY_ASR_API_KEY = "asr_api_key"
+        const val KEY_ASR_MODEL = "asr_model"
 
         /** Lève si le Keystore est indisponible : le factory retombe alors sur un fichier chiffré. */
         internal fun createPrefs(context: Context): SharedPreferences {

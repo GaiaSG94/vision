@@ -34,6 +34,7 @@ fun SettingsScreen(
     onSave: (Settings) -> Unit,
     onTestLlm: () -> Unit,
     onTestSam: () -> Unit,
+    onTestAsr: () -> Unit,
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(settings) }
@@ -58,9 +59,19 @@ fun SettingsScreen(
             LabeledField("Base URL SAM 3.1 (vide = désactivé)", draft.samBaseUrl, false) {
                 draft = draft.copy(samBaseUrl = it)
             }
+            LabeledField("Dictée Meta — base URL (ASR)", draft.asrBaseUrl, false) {
+                draft = draft.copy(asrBaseUrl = it)
+            }
+            LabeledField("Dictée Meta — clé API", draft.asrApiKey, true) {
+                draft = draft.copy(asrApiKey = it)
+            }
+            LabeledField("Dictée Meta — modèle", draft.asrModel, false) {
+                draft = draft.copy(asrModel = it)
+            }
             BigButton("Enregistrer", true, AppColors.primary, onClick = { onSave(draft) })
             BigButton("Tester le LLM", llmConfigured, AppColors.surfaceHigh, onTestLlm)
             BigButton("Tester SAM", draft.samBaseUrl.isNotBlank(), AppColors.surfaceHigh, onTestSam)
+            BigButton("Tester la dictée Meta", draft.asrConfigured, AppColors.surfaceHigh, onTestAsr)
             statusLine?.let { StatusBanner(it, AppColors.surfaceHigh) }
         }
     }

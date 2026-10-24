@@ -1,6 +1,6 @@
 # TESTING — sam-vision-kotlin
 
-## Tests JVM (31, réseau simulé)
+## Tests JVM (79 core + 4 app, réseau simulé)
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
@@ -15,6 +15,14 @@ Couverture (`core/src/test/...`, serveur maison `TestHttpServer`, jamais d'appel
 `text.TextSanitizerTest` 4 ; `usecase.UseCasesTest` 6 (fusion objets+labels, sans SAM, échec SAM
 toléré, erreur LLM propagée). Détail : `core/build/test-results/testDebugUnitTest/*.xml`.
 
+Dictée Meta (`docs/META-ASR.md`) : `audio.WavTest` 3 (champs RIFF, assemblage en-tête+PCM,
+durée) ; `net.MetaAsrClientTest` 8 (multipart `request`+`audio` sans `Content-Length` par part,
+champs imbriqués et `segments`, texte vide = succès, 402→PaymentRequired, 401→InvalidKey,
+clé absente et audio vide = zéro requête, réponse sans texte→BadResponse) ;
+`usecase.DictationUseCaseTest` 4 (trop court refusé avant réseau, WAV complet envoyé, texte
+vide→« aucune parole », erreur client propagée) ; `app.UiLogicTest` ajoute la fusion
+brouillon+dictée.
+
 ## Recette manuelle émulateur (1080×2400 @ 420 dpi — serial par défaut emulator-5554)
 
 ```bash
@@ -22,6 +30,7 @@ EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # fait tout ci-
 # ou à la main :
 adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.CAMERA
+adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.RECORD_AUDIO
 adb -s emulator-5554 shell am start -n dev.sam3vision.app/.MainActivity
 ```
 
@@ -32,7 +41,12 @@ Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
    endpoint SAM dans Réglages. », tags, description ; retour `input tap 160 95`.
 3. Réglages : champs Base URL LLM (540 452), Clé (540 688), Modèle (540 924), URL SAM (540 1160) ;
    « Enregistrer » (540 1331), « Tester le LLM » (540 1499) ⇒ « LLM OK — … », « Tester SAM » (540 1667).
-4. Screenshot : `adb -s emulator-5554 shell screencap /sdcard/s.png && adb -s emulator-5554 pull
+4. Dictée : champ « Dictée Meta — clé API » (540 1150), taper la clé (échapper le `|` :
+   `input text "LLM\|…"`), « Enregistrer », « Tester la dictée Meta » (540 2061) ⇒
+   « ASR KO — paiement requis (402) … » = trajectoire bonne, facturation Meta à régler.
+   Dans le Chat : « Dicter » (540 1978) ⇒ bandeau « Enregistrement… », « Stop » ⇒
+   « Dictée KO — paiement requis (402) … » (même raison).
+5. Screenshot : `adb -s emulator-5554 shell screencap /sdcard/s.png && adb -s emulator-5554 pull
    /sdcard/s.png /tmp/samvision_manual.png`. Clé visible nulle part (champ masqué `•••`).
 
 ## Limites connues
