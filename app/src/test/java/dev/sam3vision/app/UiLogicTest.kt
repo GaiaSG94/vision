@@ -34,6 +34,21 @@ class UiLogicTest {
     }
 
     @Test
+    fun `la bascule d'intro dit l'etat qu'elle porte`() {
+        assertEquals("Intro à la 1re ouverture : on", introToggleLabel(true))
+        assertEquals("Intro à la 1re ouverture : off", introToggleLabel(false))
+        assertNotEquals(introToggleLabel(true), introToggleLabel(false))
+    }
+
+    @Test
+    fun `l'ecran de garde ne s'affiche qu'avant la premiere ecoute`() {
+        assertTrue(introGateVisible(settingsReady = true, introEnabled = true, introPlayed = false))
+        assertTrue(!introGateVisible(settingsReady = false, introEnabled = true, introPlayed = false))
+        assertTrue(!introGateVisible(settingsReady = true, introEnabled = true, introPlayed = true))
+        assertTrue(!introGateVisible(settingsReady = true, introEnabled = false, introPlayed = false))
+    }
+
+    @Test
     fun `les couleurs de theme sont distinctes`() {
         assertNotEquals(AppColors.primary, AppColors.danger)
         assertNotEquals(AppColors.background, AppColors.surface)

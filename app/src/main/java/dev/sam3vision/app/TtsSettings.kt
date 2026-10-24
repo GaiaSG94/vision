@@ -48,21 +48,37 @@ fun TtsSettings(
             onStop = onStop,
             actionLabel = "Tester la voix",
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Lire les réponses automatiquement", color = AppColors.text, fontSize = 13.sp)
-            Switch(
-                checked = draft.ttsAutoplay,
-                onCheckedChange = { onChange(draft.copy(ttsAutoplay = it)) },
-            )
-        }
+        SwitchRow(
+            label = "Lire les réponses automatiquement",
+            checked = draft.ttsAutoplay,
+        ) { onChange(draft.copy(ttsAutoplay = it)) }
         Text(
             "Activé : chaque réponse du chat est lue dès qu'elle arrive. Désactivé : bouton 🔊 seulement.",
             color = AppColors.textMuted,
             fontSize = 11.sp,
         )
+        SwitchRow(
+            label = introToggleLabel(draft.introEnabled),
+            checked = draft.introEnabled,
+        ) { onChange(draft.copy(introEnabled = it)) }
+        Text(
+            "Intro embarquée (voix Jade US, hors ligne) : jouée une seule fois, au premier " +
+                "appui sur l'écran d'accueil.",
+            color = AppColors.textMuted,
+            fontSize = 11.sp,
+        )
+    }
+}
+
+/** Ligne « libellé + interrupteur » : une seule implémentation pour les bascules de voix. */
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, color = AppColors.text, fontSize = 13.sp)
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }

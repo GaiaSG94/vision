@@ -18,6 +18,25 @@
   (aucun envoi, l'endpoint n'est pas configuré). 156 tests JVM verts (122 `core` + 34 `app`,
   +4 `TapOrHoldTest`), `assembleDebug` vert.
 
+## 2026-10-24 — intro vocale d'accueil (voix Jade US), jouée une fois et sur appui
+
+- **Intro embarquée.** `app/src/main/res/raw/intro_ihear.mp3` (voix **Jade US**
+  `TOXPlnYC7z5SQSV2Zgc5`, MP3 44,1 kHz mono, ~22 s) est livrée dans l'APK : aucune clé
+  ElevenLabs, aucun réseau. `IntroAudio` recopie l'asset une fois dans `cacheDir/intro`
+  (`MediaPlayer` ne lit qu'un chemin).
+- **Un seul lecteur.** L'intro passe par le `SpeechPlayer` du TTS (`playFile`) : toute
+  lecture de réponse coupe l'intro, et inversement. Aucun second lecteur audio.
+- **Premier lancement, sur geste explicite.** Écran de garde tactile tant que
+  `Settings.introPending` (intro autorisée et pas encore entendue) ; l'appui joue l'intro
+  et persiste `introPlayed`. Bascule **« Intro à la 1re ouverture »** dans Réglages
+  (`introToggleLabel`, `introGateVisible` : logique pure testée). Les deux stores
+  (`EncryptedSharedPreferences`, fichier privé AES/GCM) persistent `introEnabled` et
+  `introPlayed` ; un réglage d'avant l'intro garde l'intro active.
+- **Découpage en phrases réutilisable** (`core/audio/SentenceChunker`,
+  `core/usecase/SpeechUseCase`, `SpeechCache` LRU 6 entrées) : une phrase par requête
+  ElevenLabs, rejouer une réponse ne re-consomme pas de caractères. Testé en JVM.
+- Docs : `docs/ELEVENLABS-TTS.md`, `docs/TESTING.md`, `README.md`.
+
 ## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
 
 - **Le gate ne dit plus « intervention humaine » et s'arrête là.** Sur

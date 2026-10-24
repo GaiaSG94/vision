@@ -68,11 +68,33 @@ Content-Type: application/json
 | Pilote (une lecture à la fois, erreurs → bandeau) | `app/VoiceController.kt` |
 | Boutons « Lire / Stop », bascule haut-parleur | `app/VoiceUi.kt`, Chat et Analyse |
 | Réglages (clé, voix, modèle, « Tester la voix ») | `app/SettingsScreen.kt` |
+| Intro embarquée au lancement | `app/src/main/res/raw/intro_ihear.mp3`, `app/IntroAudio.kt`, `VoiceController.playFile` |
 
 Comportement : la description et chaque réponse d'assistant ont un bouton **Lire** ;
 la bascule **Haut-parleur** coupe la lecture automatique (activée par défaut quand une
 clé existe). Rejouer une réponse ne re-consomme pas de caractères (cache). La voix est
 coupée par `reset()` et `onCleared()`.
+
+## Intro au lancement
+
+`app/src/main/res/raw/intro_ihear.mp3` : 309 caractères, voix Jade US, `eleven_v3`,
+MP3 44,1 kHz mono 128 kb/s, ~22 s, 347 785 octets. Rendu **une fois** par l'API et
+embarqué : à l'ouverture, l'app ne consomme ni caractère ni réseau.
+
+- Texte (source) :
+  « Welcome to iHear. To record your surroundings, tap anywhere on the screen to start the
+  video, and tap again to stop and analyze it. To ask a question or make a request, tap and
+  hold while you speak, then release. To stop hearing this intro, press and hold the screen
+  long enough to say, "Disable iHear intro." »
+- Lecture : `AppViewModel.playIntro()` après chargement des réglages, via
+  `VoiceController.playFile(VoiceSource.INTRO, …)` (même lecteur, même état que le TTS).
+  `IntroAudio` recopie l'asset dans `cacheDir/intro/` (le cache peut être vidé : la copie
+  est refaite au besoin).
+- Coupure : bouton « Stop », toute autre lecture, bascule **« Intro au lancement : on/off »**
+  (Réglages → `Settings.introEnabled`, vrai par défaut, persisté par les deux stores).
+- Régénérer avec l'autre modèle (choix de timbre) :
+  `eleven_multilingual_v2` sur le même texte donne un rendu plus neutre ; remplacer le MP3
+  et garder le nom de fichier.
 
 ## Brancher la clé
 
