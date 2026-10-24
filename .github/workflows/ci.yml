@@ -27,6 +27,30 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Cette PR touche-t-elle du code ?
+        id: perimetre
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Une PR de docs/config n'a pas besoin de Gradle : on économise ~45 s
+          # de CI et le verdict tombe en quelques secondes. La liste des fichiers
+          # vient de l'API (le checkout est superficiel, la base n'y est pas).
+          code=1
+          if [ -n "$PR_NUMBER" ]; then
+            fichiers="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+              | python3 -c 'import json,sys;print("\n".join(f["filename"] for f in json.load(sys.stdin)))' 2>/dev/null || true)"
+            if [ -n "$fichiers" ]; then
+              if printf '%s\n' "$fichiers" | grep -qE '^(app|core)/.*\.(kt|kts)$|^gradle/|^gradle\.properties$'; then
+                code=1; echo "Code touché : Gradle complet."
+              else
+                code=0; echo "PR sans code (${fichiers//$'\n'/, }) : étapes Gradle sautées."
+              fi
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
       - name: Chaîne d'outils du worker
         run: |
           test -n "$JAVA_HOME" || { echo "::error::JAVA_HOME absent — voir ~/toolchains/jdk17 sur le r630"; exit 1; }
@@ -59,13 +83,17 @@ jobs:
       - name: Garde de taille Kotlin (< 500 lignes/fichier, < 50 lignes/fonction)
         run: python3 tools/check-kotlin-limits.py
 
-      # Mesuré sur r630-sam-vision-0N (cache Gradle chaud, 24/10) : tests ~15 s,
-      # assembleRelease 41 s, lintDebug 22 s => job ~1 min, très sous les 5 min.
-      - name: Tests unitaires (core + app) + APK debug
-        run: ./gradlew --console=plain :core:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
-
-      - name: APK release + lint (ce qui casse après merge, sinon)
-        run: ./gradlew --console=plain :app:assembleRelease :app:lintDebug
+      # Un SEUL appel Gradle (une seule configuration, un seul daemon) :
+      # tests + APK debug + APK release + lint. Mesuré sur r630-sam-vision-0N le
+      # 24/10 : 46 s à chaud, 1 min 00 en CI — pour un budget de 5 min.
+      # -Xmx2g : 4 workers partagent la machine (31 Go), 4 daemons à 4 Go
+      # saturated la RAM.
+      - name: Tests + APK debug + APK release + lint
+        if: steps.perimetre.outputs.code == '1'
+        run: >-
+          ./gradlew --console=plain -Dorg.gradle.jvmargs="-Xmx2g"
+          :core:testDebugUnitTest :app:testDebugUnitTest
+          :app:assembleDebug :app:assembleRelease :app:lintDebug
 
       - name: Rapport de tests
         if: always()

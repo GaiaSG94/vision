@@ -29,8 +29,10 @@ queue_rules:
       - base = master
     batch_size:
       min: 1
-      max: 3
-    batch_max_wait_time: "30 seconds"
+      max: 2
+    # Ne pas attendre 30 s pour remplir un batch : la file teste en speculatif
+    # (max_parallel_checks), l'attente ne sert qu'à perdre du temps.
+    batch_max_wait_time: "5 seconds"
     max_checks_retries: 1
     # Évaluées sur la DRAFT PR du batch (doc Mergify), pas sur la PR d'origine :
     # on n'y met que les checks publiés partout. `ci` (gradle) devient `pending`
@@ -54,9 +56,9 @@ priority_rules:
     priority: low
 
 merge_queue:
-  # N workers self-hosted (R630, labels sam-vision-worker) ; la speculation
-  # Mergify reste bornee a 4, ajustable.
-  max_parallel_checks: 2
+  # 4 workers self-hosted sur le r630 (labels sam-vision-worker) : Mergify teste
+  # autant de lots en parallèle qu'il y a de workers (spéculation).
+  max_parallel_checks: 4
 
 # Auto-queue natif (produit Merge Queue) : évite de dépendre du produit
 # « Workflow Automation » (pull_request_rules), constaté désactivé le 24/10.

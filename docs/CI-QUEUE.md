@@ -102,8 +102,13 @@ compte rendu.
 | `:core:testDebugUnitTest` + `:app:testDebugUnitTest` + `:app:assembleDebug` | 15 s |
 | `:app:assembleRelease` | 41 s |
 | `:app:lintDebug` | 22 s |
-| job `ci` complet | **46 s** (1 min 00 en CI, cache froid) |
+| job `ci` complet (code) | **46 s** (1 min 00 en CI, cache froid) |
+| job `ci` d'une PR **sans code** (docs, config) | **~10 s** — Gradle sauté |
 | `couche0` / `ci-budget` / `stale-base-guard` / `Verdict` | 6 à 10 s, en parallèle |
 
-Verdict de PR : **≈ 1 min 10** pour un budget de 5 min. Toute évolution qui ferait
+4 workers `r630-sam-vision-01..04` (chacun avec son cache Gradle isolé) allowent la
+spéculation de la file (`max_parallel_checks: 4`) : le lot est déjà testé quand la PR
+arrive en tête de file.
+
+Verdict de PR : **≈ 1 min 10** pour du code, **≈ 15 s** pour de la doc — budget 5 min. Toute évolution qui ferait
 passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
