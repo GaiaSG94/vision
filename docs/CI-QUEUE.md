@@ -8,8 +8,10 @@ Une PR entre dans la file `default` quand **toutes** ces conditions sont vraies
 - `ci-budget` verte — aucun job déclaré à plus de 5 min (`~/Bureau/CI-BUDGET-5MIN.md`) ;
 - pas de conflit, pas brouillon, base `master`, pas l'étiquette `hold`.
 
-Mergify **rebase** alors la PR sur le master courant, **re-exécute** les checks sur
-le résultat, puis merge en `rebase`. Deux PR peuvent être testées en batch
+Mergify teste **sur la branche de la PR** (in-place checks : `batch_size: 1`,
+`max_parallel_checks: 1`, `max_checks_retries: 0`, pas de `merge_conditions`
+distinct) : un seul run CI par PR au lieu de deux, et **merge immédiat** quand la
+base n'a pas bougé sous la PR. Si elle a bougé, la PR est rebasée et re-testée. Deux PR peuvent être testées en batch
 (`batch_size` 1-3, `max_parallel_checks: 2` = taille du pool) — d'où
 `Require branches to be up to date` **désactivé** dans la protection GitHub :
 les checks spéculatifs de Mergify sont incompatibles avec cette option, et la
@@ -106,9 +108,8 @@ compte rendu.
 | job `ci` d'une PR **sans code** (docs, config) | **~10 s** — Gradle sauté |
 | `couche0` / `ci-budget` / `stale-base-guard` / `Verdict` | 6 à 10 s, en parallèle |
 
-4 workers `r630-sam-vision-01..04` (chacun avec son cache Gradle isolé) allowent la
-spéculation de la file (`max_parallel_checks: 4`) : le lot est déjà testé quand la PR
-arrive en tête de file.
+4 workers `r630-sam-vision-01..04`, chacun avec son cache Gradle isolé : les CI des
+PR tournent en parallèle sans se battre pour les verrous du cache.
 
-Verdict de PR : **≈ 1 min 10** pour du code, **≈ 15 s** pour de la doc — budget 5 min. Toute évolution qui ferait
+Verdict de PR : **≈ 45 s** pour du code, **≈ 10 s** pour de la doc — budget 5 min. Toute évolution qui ferait
 passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).

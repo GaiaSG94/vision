@@ -16,6 +16,8 @@ concurrency:
 
 permissions:
   contents: read
+  # La détection « PR sans code » lit la liste des fichiers via l'API.
+  pull-requests: read
 
 jobs:
   ci:
