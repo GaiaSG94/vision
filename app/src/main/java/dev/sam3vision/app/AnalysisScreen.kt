@@ -1,0 +1,105 @@
+package dev.sam3vision.app
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/** Résultat d'analyse : photo + masques, description du LLM, objets, accès au chat. */
+@Composable
+fun AnalysisScreen(
+    state: UiState,
+    onBack: () -> Unit,
+    onOpenChat: () -> Unit,
+    onToggleMasks: () -> Unit,
+    onRetry: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(AppColors.background)
+            .imePadding()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        ScreenHeader(
+            title = "Analyse",
+            subtitle = state.analysis?.tags?.takeIf { it.isNotEmpty() }?.joinToString(" · "),
+            onBack = onBack,
+            onSettings = onOpenSettings,
+        )
+        state.photo?.let {
+            PhotoStage(
+                bitmap = it,
+                overlays = state.overlays,
+                showMasks = state.showMasks,
+                modifier = Modifier.fillMaxWidth().height(340.dp).padding(horizontal = 12.dp),
+            )
+        }
+        state.segmentationNote?.let { StatusBanner(it, AppColors.warning) }
+        when (val phase = state.phase) {
+            Phase.Analyzing -> Row(
+                Modifier.fillMaxWidth().padding(24.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) { CircularProgressIndicator(color = AppColors.primary) }
+
+            is Phase.Failed -> Column(
+                Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                StatusBanner(phase.message, AppColors.danger)
+                BigButton("Réessayer", true, AppColors.danger, onRetry)
+            }
+
+            else -> Unit
+        }
+        state.analysis?.description?.let { DescriptionCard(it) }
+        ObjectList(state.objects)
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BigButton("Poser une question", state.hasPhoto, AppColors.primary, onOpenChat, 0.62f)
+            BigButton(
+                if (state.showMasks) "Masques on" else "Masques off",
+                state.overlays.isNotEmpty(),
+                AppColors.surfaceHigh,
+                onToggleMasks,
+                0.38f,
+            )
+        }
+    }
+}
+
+/** Bloc de description produit par le LLM. */
+@Composable
+private fun DescriptionCard(description: String) {
+    Text(
+        description,
+        color = AppColors.text,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Normal,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(AppColors.surface, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+    )
+}

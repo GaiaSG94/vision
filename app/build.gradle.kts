@@ -1,4 +1,11 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+fun localProp(key: String): String = localProps.getProperty(key) ?: ""
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,6 +23,11 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        // Valeurs lues depuis local.properties (jamais commité) ; vides si absent.
+        buildConfigField("String", "LLM_BASE_URL", "\"${localProp("llm.base.url")}\"")
+        buildConfigField("String", "LLM_API_KEY", "\"${localProp("llm.api.key")}\"")
+        buildConfigField("String", "LLM_MODEL", "\"${localProp("llm.model")}\"")
     }
 
     buildTypes {
@@ -32,6 +44,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -56,6 +69,7 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation("com.google.guava:guava:33.3.1-android")
 
     testImplementation(libs.junit)
 }

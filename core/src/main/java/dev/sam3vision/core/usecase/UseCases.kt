@@ -5,6 +5,7 @@ import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Role
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.net.SamClient
+import dev.sam3vision.core.text.stripMarkdown
 
 /**
  * Pipeline photo → (segmentation si un endpoint SAM est configuré) → description LLM.
@@ -18,7 +19,13 @@ class AnalyzeUseCase(
     suspend fun invoke(jpegB64: String, prompts: List<String>? = null): Result<Analysis> {
         val objects = sam?.segment(jpegB64, prompts)?.getOrNull()?.objects.orEmpty()
         val labels = objects.map { it.label }.filter { it.isNotBlank() }.distinct().take(maxLabels)
-        return llm.describe(jpegB64, labels).map { analysis -> analysis.copy(objects = objects) }
+        return llm.describe(jpegB64, labels).map { analysis ->
+            analysis.copy(
+                description = stripMarkdown(analysis.description),
+                tags = analysis.tags.map(::stripMarkdown).filter { it.isNotBlank() },
+                objects = objects,
+            )
+        }
     }
 }
 
@@ -34,7 +41,7 @@ class AskUseCase(
         jpegB64: String,
         question: String,
         history: List<ChatTurn>,
-    ): Result<String> = llm.ask(jpegB64, question, history.takeLast(maxTurns))
+    ): Result<String> = llm.ask(jpegB64, question, history.takeLast(maxTurns)).map { stripMarkdown(it) }
 
     /** Historique mis à jour après une réponse (borné à 2 × maxTurns messages). */
     fun nextHistory(history: List<ChatTurn>, question: String, answer: String): List<ChatTurn> =
