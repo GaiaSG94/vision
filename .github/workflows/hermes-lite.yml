@@ -20,8 +20,14 @@ permissions:
   checks: write
 
 concurrency:
-  group: hermes-lite-${{ github.repository }}
-  cancel-in-progress: true
+  # Un groupe PAR PR (et par ref pour workflow_dispatch), pas un groupe par dépôt :
+  # avec `hermes-lite-${{ github.repository }}`, deux PR (ou une PR + les refs
+  # `mergify/merge-queue/*` de la file) s'annulaient mutuellement. Un check annulé
+  # est compté comme rouge par Mergify : la file déquait la PR à chaque passage
+  # (« Canceling since a higher priority waiting request … exists »).
+  group: hermes-lite-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.ref }}
+  # Jamais d'annulation en cours de route : un gate interrompu n'est pas un gate vert.
+  cancel-in-progress: false
 
 env:
   GH_TOKEN: ${{ secrets.HERMES_LITE_TOKEN || github.token }}
