@@ -106,32 +106,39 @@ def build_prompt(repo, pr, files, recent):
         "Fichiers touchés par la PR :\n%s\n"
         "Commits récents sur `%s` :\n%s\n\n"
         "Méthode, dans l'ordre ; ne travaille jamais en dehors de la branche de la PR :\n"
-        "1. `git fetch origin`, travaille dans un worktree hors de l'arbre partagé : "
-        "`git worktree add /tmp/hermes-pr-%s origin/%s` puis `git switch -c resoudre-%s "
-        "origin/%s` (si le worktree existe déjà, réutilise-le).\n"
-        "2. `git rebase origin/%s`. Pour chaque fichier en conflit : garde les DEUX "
-        "intentions, ne choisis jamais un côté aveuglément, lis les commits qui ont "
-        "produit chaque bord (`git log --oneline -3 HEAD` puis `git log --oneline -3 "
-        "origin/%s`).\n"
-        "3. `git rebase --continue` ; si un garde-fou refuse (`tools/check-kotlin-limits.py`, "
-        "couche 0), corrige le code au lieu de contourner le garde.\n"
+        "1. `T=$(cat ~/.gh-token)` puis clone dans un dossier de travail hors des arbres "
+        "partagés : `git clone https://x-access-token:$T@github.com/%s.git "
+        "/tmp/hermes-pr-%s` (réutilise-le si présent) et `cd /tmp/hermes-pr-%s` ; "
+        "`git switch %s` (la branche de la PR).\n"
+        "2. `git merge origin/%s` (ou `git rebase origin/%s` s'il n'y a aucun commit local). "
+        "Pour chaque fichier en conflit : garde les DEUX intentions, ne choisis jamais un "
+        "côté aveuglément ; lis ce que chaque bord voulait (`git log --oneline -3 HEAD` "
+        "puis `git log --oneline -3 origin/%s`).\n"
+        "3. Si un garde-fou refuse (`python3 tools/check-kotlin-limits.py`, couche 0), "
+        "corrige le code au lieu de contourner le garde.\n"
         "4. Valide avant de pousser : `./gradlew :core:test :app:testDebugUnitTest "
-        "assembleDebug` (JDK 17 et SDK Android déjà en place sur cette machine ; "
-        "`--offline` si le cache suffit). Vert uniquement = tests + build sans erreur.\n"
-        "5. Push sur la branche de la PR avec `git push --force-with-lease origin HEAD:%s` "
-        "— jamais sur `%s`, jamais un push forcé simple.\n"
-        "6. Commentaire final sur la PR #%s avec `gh pr comment` : ce qui était en "
-        "conflit, comment tu l'a résolu, la commande de validation et son résultat.\n\n"
-        "Arrête-toi après 3 tentatives ratées sur le même fichier : commente alors "
-        "exactement le blocage et pose le label `%s` pour l'humain. Ne merge pas, ne "
-        "touche pas à `.github/`, `.mergify.yml` ni aux gardes, ne supprime aucun "
+        "assembleDebug --offline` (JDK 17 et SDK Android déjà installés ; sans le "
+        "`--offline` si le cache est incomplet). Vert = tests et build sans erreur.\n"
+        "5. Pousse uniquement la branche de la PR : `git push "
+        "https://x-access-token:$T@github.com/%s.git HEAD:%s`. Jamais sur `%s`, jamais "
+        "un push forcé simple (`--force-with-lease` toléré si le dépôt a bougé).\n"
+        "6. Compte rendu sur la PR #%s via l'API (gh n'est pas installé ici) : `curl -s "
+        "-H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" -X "
+        "POST https://api.github.com/repos/%s/issues/%s/comments -d \"{\\\"body\\\":\\\"…\\\"}\"` "
+        "— dis ce qui était en conflit, comment tu l'as résolu, la commande de validation "
+        "et son résultat.\n\n"
+        "Après 3 tentatives ratées sur le même fichier : commente exactement le blocage et "
+        "pose le label `%s` (même API, `POST /issues/%s/labels`). Ne merge pas, ne touche "
+        "pas à `master`, à `.github/`, à `.mergify.yml` ni aux gardes, ne supprime aucun "
         "commit de la PR.\n"
     ) % (repo, pr['number'], (pr.get('title') or '').strip(), pr['base']['ref'],
          pr['head']['ref'], pr['head']['sha'][:10], pr['base']['ref'],
          pr['base']['sha'][:10], listing, pr['base']['ref'], log,
-         pr['number'], pr['head']['ref'], pr['number'], pr['head']['ref'],
-         pr['base']['ref'], pr['base']['ref'], pr['head']['ref'], pr['base']['ref'],
-         pr['number'], LABEL_HUMAN)
+         repo, pr['number'], pr['number'], pr['head']['ref'],
+         pr['base']['ref'], pr['base']['ref'], pr['base']['ref'],
+         repo, pr['head']['ref'], pr['base']['ref'],
+         pr['number'], repo, pr['number'],
+         LABEL_HUMAN, pr['number'])
 
 
 def send_chat(url, agent, token, prompt, timeout_s):
