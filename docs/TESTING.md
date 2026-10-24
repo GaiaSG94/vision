@@ -109,6 +109,8 @@ Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
    (ouvre l'écran Direct, « Arrêter » en haut à gauche pour revenir), « Vidéo (tap) »,
    « Galerie », « Réglages ». Un tap sur l'aperçu lance le mode vidéo tap, pas le Direct :
    les coordonnées des boutons dépendent du nombre de commandes, viser par libellé.
+   Récupération : endpoint injoignable → l'écran Direct affiche « Touche l'écran pour
+   relancer le direct » ; un tap au centre de l'aperçu relance la session.
 2. Analyse (~5–15 s, appel LLM réel) : bandeau « Segmentation désactivée — renseigne un
    endpoint SAM dans Réglages. », tags, description ; retour `input tap 160 95`.
 3. Réglages : champs Base URL LLM (540 452), Clé (540 688), Modèle (540 924), URL SAM (540 1160) ;

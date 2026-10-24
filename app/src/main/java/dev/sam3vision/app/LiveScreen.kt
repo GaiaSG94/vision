@@ -13,8 +13,13 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,8 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import java.util.concurrent.ExecutorService
@@ -72,9 +80,18 @@ fun LiveScreen(
         }
     }
 
-    LiveStage(state, previewView, draft, { draft = it }, failure, onBack, onAsk, onOpenSettings) {
-        viewModel.restartWith(draft)
-    }
+    LiveStage(
+        state = state,
+        previewView = previewView,
+        draft = draft,
+        onDraftChange = { draft = it },
+        failure = failure,
+        onBack = onBack,
+        onAsk = onAsk,
+        onOpenSettings = onOpenSettings,
+        onApplyPrompts = { viewModel.restartWith(draft) },
+        onRecover = { viewModel.restartActive() },
+    )
 }
 
 /** Aperçu mémorisé, avec notification d'attachement (sinon l'analyseur n'est jamais lié). */
@@ -102,6 +119,7 @@ private fun LiveStage(
     onAsk: () -> Unit,
     onOpenSettings: () -> Unit,
     onApplyPrompts: () -> Unit,
+    onRecover: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -113,6 +131,8 @@ private fun LiveStage(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        // Direct arrêté ou en erreur : un tap relance. Jamais pendant que le flux tourne.
+        if (!state.running || state.error != null) RecoveryTap(onRecover)
         LiveTopBar(
             state = state,
             draft = draft,
@@ -124,6 +144,27 @@ private fun LiveStage(
             modifier = Modifier.align(Alignment.TopCenter),
         )
         LiveBottomBar(state, onAsk, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+/**
+ * Zone transparente de récupération : quand le direct est arrêté ou en erreur, un tap sur
+ * l'aperçu relance la session. Posée sous les bandeaux, qui gardent la priorité tactile.
+ */
+@Composable
+private fun RecoveryTap(onRestart: () -> Unit) {
+    Box(
+        Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures(onTap = { onRestart() }) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            "Touche l'écran pour relancer le direct",
+            color = AppColors.text,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .background(AppColors.surface.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
     }
 }
 

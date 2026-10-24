@@ -144,6 +144,10 @@ Signal user : « quand je lâche, ça n'envoie pas ». Reproduit et corrigé.
   lançait le Direct dans la pile d'origine (`StartLiveOnTap`) ; master a depuis donné ce
   geste au mode vidéo tap, gardé ici. Le Direct reste accessible par son bouton dédié, à
   côté de « Vidéo (tap) » (`CaptureScreen.kt`).
+- **Direct : un tap relance la session quand le flux est arrêté ou en erreur** — zone
+  `RecoveryTap` sous les bandeaux de l'écran Direct, avec l'invite « Touche l'écran pour
+  relancer le direct ». Jamais active pendant que le flux tourne (pas de coupure
+  accidentelle) ; les concepts actifs sont conservés (`LiveViewModel.restartActive`).
 
 - **L'app Expo est remplacée par une app Android native Kotlin/Compose**
   (`~/Bureau/sam-vision-kotlin`, modules `:core` pur-JVM testé + `:app` Compose/CameraX).

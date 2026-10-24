@@ -12,6 +12,10 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 - **Capture** : plein écran sombre, titre « SAM Vision », zone d'aperçu caméra, trois
   boutons : « Photographier » (large, centre bas), « Galerie » (à gauche), « Réglages » (à droite).
   **Un tap n'importe où sur l'aperçu (hors boutons) lance le Direct (vidéo).**
+- **Direct** : aperçu + masques SAM en superposition, barre d'état (`Direct · 1,4 ips · 780 ms ·
+  8 objets · A100`), concepts éditables à chaud, questions pendant le flux. Flux arrêté ou en
+  erreur : un tap relance la session (concepts conservés), sans risque de coupure accidentelle
+  pendant que ça tourne.
 - **Analyse** : photo traitée (JPEG bord max 1024, q85), bandeau « Segmentation désactivée —
   renseigne un endpoint SAM dans Réglages. » quand `samBaseUrl` est vide (sinon : overlays de
   masques togglables + liste label/score), tags en petits caractères sous le titre, puis bloc

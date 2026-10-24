@@ -58,8 +58,13 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     /** Change les concepts suivis : `[promptsText]` séparé par virgules, vide = défaut. */
     fun restartWith(promptsText: String) {
         val list = promptsText.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }
-        viewModelScope.launch { start(store.load(), if (list.isEmpty()) LivePrompts.Default else list) }
+        restart(if (list.isEmpty()) LivePrompts.Default else list)
     }
+
+    /** Relance la session avec les concepts déjà actifs (flux arrêté ou en erreur). */
+    fun restartActive() = restart(_state.value.prompts.ifEmpty { LivePrompts.Default })
+
+    private fun restart(prompts: List<String>) = viewModelScope.launch { start(store.load(), prompts) }
 
     /** Le conteneur Modal se réveille en ~30 s : on retente la santé sans afficher d'erreur. */
     private suspend fun refreshHealth() {
