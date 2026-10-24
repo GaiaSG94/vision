@@ -62,54 +62,81 @@ private fun RouteContent(
     pop: () -> Unit,
 ) {
     when (route) {
-        Route.Capture -> CaptureScreen(
-            onPhoto = { file ->
-                viewModel.onPhoto(file)
-                push(Route.Analysis)
-            },
-            onOpenSettings = { push(Route.Settings) },
-            onOpenTap = { startNow ->
-                viewModel.stopSpeaking() // aucune voix du chat ne doit couvrir les annonces tap
-                push(Route.Tap(autoStart = startNow))
-            },
-            onOpenLive = { push(Route.Live) },
-        )
-
-        Route.Analysis -> AnalysisScreen(
-            state = state,
-            onBack = pop,
-            onOpenChat = { push(Route.Chat) },
-            onToggleMasks = viewModel::toggleMasks,
-            onRetry = viewModel::retryAnalysis,
-            onSpeak = viewModel::speak,
-            onStopVoice = viewModel::stopSpeaking,
-            onOpenSettings = { push(Route.Settings) },
-        )
-
-        Route.Live -> LiveScreen(
-            viewModel = liveViewModel,
-            onBack = { liveViewModel.stop(); pop() },
-            onAsk = {
-                viewModel.useLiveFrame(liveViewModel.state.value.lastJpegB64)
-                push(Route.Chat)
-            },
-            onOpenSettings = { push(Route.Settings) },
-        )
-
-        Route.Chat -> ChatScreen(
-            state = state,
-            onBack = pop,
-            onAsk = viewModel::ask,
-            onSpeak = viewModel::speak,
-            onStopVoice = viewModel::stopSpeaking,
-            onStartDictation = viewModel::startDictation,
-            onStopDictation = viewModel::stopDictation,
-        )
-
+        Route.Capture -> CaptureRoute(viewModel, push)
+        Route.Analysis -> AnalysisRoute(state, viewModel, push, pop)
+        Route.Live -> LiveRoute(viewModel, liveViewModel, push, pop)
+        Route.Chat -> ChatRoute(state, viewModel, pop)
         is Route.Tap -> TapCaptureScreen(state.settings, pop, route.autoStart)
-
         Route.Settings -> SettingsRoute(viewModel, state, pop)
     }
+}
+
+/** Accueil : photo → analyse, ouverture des réglages, mode tap, mode direct. */
+@Composable
+private fun CaptureRoute(viewModel: AppViewModel, push: (Route) -> Unit) {
+    CaptureScreen(
+        onPhoto = { file ->
+            viewModel.onPhoto(file)
+            push(Route.Analysis)
+        },
+        onOpenSettings = { push(Route.Settings) },
+        onOpenTap = { startNow ->
+            viewModel.stopSpeaking() // aucune voix du chat ne doit couvrir les annonces tap
+            push(Route.Tap(autoStart = startNow))
+        },
+        onOpenLive = { push(Route.Live) },
+    )
+}
+
+@Composable
+private fun AnalysisRoute(
+    state: UiState,
+    viewModel: AppViewModel,
+    push: (Route) -> Unit,
+    pop: () -> Unit,
+) {
+    AnalysisScreen(
+        state = state,
+        onBack = pop,
+        onOpenChat = { push(Route.Chat) },
+        onToggleMasks = viewModel::toggleMasks,
+        onRetry = viewModel::retryAnalysis,
+        onSpeak = viewModel::speak,
+        onStopVoice = viewModel::stopSpeaking,
+        onOpenSettings = { push(Route.Settings) },
+    )
+}
+
+/** Direct : le flux a son propre ViewModel ; une question part au chat avec sa frame. */
+@Composable
+private fun LiveRoute(
+    viewModel: AppViewModel,
+    liveViewModel: LiveViewModel,
+    push: (Route) -> Unit,
+    pop: () -> Unit,
+) {
+    LiveScreen(
+        viewModel = liveViewModel,
+        onBack = { liveViewModel.stop(); pop() },
+        onAsk = {
+            viewModel.useLiveFrame(liveViewModel.state.value.lastJpegB64)
+            push(Route.Chat)
+        },
+        onOpenSettings = { push(Route.Settings) },
+    )
+}
+
+@Composable
+private fun ChatRoute(state: UiState, viewModel: AppViewModel, pop: () -> Unit) {
+    ChatScreen(
+        state = state,
+        onBack = pop,
+        onAsk = viewModel::ask,
+        onSpeak = viewModel::speak,
+        onStopVoice = viewModel::stopSpeaking,
+        onStartDictation = viewModel::startDictation,
+        onStopDictation = viewModel::stopDictation,
+    )
 }
 
 /** Réglages : délègue au ViewModel et ferme l'écran après enregistrement. */
