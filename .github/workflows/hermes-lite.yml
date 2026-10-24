@@ -53,6 +53,13 @@ env:
   # IMPORTANT (runbook §3) : à renseigner PAR DÉPÔT — contexts de statut requis
   # avant merge, séparés par des virgules. Vide = merge dès que la PR est fraîche.
   HERMES_REQUIRED_CHECKS: ''
+  # Rebase serveur du gate : DESACTIVE (0).
+  # `update-branch` pousse en tant que bot : GitHub exige alors une approbation
+  # humaine sur chaque workflow declenche, la PR perd ses checks ci/couche0/
+  # ci-budget et n'est plus jamais embarquable (15 runs bloques le 24/10).
+  # Mettre la branche a jour est le metier de Mergify (update_method: rebase) :
+  # son push declenche la CI normalement. Le gate detecte, escalade, rend la main.
+  HERMES_LITE_REFRESH: '0'
   MERGE_METHOD: rebase
 
 jobs:
