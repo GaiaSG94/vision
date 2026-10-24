@@ -32,7 +32,10 @@ MAX_PAGES = 20
 
 # Fichiers de garde : les modifier exige une mention explicite dans le corps.
 GUARD_FILES = (".mergify.yml", ".github/ci-budget/", ".github/couche0/",
-               ".github/workflows/couche0.yml", ".github/workflows/ci-budget.yml")
+               ".github/workflows/couche0.yml", ".github/workflows/ci-budget.yml",
+               # Fermé le 24/10 : sans ça une PR pouvait retirer les tests du job
+               # `ci` sans le déclarer — la porte ouverte derrière la garde.
+               ".github/workflows/ci.yml")
 GUARD_FLAG = "SAMVISION_ALLOW_GUARD_BUMP"
 
 # Exemptés de déclaration de périmètre : régénérable ou non signé.

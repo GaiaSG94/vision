@@ -3,7 +3,8 @@
 Une PR entre dans la file `default` quand **toutes** ces conditions sont vraies
 (`.mergify.yml`, lu sur la branche par défaut `master`) :
 
-- `ci` verte — tests `:core` + `:app`, `assembleDebug`, garde anti-secret (worker `r630-sam-vision-0N`) ;
+- `ci` verte — tests `:core` + `:app`, `assembleDebug`, **`assembleRelease` + `lintDebug`**, gardes
+  anti-secret / java.home / taille Kotlin (worker `r630-sam-vision-0N`, ~1 min mesuré) ;
 - `ci-budget` verte — aucun job déclaré à plus de 5 min (`~/Bureau/CI-BUDGET-5MIN.md`) ;
 - pas de conflit, pas brouillon, base `master`, pas l'étiquette `hold`.
 

@@ -59,14 +59,21 @@ jobs:
       - name: Garde de taille Kotlin (< 500 lignes/fichier, < 50 lignes/fonction)
         run: python3 tools/check-kotlin-limits.py
 
+      # Mesuré sur r630-sam-vision-0N (cache Gradle chaud, 24/10) : tests ~15 s,
+      # assembleRelease 41 s, lintDebug 22 s => job ~1 min, très sous les 5 min.
       - name: Tests unitaires (core + app) + APK debug
         run: ./gradlew --console=plain :core:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+
+      - name: APK release + lint (ce qui casse après merge, sinon)
+        run: ./gradlew --console=plain :app:assembleRelease :app:lintDebug
 
       - name: Rapport de tests
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: rapports-tests
-          path: '**/build/reports/tests/**'
+          name: rapports-tests-et-lint
+          path: |
+            **/build/reports/tests/**
+            **/build/reports/lint-results-*.html
           retention-days: 3
           if-no-files-found: ignore
