@@ -35,7 +35,11 @@
 - **Découpage en phrases réutilisable** (`core/audio/SentenceChunker`,
   `core/usecase/SpeechUseCase`, `SpeechCache` LRU 6 entrées) : une phrase par requête
   ElevenLabs, rejouer une réponse ne re-consomme pas de caractères. Testé en JVM.
-- Docs : `docs/ELEVENLABS-TTS.md`, `docs/TESTING.md`, `README.md`.
+- Tests : `settings.SettingsIntroTest` 6, `core.audio.SentenceChunkerTest`,
+  `core.usecase.SpeechUseCaseTest`, `app.UiLogicTest` +2 → **185 `core` + 45 `app`** verts,
+  `assembleDebug` OK, `tools/check-kotlin-limits.py` OK.
+- Docs : `docs/ELEVENLABS-TTS.md` (contrat, Jade US, intro), `docs/TESTING.md` (recette
+  d'intro), `README.md`.
 
 ## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
 

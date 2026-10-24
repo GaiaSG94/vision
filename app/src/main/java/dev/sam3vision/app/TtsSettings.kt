@@ -36,8 +36,9 @@ fun TtsSettings(
         LabeledField("Clé API ElevenLabs", draft.ttsApiKey, true) { onChange(draft.copy(ttsApiKey = it)) }
         LabeledField("ID de voix ElevenLabs", draft.ttsVoiceId, false) { onChange(draft.copy(ttsVoiceId = it)) }
         Text(
-            "Voix offertes (premade) : Sarah EXAVITQu4vr4xnSDxMaL · George JBFqnCBsd6RMkjVDRZzb · " +
-                "pFZP5JQG7iQjIQuC4Bku. Les voix de bibliothèque répondent 402.",
+            "Voix premade : Sarah EXAVITQu4vr4xnSDxMaL · George JBFqnCBsd6RMkjVDRZzb. " +
+                "Jade US ${Settings.JADE_US_VOICE_ID} (celle de l'intro) est une voix de " +
+                "bibliothèque : elle répond 402 sans crédits.",
             color = AppColors.textMuted,
             fontSize = 11.sp,
         )
@@ -57,17 +58,20 @@ fun TtsSettings(
             color = AppColors.textMuted,
             fontSize = 11.sp,
         )
-        SwitchRow(
-            label = introToggleLabel(draft.introEnabled),
-            checked = draft.introEnabled,
-        ) { onChange(draft.copy(introEnabled = it)) }
-        Text(
-            "Intro embarquée (voix Jade US, hors ligne) : jouée une seule fois, au premier " +
-                "appui sur l'écran d'accueil.",
-            color = AppColors.textMuted,
-            fontSize = 11.sp,
-        )
+        IntroSetting(draft) { onChange(draft.copy(introEnabled = it)) }
     }
+}
+
+/** Bascule « intro » + son explication : l'écran de garde du premier lancement. */
+@Composable
+private fun IntroSetting(draft: Settings, onChange: (Boolean) -> Unit) {
+    SwitchRow(label = introToggleLabel(draft.introEnabled), checked = draft.introEnabled, onChange = onChange)
+    Text(
+        "Intro embarquée (voix Jade US, hors ligne) : jouée une seule fois, au premier " +
+            "appui sur l'écran d'accueil.",
+        color = AppColors.textMuted,
+        fontSize = 11.sp,
+    )
 }
 
 /** Ligne « libellé + interrupteur » : une seule implémentation pour les bascules de voix. */

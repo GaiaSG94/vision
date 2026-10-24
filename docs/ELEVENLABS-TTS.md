@@ -1,24 +1,30 @@
-# Voix ElevenLabs — Jade US (`TOXPlnYC7z5SQSV2Zgc5`)
+# Voix ElevenLabs — client, Jade US et intro d'accueil
 
 Relevé du 2026-10-24, demande user : « implémenter la voix Jade US dans ElevenLabs
-pour l'app SAM Vision ». L'app lisait déjà les réponses (contrat `TtsClient` posé avec la
-dictée), mais **aucun client TTS n'existait** : `Settings` annonçait une voix, rien ne
-l'appelait. C'est ce chaînon qui est écrit ici.
+pour l'app SAM Vision ». Depuis le rebase sur `master` (commit `2486853`), **une seule
+piste de lecture** existe : `VoiceAnnouncer` / `SpeechPlayer` de `master`. La branche
+`feat/jade-tts` n'ajoute que ce qui manquait — l'**intro embarquée** et le **découpage
+en phrases** (prêt, testé, pas encore branché sur la lecture).
 
 ## Quelle voix, exactement
 
 **Jade US = `TOXPlnYC7z5SQSV2Zgc5`** (ID communiqué par l'utilisateur le 2026-10-24,
-vérifié en réel ci-dessous). C'est l'ID retenu comme défaut de l'app
-(`Settings.DEFAULT_TTS_VOICE_ID`).
+vérifié en réel ci-dessous). Il est exposé par `Settings.JADE_US_VOICE_ID` et proposé
+dans les Réglages.
+
+**Le défaut de l'app reste Sarah** (`EXAVITQu4vr4xnSDxMaL`, voix « premade ») : une
+installation fraîche doit parler même sur un compte free. Jade US est une voix de
+bibliothèque : elle répond **402** tant que le compte n'a pas de crédits — le message
+d'erreur de `ApiError.PaymentRequired` le dit explicitement. Mettre Jade par défaut
+casserait donc la voix des comptes free ; on la choisit dans Réglages (champ
+« ID de voix ElevenLabs »).
 
 Attention, la doc publique ElevenLabs (« What are Default voices ? »,
 `https://elevenlabs.io/docs/help-center/product/voices/my-voices/what-are-default-voices.md`)
 ne liste **aucune** voix appelée « Jade US » : la seule Jade documentée y est la voice
-library `g7LVvkPWALzPxOQbF6OE` (« Jade – Upbeat and Natural », remplaçante de Jessica).
-Premier jet de cette intégration parti sur cet ID-là — correction faite. La clé du compte
-n'ayant pas la permission `voices_read` (401 `missing_permissions` sur `/v1/voices`), la
-liste réelle du compte n'est pas interrogeable : c'est l'ID fourni qui fait foi, et il
-répond.
+library `g7LVvkPWALzPxOQbF6OE` (« Jade – Upbeat and Natural »). La clé du compte n'ayant
+pas la permission `voices_read` (401 `missing_permissions` sur `/v1/voices`), la liste
+réelle du compte n'est pas interrogeable : c'est l'ID fourni qui fait foi, et il répond.
 
 Vérifié sur le compte du 24/10 (clé `sk_9332…` dans `local.properties`) :
 
@@ -28,52 +34,51 @@ Vérifié sur le compte du 24/10 (clé `sk_9332…` dans `local.properties`) :
 | idem `eleven_multilingual_v2` | **200 `audio/mpeg`**, 27 628 octets |
 | idem avec `language_code: en`, `fr`, ou sans | 200, audio identique ou équivalent |
 
-MP3 44,1 kHz mono 128 kb/s dans tous les cas. `eleven_v3` est multilingue et suit la
-langue du texte : `language_code` n'est pas un filtre, il reste optionnel (défaut `en`).
+MP3 44,1 kHz mono 128 kb/s dans tous les cas.
 
-Migration : les deux valeurs jamais saisies par l'utilisateur (Rachel
-`21m00Tcm4TlvDq8ikWAM` + `eleven_turbo_v2`, et la première Jade `g7LVvkPWALzPxOQbF6OE`)
-deviennent `TOXPlnYC7z5SQSV2Zgc5` + `eleven_v3` (`Settings.migratedVoice()`). Une voix
-choisie explicitement n'est **jamais** écrasée.
-
-## Contrat HTTP utilisé
+## Contrat HTTP utilisé (client de `master`)
 
 ```
-POST https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128
+POST {base}/text-to-speech/{voice_id}?output_format=mp3_44100_128
 xi-api-key: <clé>          # pas Authorization: Bearer
+User-Agent: sam-vision-kotlin
 Content-Type: application/json
 
-{"text":"…","model_id":"eleven_v3","language_code":"en",
- "voice_settings":{"stability":0.5,"similarity_boost":0.75}}
+{"text":"…","model_id":"eleven_v4_turbo",
+ "voice_settings":{"stability":0.5,"similarity_boost":0.75,"style":0.0,"use_speaker_boost":true}}
 ```
 
-- **Modèle** : `eleven_v3` par défaut (`Settings.DEFAULT_TTS_MODEL`), `language_code`
-  explicite (`en`). `eleven_v3` est **multilingue** : il suit la langue du texte, le
-  français est lu en français (l'accent dépend de la voix). Les voix d'une autre langue
-  (Sarah, Brian, Roger) se choisissent dans Réglages sans toucher au code.
-- **Limite dure** : 5 000 caractères par requête, au-delà `400 text_too_long`. Le client
-  refuse avant le réseau et `SentenceChunker` (1 200 car.) découpe aux phrases.
-- **Erreurs typées** : 401 `quota_exceeded` → `ApiError.UsageLimitExceeded` (quota de
-  caractères épuisé), 402 → `ApiError.PaymentRequired`, 429 → `RateLimited`, 2xx non
-  audio → `BadResponse` (un JSON d'erreur n'est jamais joué comme un MP3).
+- **URL construite par OkHttp** (`HttpUrl.newBuilder()`), jamais par concaténation : le
+  `voice_id` est échappé correctement (`core/net/ElevenLabsTtsClient.kt`).
+- **Modèle** : `eleven_v4_turbo` (`ElevenLabsTtsClient.DEFAULT_TTS_MODEL`), multilingue et
+  accepté en compte free. Aucun champ « modèle » dans les Réglages : changer de modèle est
+  un changement de constante, volontairement.
+- **Erreurs typées** : 401 → `ApiError.InvalidKey`, 402 → `PaymentRequired`,
+  429 → `RateLimited`, autre code → `Http`, 2xx non audio (corps vide ou qui commence par
+  `{`/`[`/`<`) → `BadResponse`. Un JSON d'erreur n'est jamais joué comme un MP3.
+- **Refus locaux, sans réseau** : texte vide, clé absente, voix absente.
+- **Limite dure** : 5 000 caractères par requête (`400 text_too_long`).
+  `core/audio/SentenceChunker` + `core/usecase/SpeechUseCase` découpent aux phrases
+  (1 200 car. max par morceau) et mettent en cache LRU 6 réponses : ce découpage est testé
+  en JVM et **pas encore branché** sur la lecture (une seule requête par phrase, comme
+  aujourd'hui, suffit aux réponses courantes).
 
 ## Câblage dans l'app
 
 | Élément | Où |
 |---|---|
-| Client HTTP | `core/net/ElevenLabsTtsClient.kt` (pur JVM, testé) |
-| Découpage en phrases | `core/audio/SentenceChunker.kt` |
-| Synthèse + cache LRU (6 réponses) | `core/usecase/SpeechUseCase.kt` |
-| Lecture MP3 + cache disque | `app/VoicePlayer.kt` (`MediaPlayer`, `cacheDir/tts`) |
-| Pilote (une lecture à la fois, erreurs → bandeau) | `app/VoiceController.kt` |
-| Boutons « Lire / Stop », bascule haut-parleur | `app/VoiceUi.kt`, Chat et Analyse |
-| Réglages (clé, voix, modèle, « Tester la voix ») | `app/SettingsScreen.kt` |
-| Intro embarquée (1re ouverture, sur appui) | `app/src/main/res/raw/intro_ihear.mp3`, `app/IntroAudio.kt`, `app/IntroGate.kt`, `VoiceController.playFile` |
+| Client HTTP | `core/net/ElevenLabsTtsClient.kt` (pur JVM, testé : URL, erreurs, audio) |
+| Découpage en phrases + cache | `core/audio/SentenceChunker.kt`, `core/usecase/SpeechUseCase.kt` |
+| Lecture MP3 (un seul lecteur) | `app/SpeechPlayer.kt` (`MediaPlayer`, `cacheDir/tts`) |
+| Synthèse + état des boutons | `app/AppViewModel.kt` (`speak`, `stopSpeaking`, `SpeakState`) |
+| Boutons « 🔊 Lire / ⏹ », bascule haut-parleur | `app/TtsState.kt`, `app/TtsSettings.kt`, Chat et Analyse |
+| Voix des bandeaux de dictée | `app/VoiceAnnouncer.kt` |
+| Intro embarquée (1re ouverture, sur appui) | `app/src/main/res/raw/intro_ihear.mp3`, `app/IntroAudio.kt`, `app/IntroGate.kt`, `app/IntroLogic.kt`, `AppViewModel.onIntroTap()` |
 
 Comportement : la description et chaque réponse d'assistant ont un bouton **Lire** ;
-la bascule **Haut-parleur** coupe la lecture automatique (activée par défaut quand une
-clé existe). Rejouer une réponse ne re-consomme pas de caractères (cache). La voix est
-coupée par `reset()` et `onCleared()`.
+la bascule **« Lire les réponses automatiquement »** commande la lecture à l'arrivée
+(activée par défaut quand une clé existe). Une lecture à la fois : toute nouvelle lecture
+coupe la précédente, et `reset()` / `onCleared()` coupent la voix.
 
 ## Intro de la première ouverture
 
@@ -87,52 +92,48 @@ embarqué : l'app ne consomme ni caractère ni réseau pour la jouer.
   hold while you speak, then release. To stop hearing this intro, press and hold the screen
   long enough to say, "Disable iHear intro." »
 - **Deux conditions, jamais une de moins** : `Settings.introPending` (intro autorisée **et**
-  jamais entendue) **et** un appui sur l'écran. L'app s'ouvre donc en silence sur `IntroGate`
-  (« Touchez l'écran pour commencer ») ; sans ce geste, aucune voix ne sort.
-- Lecture : `AppViewModel.onIntroTap()` → `VoiceController.playFile(VoiceSource.INTRO, …)`
-  (même lecteur, même état que le TTS). `IntroAudio` recopie l'asset dans `cacheDir/intro/`
-  (le cache peut être vidé : la copie est refaite au besoin).
+  jamais entendue) **et** un appui sur l'écran (`introGateVisible`, logique pure testée).
+  L'app s'ouvre donc en silence sur `IntroGate` (« Touchez l'écran pour commencer ») ;
+  sans ce geste, aucune voix ne sort.
+- Lecture : `AppViewModel.onIntroTap()` → `SpeechPlayer.playFile(IntroAudio.ensure(...))` —
+  **le lecteur du TTS**, donc une lecture coupe l'autre. `IntroAudio` recopie l'asset dans
+  `cacheDir/intro/` (le cache peut être vidé : la copie est refaite au besoin).
 - **Une seule fois** : `Settings.introPlayed` est posé et persisté (clé `intro_played` des
   `EncryptedSharedPreferences`, champ `introPlayed` du codec du fichier privé) **avant** la
   lecture — un arrêt en cours de route ne la rejoue pas. Absent d'un ancien réglage = faux,
   donc l'intro est redemandée une fois après la mise à jour.
-- Coupure : bouton « Stop », toute autre lecture, bascule **« Intro à la 1re ouverture :
-  on/off »** (Réglages → `Settings.introEnabled`, vrai par défaut, persisté par les deux stores).
+- Coupure : bascule **« Intro à la 1re ouverture : on/off »** (Réglages →
+  `Settings.introEnabled`, vrai par défaut, persisté par les deux stores).
 - Régénérer avec l'autre modèle (choix de timbre) :
   `eleven_multilingual_v2` sur le même texte donne un rendu plus neutre ; remplacer le MP3
   et garder le nom de fichier.
 
 ## Brancher la clé
 
-1. **Écran Réglages** (recommandé) : coller la clé dans « Clé API ElevenLabs » →
-   Enregistrer → « Tester la voix ElevenLabs » (`SAM Vision, voice check.`).
+1. **Écran Réglages** (recommandé) : coller la clé dans « Clé API ElevenLabs » → Enregistrer
+   → « 🔊 Tester la voix » (`Test de voix SAM Vision.`).
 2. **`local.properties`** (debug, gitignoré), seules ces lignes comptent :
 
 ```properties
-tts.base.url=https://api.elevenlabs.io/v1
 tts.api.key=sk_…votre-cle…
-tts.model=eleven_v3
-tts.voice.id=TOXPlnYC7z5SQSV2Zgc5
+tts.voice.id=EXAVITQu4vr4xnSDxMaL
 ```
 
-Sans clé, bouton « Lire » affiche **Voix KO**, zéro requête réseau (comme le LLM).
-La clé est chiffrée au repos (Keystore), jamais commitée.
+Pour parler avec Jade US : `tts.voice.id=TOXPlnYC7z5SQSV2Zgc5` (compte avec crédits).
+Sans clé, bouton « 🔊 » affiche **clé ElevenLabs absente — renseigne-la dans Réglages**,
+zéro requête réseau (comme le LLM). La clé est chiffrée au repos (Keystore), jamais commitée.
 
 ## Coût
 
 Compteur du compte le 24/10 : **321 / 130 005 caractères** consommés (tier `creator`)
-au premier relevé, plus les essais de vérification (~200 caractères). Une lecture de description
-coûte ~1 caractère par caractère lu ; le cache évite de payer deux fois la même réponse.
-
-## Migration des réglages existants
-
-L'ancien défaut (`21m00Tcm4TlvDq8ikWAM`, Rachel, modèle `eleven_turbo_v2`) est remplacé
-à la lecture du store par Jade US + `eleven_v3` (`Settings.migratedVoice()`). Une voix
-choisie explicitement par l'utilisateur n'est **jamais** écrasée.
+au premier relevé, plus les essais de vérification (~200 caractères) et le rendu de
+l'intro (~309 caractères, une seule fois). Une lecture coûte ~1 caractère par caractère lu.
 
 ## Reste ouvert
 
-- Pas de test sur émulateur depuis ce serveur (aucun émulateur lancé ici) : la recette
-  d'écoute est dans `docs/TESTING.md`.
-- La clé du compte n'a pas `voices_read` : le sélecteur de voix propose des IDs connus,
-  pas la liste réelle du compte. Élargir la permission de la clé si besoin.
+- Pas de recette d'écoute sur téléphone pour cette branche (aucun appareil piloté ici) :
+  la recette est décrite dans `docs/TESTING.md`.
+- La clé du compte n'a pas `voices_read` : le champ voix est un ID libre, pas une liste
+  réelle du compte.
+- Le découpage en phrases (`SpeechUseCase`) n'est pas encore branché sur la lecture : les
+  réponses dépassant 5 000 caractères échoueraient en `400 text_too_long`.

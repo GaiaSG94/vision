@@ -5,9 +5,9 @@ import java.io.File
 
 /**
  * Intro vocale embarquée (`res/raw/intro_ihear.mp3`, voix Jade US d'ElevenLabs,
- * rendue hors ligne). [MediaPlayerVoicePlayer] veut un chemin de fichier et non
- * une ressource : on recopie l'asset dans le cache une seule fois par démarrage
- * d'app (le cache peut être vidé par Android, la copie est refaite au besoin).
+ * rendue hors ligne). [SpeechPlayer] lit un chemin de fichier et non une ressource :
+ * on recopie l'asset dans le cache une seule fois (le cache peut être vidé par
+ * Android, la copie est refaite au besoin).
  */
 object IntroAudio {
 

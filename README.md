@@ -59,7 +59,7 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 
 ```
 sam-vision-kotlin/
-├── core/                    # module :core — domaine + réseau, pur JVM (118 tests)
+├── core/                    # module :core — domaine + réseau, pur JVM (185 tests)
 │   └── src/{main,test}/java/dev/sam3vision/core/{model,net,mask,settings,text,usecase}/
 ├── app/                     # module :app — Compose + CameraX (écrans, ViewModel, navigation)
 │   └── src/main/java/dev/sam3vision/app/   # Capture/Analysis/Chat/Settings/AppNav/AppViewModel…
@@ -84,8 +84,8 @@ sam-vision-kotlin/
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
-./gradlew :core:testDebugUnitTest --offline        # 118 tests JVM, 0 réseau
-./gradlew :app:testDebugUnitTest --offline         # 29 tests JVM (tap, nettoyage, voix, dictée)
+./gradlew :core:testDebugUnitTest --offline        # 185 tests JVM, 0 réseau
+./gradlew :app:testDebugUnitTest --offline         # 45 tests JVM (tap, nettoyage, voix, dictée, intro)
 ./gradlew assembleDebug --offline                  # app/build/outputs/apk/debug/app-debug.apk (~21 Mo)
 bash scripts/build.sh                              # idem, environnement inclus
 EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # install + CAMERA + lancement + screenshot

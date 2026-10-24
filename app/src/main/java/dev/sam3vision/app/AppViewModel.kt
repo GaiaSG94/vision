@@ -397,16 +397,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ————— Intro vocale embarquée (premier lancement, sur appui) —————
 
     /**
-     * Appui sur l'écran de garde : joue l'intro embarquée (`res/raw/intro_ihear.mp3`,
-     * voix Jade US rendue hors ligne — ni clé ni réseau), puis la marque comme entendue
-     * pour qu'elle ne se rejoue jamais.
+     * Appui sur l'écran de garde : marque l'intro comme entendue (persisté **avant** la
+     * lecture : un arrêt en cours de route ne la rejoue pas), puis joue le MP3 embarqué
+     * (`res/raw/intro_ihear.mp3`, voix Jade US rendue hors ligne — ni clé ni réseau).
      */
     fun onIntroTap() = viewModelScope.launch {
         val settings = _state.value.settings
         if (!settings.introPending) return@launch
+        markIntroPlayed(settings)
         val file = withContext(Dispatchers.IO) { IntroAudio.ensure(getApplication<Application>()) }
         speech.playFile(file)
-        markIntroPlayed(settings)
     }
 
     /** Persiste « intro déjà entendue » : l'écran de garde ne revient plus. */

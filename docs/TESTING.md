@@ -1,6 +1,6 @@
 # TESTING — sam-vision-kotlin
 
-## Tests JVM (209 = 166 `:core` + 43 `:app`, réseau simulé)
+## Tests JVM (230 = 185 `:core` + 45 `:app`, réseau simulé)
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
@@ -54,7 +54,7 @@ automatique à 60 s, liste blanche des trois mots, noms de clips, périodicité 
 désactivés, rétention 60 min).
 
 ```bash
-./gradlew :app:testDebugUnitTest :core:testDebugUnitTest    # 147 tests, 0 échec
+./gradlew :app:testDebugUnitTest :core:testDebugUnitTest    # 230 tests, 0 échec
 ```
 
 ## Module de nettoyage (instrumenté, 6 tests)
@@ -177,6 +177,21 @@ Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
    « lecture en cours… » (~18 s d'audio pour une réponse longue) → « voix OK ».
    Capture : `docs/chat-voix.png`. Coupure d'un ⏹ Stop en cours de lecture → retour à l'état
    inactif sans erreur.
+
+## Intro d'accueil (première ouverture, sur appui)
+
+1. Effacer les données de l'app (`adb shell pm clear dev.sam3vision.app`) puis relancer.
+2. L'écran de garde s'affiche : « SAM Vision » / « Touchez l'écran pour commencer »,
+   **aucun son** avant l'appui (écouter 5 s pour le vérifier).
+3. Toucher l'écran → l'intro embarquée (`res/raw/intro_ihear.mp3`, voix Jade US, ~22 s)
+   se joue **sans réseau et sans clé** ; l'écran caméra apparaît.
+4. `adb shell am force-stop dev.sam3vision.app` puis relancer : caméra directe, **aucun**
+   écran de garde, aucune lecture (drapeau `Settings.introPlayed` persisté).
+5. Réglages → couper « Intro à la 1re ouverture », `pm clear`, relancer : plus de garde
+   ni d'intro.
+6. Tests JVM associés : `settings.SettingsIntroTest` (6 : défaut, aller-retour des deux
+   codecs, `introPending`, `introPlayed`) et `app.UiLogicTest` (`introToggleLabel`,
+   `introGateVisible`).
 
 ## Non-régression jouée après le mode tap (2026-10-24, emulator-5558)
 
