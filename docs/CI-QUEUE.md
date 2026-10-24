@@ -121,3 +121,5 @@ passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 - Troisième mesure : chemin rapide quand la branche est à jour et verte.
 
 - Quatrième mesure : rebase + re-test + merge, sans passer par la file.
+
+- Cinquième mesure : attente de l’état de fusion au lieu de basculer sur la file.
