@@ -119,3 +119,5 @@ passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 - Flux mesuré : PR de doc, checks ~15 s, file déclenchée dès le vert.
 
 - Troisième mesure : chemin rapide quand la branche est à jour et verte.
+
+- Quatrième mesure : rebase + re-test + merge, sans passer par la file.
