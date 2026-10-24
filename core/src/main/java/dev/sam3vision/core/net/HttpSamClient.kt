@@ -1,0 +1,57 @@
+package dev.sam3vision.core.net
+
+import dev.sam3vision.core.model.SegObject
+import dev.sam3vision.core.model.SegmentResult
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+
+/**
+ * Client de l'endpoint SAM 3.1 (contrat de l'ancien backend Modal, sans clé).
+ * `GET /health` et `POST /segment {"image_b64", "prompts"}`.
+ */
+class HttpSamClient(
+    private val baseUrl: String,
+    private val client: OkHttpClient = defaultHttpClient(),
+) : SamClient {
+
+    override suspend fun segment(pngOrJpegB64: String, prompts: List<String>?): Result<SegmentResult> {
+        val body = JSONObject()
+            .put("image_b64", pngOrJpegB64)
+            .put("prompts", if (prompts == null) JSONObject.NULL else jsonArrayOf(prompts))
+            .toString()
+        val request = Request.Builder()
+            .url(joinUrl(baseUrl, "/segment"))
+            .header("User-Agent", USER_AGENT)
+            .post(body.toRequestBody(JSON_MEDIA))
+            .build()
+        return client.execute(request)
+            .then { outcome -> outcome.requireSuccess() }
+            .then { raw -> catchingResult { parseSegment(raw) } }
+    }
+
+    override suspend fun health(): Result<Boolean> {
+        val request = Request.Builder()
+            .url(joinUrl(baseUrl, "/health"))
+            .header("User-Agent", USER_AGENT)
+            .get()
+            .build()
+        return client.execute(request).map { outcome ->
+            outcome.code in 200..299 && parse(outcome.body)?.optBoolean("ok", false) == true
+        }
+    }
+}
+
+private fun parseSegment(raw: String): SegmentResult {
+    val json = parse(raw) ?: throw ApiError.BadResponse("/segment : JSON illisible")
+    val objects = json.objects("objects").map { obj ->
+        SegObject(
+            label = obj.str("label", "objet"),
+            score = obj.floatOr("score"),
+            box = obj.floats("box"),
+            maskPngB64 = obj.str("mask_b64"),
+        )
+    }
+    return SegmentResult(width = json.intOr("width"), height = json.intOr("height"), objects = objects)
+}
