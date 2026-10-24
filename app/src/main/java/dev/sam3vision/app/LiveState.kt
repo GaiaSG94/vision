@@ -15,6 +15,7 @@ data class LiveUiState(
     val objectsCount: Int = 0,
     val error: String? = null,
     val lastJpegB64: String = "",
+    val prompts: List<String> = emptyList(),
 ) {
     val statusLine: String get() = formatLiveStatus(running, fps, latencyMs, gpu, objectsCount)
 }

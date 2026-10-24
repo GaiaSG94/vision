@@ -7,7 +7,7 @@ package dev.sam3vision.core.live
 object LivePrompts {
 
     /** Concepts par défaut, ceux que le téléphone cherche en continu. */
-    val Default: List<String> = listOf("person", "car", "dog", "chair")
+    val Default: List<String> = listOf("person", "chair", "table", "laptop", "bottle", "cup", "bag", "door")
 
     /** Nombre maximal de prompts envoyés par frame. */
     const val MAX = 8

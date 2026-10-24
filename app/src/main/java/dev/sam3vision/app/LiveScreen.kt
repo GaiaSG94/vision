@@ -13,10 +13,8 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,20 +28,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Le téléphone envoie des frames de 640 px maximum, en JPEG léger. */
-const val LIVE_EDGE = 640
-const val LIVE_JPEG_QUALITY = 70
+/** Le téléphone envoie des frames de 512 px maximum, en JPEG léger (lien montant limité). */
+const val LIVE_EDGE = 512
+const val LIVE_JPEG_QUALITY = 65
 
 /**
- * Mode Direct : aperçu caméra, frames poussées à [LiveViewModel], masques SAM 3.1
- * superposés, questions au LLM pendant que le flux continue.
+ * Mode Direct : aperçu caméra, frames poussées à [LiveViewModel], masques SAM 3.1 superposés,
+ * questions au LLM pendant que le flux continue.
  */
 @Composable
 fun LiveScreen(
@@ -54,10 +52,11 @@ fun LiveScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     val executor = remember { Executors.newSingleThreadExecutor() }
-    var failure by remember { mutableStateOf<String?>(null) }
     var attached by remember { mutableStateOf(false) }
+    var failure by remember { mutableStateOf<String?>(null) }
+    var draft by remember { mutableStateOf("") }
+    val previewView = rememberLivePreview(context) { attached = it }
 
     LaunchedEffect(Unit) { viewModel.startFromSettings() }
     LaunchedEffect(attached) {
@@ -73,13 +72,39 @@ fun LiveScreen(
         }
     }
 
+    LiveStage(state, previewView, draft, { draft = it }, failure, onBack, onAsk, onOpenSettings) {
+        viewModel.restartWith(draft)
+    }
+}
+
+/** Aperçu mémorisé, avec notification d'attachement (sinon l'analyseur n'est jamais lié). */
+@Composable
+private fun rememberLivePreview(context: Context, onAttached: (Boolean) -> Unit): PreviewView =
+    remember(context) {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            addOnAttachStateChangeListener(object : android.view.View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(view: android.view.View) = onAttached(true)
+                override fun onViewDetachedFromWindow(view: android.view.View) = onAttached(false)
+            })
+        }
+    }
+
+/** Scène : aperçu, masques superposés, barre haute (état + concepts) et barre basse (question). */
+@Composable
+private fun LiveStage(
+    state: LiveUiState,
+    previewView: PreviewView,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    failure: String?,
+    onBack: () -> Unit,
+    onAsk: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onApplyPrompts: () -> Unit,
+) {
     Box(Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize(),
-            onRelease = { attached = false },
-            update = { attached = it.isAttachedToWindow },
-        )
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
         state.overlays.forEach { overlay ->
             Image(
                 bitmap = overlay.asImageBitmap(),
@@ -88,16 +113,25 @@ fun LiveScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        LiveTopBar(state, failure, onBack, onOpenSettings, Modifier.align(Alignment.TopCenter))
+        LiveTopBar(
+            state = state,
+            draft = draft,
+            onDraftChange = onDraftChange,
+            onApply = onApplyPrompts,
+            failure = failure,
+            onBack = onBack,
+            onOpenSettings = onOpenSettings,
+            modifier = Modifier.align(Alignment.TopCenter),
+        )
         LiveBottomBar(state, onAsk, Modifier.align(Alignment.BottomCenter))
     }
 }
 
-/** Preview + analyseur « une frame à la fois », résolution réduite côté capteur. */
+/** Preview + analyseur « une frame à la fois », résolution capteur réduite. */
 private suspend fun bindLiveCamera(
     context: Context,
     previewView: PreviewView,
-    executor: java.util.concurrent.Executor,
+    executor: ExecutorService,
     onImage: (ImageProxy) -> Unit,
 ) {
     val owner = previewView.findViewTreeLifecycleOwner() ?: error("Cycle de vie indisponible")
@@ -118,13 +152,13 @@ private suspend fun bindLiveCamera(
     provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
 }
 
-/** ImageProxy → bitmap redressé → JPEG base64. Une frame en vol au maximum, sans file. */
+/** ImageProxy → bitmap redressé → JPEG base64. Les frames s'accumulent jamais : gate côté ViewModel. */
 private fun pushFrame(proxy: ImageProxy, viewModel: LiveViewModel) {
     try {
         val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
         viewModel.onFrame(bitmapToJpegBase64(scaleToEdge(rotated, LIVE_EDGE), LIVE_JPEG_QUALITY))
     } catch (_: Throwable) {
-        // frame illisible : la suivante arrive tout de suite
+        // frame illisible : la suivante part tout de suite
     } finally {
         proxy.close()
     }

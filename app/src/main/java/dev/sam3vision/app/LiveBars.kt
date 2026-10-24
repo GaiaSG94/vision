@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,6 +25,9 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun LiveTopBar(
     state: LiveUiState,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onApply: () -> Unit,
     failure: String?,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -44,6 +48,7 @@ fun LiveTopBar(
                 .background(AppColors.surface.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         )
+        PromptRow(draft, onDraftChange, onApply)
         (failure ?: state.error)?.let { StatusBanner(it, AppColors.danger) }
     }
 }
@@ -77,5 +82,20 @@ fun Chip(label: String, color: Color, onClick: (() -> Unit)?) {
         TextButton(onClick = onClick, modifier = decorated) {
             Text(label, color = Color.White, fontSize = 13.sp, maxLines = 1)
         }
+    }
+}
+
+/** Ligne d'édition des concepts suivis (virgules), appliquée sans quitter le direct. */
+@Composable
+fun PromptRow(draft: String, onChange: (String) -> Unit, onApply: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = draft,
+            onValueChange = onChange,
+            singleLine = true,
+            placeholder = { Text("personne, table, sac…", color = AppColors.textMuted, fontSize = 13.sp) },
+            modifier = Modifier.weight(1f),
+        )
+        Chip("Suivre", AppColors.primary, onApply)
     }
 }

@@ -45,12 +45,20 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         }
         val http = HttpLiveClient(base)
         client = http
-        session = LiveSession(http, prompts = LivePrompts.normalize(prompts))
+        val chosen = LivePrompts.normalize(prompts)
+        session = LiveSession(http, prompts = chosen)
+        _state.update { it.copy(prompts = chosen) }
         healthAttempts = 0
         nextTickAt = 0L
         lastFrameAt = 0L
         _state.update { it.copy(running = true, starting = true, error = null) }
         viewModelScope.launch { refreshHealth() }
+    }
+
+    /** Change les concepts suivis : `[promptsText]` séparé par virgules, vide = défaut. */
+    fun restartWith(promptsText: String) {
+        val list = promptsText.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }
+        viewModelScope.launch { start(store.load(), if (list.isEmpty()) LivePrompts.Default else list) }
     }
 
     /** Le conteneur Modal se réveille en ~30 s : on retente la santé sans afficher d'erreur. */
