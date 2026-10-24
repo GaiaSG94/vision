@@ -17,6 +17,7 @@ testCore = "1.7.0"
 testRunner = "1.7.0"
 junit = "4.13.2"
 json = "20240303"
+mwdat = "1.0.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,9 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
+mwdat-core = { module = "com.meta.wearable:mwdat-core", version.ref = "mwdat" }
+mwdat-camera = { module = "com.meta.wearable:mwdat-camera", version.ref = "mwdat" }
+mwdat-mockdevice = { module = "com.meta.wearable:mwdat-mockdevice", version.ref = "mwdat" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

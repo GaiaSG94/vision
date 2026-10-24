@@ -56,8 +56,15 @@ jobs:
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/compare/$PUSH_BEFORE...$PUSH_SHA" \
               | python3 -c 'import json,sys;print("\n".join(f["filename"] for f in json.load(sys.stdin).get("files") or []))' 2>/dev/null || true)"
           fi
+          # Périmètre « code » : les modules Kotlin (app, core), le spike lunettes
+          # (glasses-spike/, sous toutes ses formes : .kt, .kts, res, manifest),
+          # la chaîne d'outils (gradle/, gradle.properties, settings.gradle.kts —
+          # c'est là que le module est déclaré) et tools/ (les gardes y jouent le
+          # rôle d'un build). Avant : une PR qui ne touchait que glasses-spike/
+          # ou settings.gradle.kts était classée « sans code » et Gradle ne
+          # lançait jamais le module — vert par absence de test.
           if [ -n "$fichiers" ]; then
-            if printf '%s\n' "$fichiers" | grep -qE '^(app|core)/.*\.(kt|kts)$|^gradle/|^gradle\.properties$'; then
+            if printf '%s\n' "$fichiers" | grep -qE '^(app|core)/.*\.(kt|kts)$|^glasses-spike/|^gradle/|^gradle\.properties$|^settings\.gradle\.kts$|^tools/'; then
               code=1; echo "Code touché : Gradle complet."
             else
               code=0; echo "Sans code (${fichiers//$'\n'/, }) : étapes Gradle sautées."
@@ -98,16 +105,26 @@ jobs:
         run: python3 tools/check-kotlin-limits.py
 
       # Un SEUL appel Gradle (une seule configuration, un seul daemon) :
-      # tests + APK debug + APK release + lint. Mesuré sur r630-sam-vision-0N le
-      # 24/10 : 46 s à chaud, 1 min 00 en CI — pour un budget de 5 min.
+      # tests + APK debug + APK release + lint + spike lunettes. Mesuré sur
+      # r630-sam-vision-0N le 24/10 : 46 s à chaud, 1 min 00 en CI — budget 5 min.
+      # Le spike ajoute ~18-33 s à chaud (:glasses-spike:assembleDebug 15-25 s,
+      # 7 .kt Compose + ~11 Mo de .so META à empaqueter ; :testDebugUnitTest
+      # 3-8 s). Premier run = 11 Mo d'AAR mwdat à télécharger, mesuré sur le
+      # r630 : 8,9 Mo en 0,53 s (~17 Mo/s) → 2-5 s, une seule fois par worker
+      # (GRADLE_USER_HOME persistant sur la machine, pas d'actions/cache).
+      # Total estimé : ~1 min 15 à chaud, ~1 min 45 au pire premier run → sous
+      # les 5 min : le timeout de `ci` reste à 5 et la gate exigée par Mergify
+      # continue de couvrir le module (un job séparé doublerait checkout + conf).
+      # Estimation détaillée : docs/glasses-spike-ci.md.
       # -Xmx2g : 4 workers partagent la machine (31 Go), 4 daemons à 4 Go
       # saturated la RAM.
-      - name: Tests + APK debug + APK release + lint
+      - name: Tests + APK debug + APK release + lint + spike lunettes
         if: steps.perimetre.outputs.code == '1'
         run: >-
           ./gradlew --console=plain -Dorg.gradle.jvmargs="-Xmx2g"
           :core:testDebugUnitTest :app:testDebugUnitTest
           :app:assembleDebug :app:assembleRelease :app:lintDebug
+          :glasses-spike:assembleDebug :glasses-spike:testDebugUnitTest
 
       - name: Rapport de tests
         if: always()

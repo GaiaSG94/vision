@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "sam-vision-kotlin"
 include(":core")
 include(":app")
+include(":glasses-spike")
