@@ -22,6 +22,11 @@ permissions:
   contents: read
   pull-requests: read
 
+# Les PR-brouillon du batch Mergify (refs `mergify/*`) n'ont pas de corps
+# rédigé : la Couche 0 y serait toujours rouge et bloquerait la file (constaté
+# le 24/10 : `action.queue.leave CHECKS_FAILED`). Elle n'y a rien à contrôler —
+# la vraie PR a déjà été passée au crible avant l'embarquement. Même traitement
+# que le gate Hermes de duello, qui ignore les refs mergify/*.
 concurrency:
   group: couche0-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
@@ -29,6 +34,7 @@ concurrency:
 jobs:
   couche0:
     name: couche0
+    if: ${{ !startsWith(github.head_ref, 'mergify/') }}
     runs-on: [self-hosted, sam-vision-worker]
     timeout-minutes: 5
     steps:
