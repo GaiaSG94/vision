@@ -68,30 +68,36 @@ Content-Type: application/json
 | Pilote (une lecture à la fois, erreurs → bandeau) | `app/VoiceController.kt` |
 | Boutons « Lire / Stop », bascule haut-parleur | `app/VoiceUi.kt`, Chat et Analyse |
 | Réglages (clé, voix, modèle, « Tester la voix ») | `app/SettingsScreen.kt` |
-| Intro embarquée au lancement | `app/src/main/res/raw/intro_ihear.mp3`, `app/IntroAudio.kt`, `VoiceController.playFile` |
+| Intro embarquée (1re ouverture, sur appui) | `app/src/main/res/raw/intro_ihear.mp3`, `app/IntroAudio.kt`, `app/IntroGate.kt`, `VoiceController.playFile` |
 
 Comportement : la description et chaque réponse d'assistant ont un bouton **Lire** ;
 la bascule **Haut-parleur** coupe la lecture automatique (activée par défaut quand une
 clé existe). Rejouer une réponse ne re-consomme pas de caractères (cache). La voix est
 coupée par `reset()` et `onCleared()`.
 
-## Intro au lancement
+## Intro de la première ouverture
 
 `app/src/main/res/raw/intro_ihear.mp3` : 309 caractères, voix Jade US, `eleven_v3`,
 MP3 44,1 kHz mono 128 kb/s, ~22 s, 347 785 octets. Rendu **une fois** par l'API et
-embarqué : à l'ouverture, l'app ne consomme ni caractère ni réseau.
+embarqué : l'app ne consomme ni caractère ni réseau pour la jouer.
 
 - Texte (source) :
   « Welcome to iHear. To record your surroundings, tap anywhere on the screen to start the
   video, and tap again to stop and analyze it. To ask a question or make a request, tap and
   hold while you speak, then release. To stop hearing this intro, press and hold the screen
   long enough to say, "Disable iHear intro." »
-- Lecture : `AppViewModel.playIntro()` après chargement des réglages, via
-  `VoiceController.playFile(VoiceSource.INTRO, …)` (même lecteur, même état que le TTS).
-  `IntroAudio` recopie l'asset dans `cacheDir/intro/` (le cache peut être vidé : la copie
-  est refaite au besoin).
-- Coupure : bouton « Stop », toute autre lecture, bascule **« Intro au lancement : on/off »**
-  (Réglages → `Settings.introEnabled`, vrai par défaut, persisté par les deux stores).
+- **Deux conditions, jamais une de moins** : `Settings.introPending` (intro autorisée **et**
+  jamais entendue) **et** un appui sur l'écran. L'app s'ouvre donc en silence sur `IntroGate`
+  (« Touchez l'écran pour commencer ») ; sans ce geste, aucune voix ne sort.
+- Lecture : `AppViewModel.onIntroTap()` → `VoiceController.playFile(VoiceSource.INTRO, …)`
+  (même lecteur, même état que le TTS). `IntroAudio` recopie l'asset dans `cacheDir/intro/`
+  (le cache peut être vidé : la copie est refaite au besoin).
+- **Une seule fois** : `Settings.introPlayed` est posé et persisté (clé `intro_played` des
+  `EncryptedSharedPreferences`, champ `introPlayed` du codec du fichier privé) **avant** la
+  lecture — un arrêt en cours de route ne la rejoue pas. Absent d'un ancien réglage = faux,
+  donc l'intro est redemandée une fois après la mise à jour.
+- Coupure : bouton « Stop », toute autre lecture, bascule **« Intro à la 1re ouverture :
+  on/off »** (Réglages → `Settings.introEnabled`, vrai par défaut, persisté par les deux stores).
 - Régénérer avec l'autre modèle (choix de timbre) :
   `eleven_multilingual_v2` sur le même texte donne un rendu plus neutre ; remplacer le MP3
   et garder le nom de fichier.

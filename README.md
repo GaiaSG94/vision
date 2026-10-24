@@ -43,12 +43,17 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   français (« à gauche, vue la dernière fois il y a 3 s, apparue il y a 9 s, 5 images ») : on
   peut demander ce qui est passé, pas seulement ce qu'on voit. Chip « Analyser la frame »
   conserve le Chat photo sur la frame courante.
+- **Intro d'accueil (première ouverture seulement)** : MP3 embarqué
+  (`app/src/main/res/raw/intro_ihear.mp3`, voix Jade US rendue par ElevenLabs) joué **une seule
+  fois**, au **premier lancement** et **seulement après un appui sur l'écran** : l'app s'ouvre
+  silencieusement sur « Touchez l'écran pour commencer », le tap lance la voix puis ne revient
+  jamais. Coupée par la bascule **« Intro à la 1re ouverture : on/off »** des Réglages.
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
   9 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, clé ElevenLabs
-  masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteur « Lire les
-  réponses automatiquement », boutons « Enregistrer », « Tester le LLM » (mini-image 16×16,
-  statut « LLM OK — … »), « Tester SAM », « 🔊 Tester la voix », « Tester la dictée Meta »
-  (1 s de silence).
+  masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteurs « Lire les
+  réponses automatiquement » et « Intro à la 1re ouverture », boutons « Enregistrer »,
+  « Tester le LLM » (mini-image 16×16, statut « LLM OK — … »), « Tester SAM », « 🔊 Tester la
+  voix », « Tester la dictée Meta » (1 s de silence).
 
 ## Arborescence
 

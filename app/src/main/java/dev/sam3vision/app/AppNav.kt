@@ -48,6 +48,10 @@ fun AppNav(viewModel: AppViewModel, liveViewModel: LiveViewModel = viewModel()) 
         state.dictation.overlay?.let { overlay ->
             DictationOverlay(overlay = overlay, onDismiss = viewModel::dismissOverlay)
         }
+        // Premier lancement seulement : l'app attend un appui avant de parler (intro).
+        if (introGateVisible(state.settingsReady, state.settings.introEnabled, state.settings.introPlayed)) {
+            IntroGate(onTap = viewModel::onIntroTap)
+        }
     }
 }
 

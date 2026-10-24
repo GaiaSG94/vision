@@ -23,4 +23,26 @@ class SettingsIntroTest {
         val decoded = SettingsCodec.decode("llmBaseUrl=x\nllmApiKey=y\nttsVoiceId=TOXPlnYC7z5SQSV2Zgc5\n")
         assertTrue(decoded.introEnabled)
     }
+
+    @Test
+    fun `l'intro n'est jouee qu'une fois`() {
+        assertFalse(Settings.Default.introPlayed)
+        val played = Settings.Default.copy(introPlayed = true)
+        assertTrue(SettingsCodec.decode(SettingsCodec.encode(played)).introPlayed)
+        assertFalse(SettingsCodec.decode(SettingsCodec.encode(Settings.Default)).introPlayed)
+    }
+
+    @Test
+    fun `l'intro ne se redemande plus apres le premier ecran de garde`() {
+        assertTrue(Settings.Default.introPending)
+        assertFalse(Settings.Default.copy(introPlayed = true).introPending)
+        assertFalse(Settings.Default.copy(introEnabled = false).introPending)
+    }
+
+    @Test
+    fun `un ancien reglage redemande l'intro une fois`() {
+        val decoded = SettingsCodec.decode("llmBaseUrl=x\nintroEnabled=true\n")
+        assertFalse(decoded.introPlayed)
+        assertTrue(decoded.introPending)
+    }
 }
