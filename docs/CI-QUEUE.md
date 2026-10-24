@@ -68,6 +68,23 @@ résoudre le conflit lui-même.
   les gardes. Après 3 tentatives ratées sur un fichier, il commente le blocage et pose
   `hermes/intervention-humaine`.
 
+### Droits du jeton sur le worker
+
+L'agent tourne **hors du job** : il ne peut pas utiliser le `GITHUB_TOKEN` éphémère de la
+CI (expiré bien avant la fin de sa résolution). Il s'authentifie donc avec le jeton de la
+machine, `~/.gh-token`, qui doit porter :
+
+| Droit | Pourquoi |
+|---|---|
+| `contents: write` | pousser la résolution sur la branche de la PR |
+| `issues: write` | commenter la PR et poser les étiquettes |
+| `pull_requests: write` | relire l'état de la PR (conflit résolu ou non) |
+
+Sans `contents: write`, le mécanisme reste utile — il diagnostique et documente le
+conflit — mais il ne peut pas le corriger à distance (constat 24/10 : `Write access to
+repository not granted`). Le compte rendu est publié **une seule fois** : l'agent rédige,
+le script poste.
+
 ### Garde-fous
 
 | Frein | Effet |
