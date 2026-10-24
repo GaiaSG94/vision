@@ -122,13 +122,11 @@ def build_prompt(repo, pr, files, recent):
         "5. Pousse uniquement la branche de la PR : `git push "
         "https://x-access-token:$T@github.com/%s.git HEAD:%s`. Jamais sur `%s`, jamais "
         "un push forcé simple (`--force-with-lease` toléré si le dépôt a bougé).\n"
-        "6. Compte rendu sur la PR #%s via l'API (gh n'est pas installé ici) : `curl -s "
-        "-H \"Authorization: Bearer $T\" -H \"Accept: application/vnd.github+json\" -X "
-        "POST https://api.github.com/repos/%s/issues/%s/comments -d \"{\\\"body\\\":\\\"…\\\"}\"` "
-        "— dis ce qui était en conflit, comment tu l'as résolu, la commande de validation "
-        "et son résultat.\n\n"
-        "Après 3 tentatives ratées sur le même fichier : commente exactement le blocage et "
-        "pose le label `%s` (même API, `POST /issues/%s/labels`). Ne merge pas, ne touche "
+        "\n"
+        "Après 3 tentatives ratées sur le même fichier, ou si le push est refusé (droits du "
+        "jeton) : pose le label `%s` (`POST /repos/%s/issues/%s/labels`) et dis dans ta "
+        "réponse exactement ce qui bloque — le script publie ton compte rendu sur la PR, "
+        "n'écris pas toi-même le commentaire. Ne merge pas, ne touche "
         "pas à `master`, à `.github/`, à `.mergify.yml` ni aux gardes, ne supprime aucun "
         "commit de la PR.\n"
     ) % (repo, pr['number'], (pr.get('title') or '').strip(), pr['base']['ref'],
@@ -137,8 +135,7 @@ def build_prompt(repo, pr, files, recent):
          repo, pr['number'], pr['number'], pr['head']['ref'],
          pr['base']['ref'], pr['base']['ref'], pr['base']['ref'],
          repo, pr['head']['ref'], pr['base']['ref'],
-         pr['number'], repo, pr['number'],
-         LABEL_HUMAN, pr['number'])
+         LABEL_HUMAN, repo, pr['number'])
 
 
 def send_chat(url, agent, token, prompt, timeout_s):
@@ -277,6 +274,18 @@ def eligible(token, repo, pr):
     return None
 
 
+def still_conflicting(token, repo, num):
+    """Vrai si la PR est toujours en conflit après le passage de l'agent.
+
+    C'est le seul juge honnête : l'agent peut avoir résolu en local sans pouvoir
+    pousser (droits du jeton), ou avoir poussé sans que GitHub ait recalculé.
+    """
+    sc, pr = gh('GET', '/repos/%s/pulls/%d' % (repo, num), token)
+    if sc != 200 or not isinstance(pr, dict):
+        return True                     # dans le doute : pas de succès proclamé
+    return (pr.get('mergeable_state') or '') == 'dirty'
+
+
 def post_back(args, repo, num, text, ok):
     token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
     if not token:
@@ -286,7 +295,8 @@ def post_back(args, repo, num, text, ok):
         env('HERMES_ZC_AGENT', 'hermes'), text)
     gh('POST', '/repos/%s/issues/%d/comments' % (repo, num), token,
        {'body': body[:65000]})
-    title = 'Conflit pris en charge par l\'agent' if ok else 'Agent en échec — humain nécessaire'
+    title = ('Conflit réconcilié par l\'agent' if ok
+             else 'Agent rendu, conflit persistant — humain nécessaire')
     sc, pr = gh('GET', '/repos/%s/pulls/%d' % (repo, num), token)
     sha = (pr or {}).get('head', {}).get('sha') if sc == 200 else None
     if sha:
@@ -323,8 +333,11 @@ def run(args):
     if error:
         post_back(args, args.repo, args.pr, 'Échec du chat : %s' % error, False)
         return 0
-    post_back(args, args.repo, args.pr, answer.strip(), True)
-    print('[agent] #%d : réponse publiée (%d caractères)' % (args.pr, len(answer)), flush=True)
+    resolved = not still_conflicting(os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN'),
+                                     args.repo, args.pr)
+    post_back(args, args.repo, args.pr, answer.strip(), resolved)
+    print('[agent] #%d : réponse publiée (%d caractères, conflit %s)'
+          % (args.pr, len(answer), 'réconcilié' if resolved else 'persistant'), flush=True)
     return 0
 
 

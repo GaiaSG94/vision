@@ -96,6 +96,29 @@ le script poste.
 | `vars.HERMES_AGENT_RESOLVE=0` | coupe tout le mécanisme sans toucher au code |
 | échec du chat | commentaire + label humain ; le gate reste vert côté saisine (jamais de CI rouge pour un agent) |
 
+### Droits nécessaires sur le worker
+
+L'agent tourne **hors du job** : il ne peut pas utiliser le `GITHUB_TOKEN` éphémère de la
+CI (expiré bien avant la fin de sa résolution). Il s'authentifie donc avec le jeton de la
+machine, `~/.gh-token`, qui doit porter :
+
+| Droit | Pourquoi |
+|---|---|
+| `contents: write` | pousser la résolution sur la branche de la PR |
+| `issues: write` | commenter la PR et poser les étiquettes |
+| `pull_requests: write` | relire l'état de la PR (conflit résolu ou non) |
+
+Recette du 24/10 sur une PR de test volontairement en conflit : l'agent a **résolu**
+(`docs/CI-QUEUE.md`, les deux intentions gardées), **validé** (162 tests `:core` + `:app`,
+`assembleDebug`, garde-fou des limites, couche 0) et rendu son compte rendu en commentaire.
+Le push a été refusé (`Write access to repository not granted`) : le jeton du worker
+n'avait que `contents: read`. Sans `contents: write`, le mécanisme reste utile — il
+diagnostique et documente le conflit — mais il ne peut pas le corriger à distance.
+
+Le compte rendu est publié par le script **une seule fois** : l'agent rédige sa réponse,
+le script la poste (check `hermes-agent/conflit` + étiquette `hermes/agent-conflit` si le
+conflit a disparu, `hermes/intervention-humaine` sinon).
+
 ### Réglages et relance
 
 Variables de dépôt (toutes optionnelles) : `HERMES_ZC_URL` (défaut
