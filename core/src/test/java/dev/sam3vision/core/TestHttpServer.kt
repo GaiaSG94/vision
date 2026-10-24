@@ -118,6 +118,7 @@ class TestHttpServer(private val handler: (RecordedRequest) -> Response) : Close
         401 -> "Unauthorized"
         402 -> "Payment Required"
         403 -> "Forbidden"
+        422 -> "Unprocessable Entity"
         429 -> "Too Many Requests"
         else -> "Error"
     }

@@ -17,6 +17,10 @@ data class Settings(
     val asrBaseUrl: String = DEFAULT_ASR_BASE_URL,
     val asrApiKey: String = "",
     val asrModel: String = DEFAULT_ASR_MODEL,
+    /** Intro vocale embarquée autorisée (bascule des Réglages, `true` par défaut). */
+    val introEnabled: Boolean = true,
+    /** Intro déjà entendue : l'écran de garde ne se represente plus. */
+    val introPlayed: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
@@ -28,6 +32,13 @@ data class Settings(
          * crédits payants — choisies exprès ici pour qu'une installation fraîche parle.
          */
         const val DEFAULT_TTS_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
+
+        /**
+         * Voix « Jade US » du compte ElevenLabs, celle de l'intro embarquée
+         * (`res/raw/intro_ihear.mp3`). Proposée dans les Réglages, mais pas par défaut :
+         * voix de bibliothèque, elle répond 402 sur un compte free, là où Sarah est premade.
+         */
+        const val JADE_US_VOICE_ID = "TOXPlnYC7z5SQSV2Zgc5"
 
         /** API Meta (non compatible OpenAI) : la route est `{base}/asr/transcribe`. */
         const val DEFAULT_ASR_BASE_URL = "https://api.meta.ai/v1"
@@ -44,8 +55,16 @@ data class Settings(
             asrBaseUrl = DEFAULT_ASR_BASE_URL,
             asrApiKey = "",
             asrModel = DEFAULT_ASR_MODEL,
+            introEnabled = true,
+            introPlayed = false,
         )
     }
+
+    /**
+     * Vrai si l'écran de garde tactile doit être présenté : seulement tant que
+     * l'intro n'a pas été entendue une fois et qu'elle n'est pas coupée aux Réglages.
+     */
+    val introPending: Boolean get() = introEnabled && !introPlayed
 
     /** Vrai si un endpoint SAM est renseigné. */
     val segmentationEnabled: Boolean get() = samBaseUrl.isNotBlank()

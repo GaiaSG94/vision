@@ -49,6 +49,8 @@ internal object SettingsCodec {
     private const val K_ASR_BASE_URL = "asrBaseUrl"
     private const val K_ASR_API_KEY = "asrApiKey"
     private const val K_ASR_MODEL = "asrModel"
+    private const val K_INTRO_ENABLED = "introEnabled"
+    private const val K_INTRO_PLAYED = "introPlayed"
 
     fun encode(s: Settings): String = buildString {
         appendLine("$K_LLM_BASE_URL=${s.llmBaseUrl}")
@@ -61,6 +63,8 @@ internal object SettingsCodec {
         appendLine("$K_ASR_BASE_URL=${s.asrBaseUrl}")
         appendLine("$K_ASR_API_KEY=${s.asrApiKey}")
         appendLine("$K_ASR_MODEL=${s.asrModel}")
+        appendLine("$K_INTRO_ENABLED=${s.introEnabled}")
+        appendLine("$K_INTRO_PLAYED=${s.introPlayed}")
     }
 
     /** Tolérant : une clé absente (ancien fichier) reprend sa valeur par défaut. */
@@ -80,6 +84,8 @@ internal object SettingsCodec {
             asrBaseUrl = values[K_ASR_BASE_URL].orEmpty().ifBlank { default.asrBaseUrl },
             asrApiKey = values[K_ASR_API_KEY].orEmpty(),
             asrModel = values[K_ASR_MODEL].orEmpty().ifBlank { default.asrModel },
+            introEnabled = values[K_INTRO_ENABLED]?.toBooleanStrictOrNull() ?: default.introEnabled,
+            introPlayed = values[K_INTRO_PLAYED]?.toBooleanStrictOrNull() ?: default.introPlayed,
         )
     }
 }
