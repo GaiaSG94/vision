@@ -105,9 +105,10 @@ adb -s emulator-5554 shell am start -n dev.sam3vision.app/.MainActivity
 
 Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
 
-1. Capture (4 boutons depuis le mode tap) : `input tap 540 1877` « Photographier »,
-   `input tap 171 2045` « Vidéo (tap) », `input tap 671 2045` « Galerie »,
-   `input tap 540 2213` « Réglages ».
+1. Capture (5 commandes depuis le mode tap) : « Photographier », « Direct (vidéo) »
+   (ouvre l'écran Direct, « Arrêter » en haut à gauche pour revenir), « Vidéo (tap) »,
+   « Galerie », « Réglages ». Un tap sur l'aperçu lance le mode vidéo tap, pas le Direct :
+   les coordonnées des boutons dépendent du nombre de commandes, viser par libellé.
 2. Analyse (~5–15 s, appel LLM réel) : bandeau « Segmentation désactivée — renseigne un
    endpoint SAM dans Réglages. », tags, description ; retour `input tap 160 95`.
 3. Réglages : champs Base URL LLM (540 452), Clé (540 688), Modèle (540 924), URL SAM (540 1160) ;
