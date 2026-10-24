@@ -58,5 +58,20 @@ merge_queue:
 
 # Auto-queue natif (produit Merge Queue) : évite de dépendre du produit
 # « Workflow Automation » (pull_request_rules), constaté désactivé le 24/10.
+merge_protections:
+  # Règles évaluées par le produit « Merge Protections » (à activer dans le
+  # dashboard : sans lui, auto_merge_conditions reste sans effet et la file
+  # n'embarque que sur @Mergifyio queue — doc /merge-protections/setup).
+  # Volontairement identiques aux conditions de file : pas de double garde.
+  # `couche0` reste informatif le temps du calibrage (méthode duello).
+  - name: CI verte et pas de hold
+    description: "Ce qui doit passer avant d'entrer dans la file."
+    if:
+      - base = master
+    success_conditions:
+      - check-success = ci
+      - check-success = ci-budget
+      - -label = hold
+
 merge_protections_settings:
   auto_merge_conditions: true

@@ -19,3 +19,8 @@ commentaire `@Mergifyio refresh`, embarquement forcé : `@Mergifyio queue`.
 
 La Couche 0 (`couche0`, périmètre déclaré + motifs interdits) est **informative**
 tant qu'elle n'est pas calibrée ; voir `.github/couche0/check_couche0.py`.
+
+**Auto-embarquement** : `merge_protections_settings.auto_merge_conditions: true` n'a d'effet
+que si le **produit Merge Protections est activé** sur le dépôt (doc Mergify,
+`/merge-protections/setup`). Tant qu'il ne l'est pas, la file n'admet une PR que sur
+commentaire `@Mergifyio queue` — vérifiable au check `Mergify Merge Protections` absent.
