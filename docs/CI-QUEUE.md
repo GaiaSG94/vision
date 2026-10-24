@@ -22,5 +22,18 @@ tant qu'elle n'est pas calibrée ; voir `.github/couche0/check_couche0.py`.
 
 **Auto-embarquement** : `merge_protections_settings.auto_merge_conditions: true` n'a d'effet
 que si le **produit Merge Protections est activé** sur le dépôt (doc Mergify,
-`/merge-protections/setup`). Tant qu'il ne l'est pas, la file n'admet une PR que sur
-commentaire `@Mergifyio queue` — vérifiable au check `Mergify Merge Protections` absent.
+`/merge-protections/setup`) — il l'est depuis le 24/10, donc une PR verte part seule en file.
+Le check `Mergify Merge Protections` est le témoin visuel de cette activation ; s'il
+disparaît, on retombe sur l'embarquement manuel `@Mergifyio queue`.
+## Côté agent : `sam-wt`
+
+- `sam-wt new <sujet>` — worktree + branche **depuis `origin/master`** (jamais l'arbre partagé).
+- `sam-wt test <sujet>` — `:core:test` + `:app:testDebugUnitTest` + `assembleDebug`.
+- `sam-wt merge <sujet>` — pousse la branche, **ouvre la PR avec le `## Scope` rempli
+  automatiquement** (un motif par fichier touché, requis par la Couche 0), puis attend que
+  la file embarque et merge. Il n'y a plus de merge local : `master` est protégé.
+- `sam-wt sync` — remet le `master` local à niveau sur `origin/master`.
+- `sam-wt rm <sujet>` — worktree et branche nettoyés une fois mergé.
+
+Si le diff touche `.mergify.yml` ou `.github/`, la PR doit porter la mention
+`SAMVISION_ALLOW_GUARD_BUMP` dans son corps (`sam-wt merge` le rappelle).
