@@ -46,11 +46,12 @@ class HttpSamClient(
 private fun parseSegment(raw: String): SegmentResult {
     val json = parse(raw) ?: throw ApiError.BadResponse("/segment : JSON illisible")
     val objects = json.objects("objects").map { obj ->
+        val fields = obj.maskedFields()
         SegObject(
-            label = obj.str("label", "objet"),
-            score = obj.floatOr("score"),
-            box = obj.floats("box"),
-            maskPngB64 = obj.str("mask_b64"),
+            label = fields.label,
+            score = fields.score,
+            box = fields.box,
+            maskPngB64 = fields.maskB64,
         )
     }
     return SegmentResult(width = json.intOr("width"), height = json.intOr("height"), objects = objects)

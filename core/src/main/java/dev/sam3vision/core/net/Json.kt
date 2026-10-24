@@ -29,6 +29,26 @@ internal fun JSONObject.objects(key: String): List<JSONObject> {
 }
 
 /**
+ * Champs communs à tout objet segmenté par SAM, quel que soit le modèle Kotlin cible
+ * (`SegObject` pour `/segment` et `/live`, `TrackedObject` pour le tracker).
+ * Un seul endroit lit `label` / `score` / `box` / `mask_b64`.
+ */
+internal data class MaskedFields(
+    val label: String,
+    val score: Float,
+    val box: List<Float>,
+    val maskB64: String,
+)
+
+/** Lit les champs d'un objet segmenté, avec les mêmes valeurs par défaut partout. */
+internal fun JSONObject.maskedFields(): MaskedFields = MaskedFields(
+    label = str("label", DEFAULT_LABEL),
+    score = floatOr("score"),
+    box = floats("box"),
+    maskB64 = str("mask_b64"),
+)
+
+/**
  * Extrait le premier objet JSON équilibré d'un texte libre (le modèle encadre
  * souvent sa réponse de ``` ou de phrases). `null` si aucun objet complet.
  */
@@ -107,3 +127,6 @@ internal fun JSONObject.segments(path: String): List<String> {
 
 /** Construit un tableau JSON de chaînes. */
 internal fun jsonArrayOf(values: List<String>): JSONArray = JSONArray().apply { values.forEach { put(it) } }
+
+/** Label d'un objet sans nom dans la réponse du backend. */
+internal const val DEFAULT_LABEL = "objet"
