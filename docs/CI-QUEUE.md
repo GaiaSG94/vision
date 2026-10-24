@@ -129,3 +129,5 @@ passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 - Septième mesure : diagnostic du push.
 
 - Huitième mesure : lease explicite.
+
+- Neuvième mesure : seuls les checks requis sont attendus.
