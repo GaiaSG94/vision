@@ -13,8 +13,12 @@ API = 'https://api.github.com'
 CHECK_NAME = 'hermes-lite/verdict'
 LABEL_OK = 'hermes/approuvee'
 LABEL_CONFLIT = 'hermes/conflit'
+LABEL_HUMAN = 'hermes/intervention-humaine'
 
 import json
+import os
+import subprocess
+import sys
 import time
 
 
@@ -52,6 +56,53 @@ def set_label(pr, repo, token, name, add):
     elif not add and has:
         api('DELETE', '/repos/%s/issues/%d/labels/%s' % (repo, num, name),
             token=token)
+
+
+def spawn_conflict_agent(pr, repo):
+    """[HERMES-AGENT] Conflit -> chat ZeroClaw branché sur InferHub, sur la machine du runner.
+
+    Relance détachée : le job CI reste sous le plafond de 5 min (`ci-budget`), c'est
+    l'agent qui travaille ensuite hors du job et commente la PR. Jamais bloquant,
+    jamais en échec : un agent indisponible ne doit pas faire rougir la file.
+    """
+    if env_flag('HERMES_AGENT_RESOLVE', '1') == '0':
+        return 'désactivé'
+    labels = [l['name'] for l in pr.get('labels') or []]
+    if LABEL_HUMAN in labels or 'hold' in labels:
+        return 'escalade humaine'
+    if pr['head'].get('repo', {}).get('full_name') != repo:
+        return 'fork'
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'conflict_agent.py')
+    child = dict(os.environ, HERMES_PR_HEAD_SHA=pr['head']['sha'])
+    try:
+        subprocess.Popen([sys.executable, script, '--spawn', '--repo', repo,
+                          '--pr', str(pr['number'])], env=child,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        return 'agent saisi'
+    except OSError as exc:
+        print('[gate] #%d agent : %r' % (pr['number'], exc), flush=True)
+        return 'erreur'
+
+
+def escalate(pr, repo, token, sha, base_ref, note):
+    """Check rouge + étiquettes de conflit, puis saisine de l'agent ZeroClaw."""
+    agent = spawn_conflict_agent(pr, repo)
+    detail = ("Agent ZeroClaw `%s` (InferHub) saisi — %s. Il publie son travail en "
+              "commentaire de la PR. Pour rendre la main à un humain : label `%s`."
+              % (os.environ.get('HERMES_ZC_AGENT', 'hermes'), agent, LABEL_HUMAN))
+    create_check(repo, token, sha, False,
+                 'Conflits avec %s — %s' % (base_ref, 'agent saisi' if agent == 'agent saisi'
+                                            else 'intervention humaine'),
+                 '%s %s' % (note, detail))
+    set_label(pr, repo, token, LABEL_CONFLIT, True)
+    set_label(pr, repo, token, LABEL_OK, False)
+    return agent
+
+
+def env_flag(name, default):
+    value = os.environ.get(name)
+    return value if value not in (None, '') else default
 
 
 def refresh_branch(repo, token, pr):
@@ -122,12 +173,7 @@ def settle_after_refresh(repo, token, num, required, attempts=10, pause=6, dry=F
         conflicts = (pr.get('mergeable') is False
                      and (pr.get('mergeable_state') or '') == 'dirty')
         if conflicts:
-            create_check(repo, token, sha, False,
-                         'Conflits avec %s — intervention humaine' % base_ref,
-                         'Le rebase automatique a révélé un conflit. Rebase manuel '
-                         'puis push, ou label `hermes/intervention-humaine`.')
-            set_label(pr, repo, token, LABEL_CONFLIT, True)
-            set_label(pr, repo, token, LABEL_OK, False)
+            escalate(pr, repo, token, sha, base_ref, 'Le rebase automatique a révélé un conflit.')
             return 'conflict'
         set_label(pr, repo, token, LABEL_OK, True)
         create_check(repo, token, sha, True, 'PR à jour — merge par le gate',
@@ -177,13 +223,8 @@ def handle_pr(pr, repo, token, required, dry=False):
     conflicts = (mergeable is False and mergeable_state == 'dirty')
 
     if conflicts:
-        create_check(repo, token, sha, False,
-                     'Conflits avec %s — intervention humaine' % base_ref,
-                     'Le gate ne résout pas les conflits (pas d IA ici). '
-                     'Rebase manuel puis push, ou utilise le label '
-                     '`hermes/intervention-humaine` pour suspendre.')
-        set_label(pr, repo, token, LABEL_CONFLIT, True)
-        set_label(pr, repo, token, LABEL_OK, False)
+        escalate(pr, repo, token, sha, base_ref,
+                 'Le gate détecte un conflit dès l ouverture de la PR.')
         return 'conflict'
     set_label(pr, repo, token, LABEL_CONFLIT, False)
 
@@ -199,12 +240,7 @@ def handle_pr(pr, repo, token, required, dry=False):
             return settle_after_refresh(repo, token, num, required, dry=dry)
         if r == 'conflict':
             # Le rebase serveur a été refusé : conflit réel après tout.
-            create_check(repo, token, sha, False,
-                         'Conflits avec %s — intervention humaine' % base_ref,
-                         'Le rebase automatique a été refusé. Rebase manuel '
-                         'puis push, ou label `hermes/intervention-humaine`.')
-            set_label(pr, repo, token, LABEL_CONFLIT, True)
-            set_label(pr, repo, token, LABEL_OK, False)
+            escalate(pr, repo, token, sha, base_ref, 'Le rebase serveur a été refusé.')
         return r
 
     set_label(pr, repo, token, LABEL_OK, True)
@@ -235,7 +271,6 @@ def list_open_prs(repo, token):
 
 
 def main():
-    import os
     token = os.environ['GH_TOKEN']
     repo = os.environ['GITHUB_REPOSITORY']
     event_name = os.environ['GITHUB_EVENT_NAME']

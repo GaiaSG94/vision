@@ -1,5 +1,24 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
+
+- **Le gate ne dit plus « intervention humaine » et s'arrête là.** Sur
+  `mergeable_state = dirty`, `gate.py` saisit l'agent `hermes` du daemon ZeroClaw
+  (provider `custom.inferhub_ci` → `https://api.inferhub.dev/v1`, modèle `combo/cheap`)
+  via A2A `POST /a2a/hermes` sur la machine du runner, **en processus détaché** pour
+  rester sous les 5 min de `ci-budget`.
+- L'agent rebase la branche de la PR, résout en gardant les deux intentions, valide
+  (`:core:test`, `:app:testDebugUnitTest`, `assembleDebug`), pousse en
+  `--force-with-lease` sur la branche de la PR et commente son compte rendu. Ni merge,
+  ni `master`, ni gardes. 3 tentatives puis `hermes/intervention-humaine`.
+- **Garde-fous** : une saisine par tête de PR (empreinte + cooldown 20 min), plafond de
+  3 saisines par période, fork ignoré, labels `hold`/`hermes/intervention-humaine`
+  respectés, `vars.HERMES_AGENT_RESOLVE=0` coupe tout, tout échec d'agent se traduit par
+  un commentaire et jamais par une CI rouge.
+- Fichiers : `.github/hermes/conflict_agent.py` (nouveau, stdlib seule),
+  `.github/hermes/gate.py` (escalade unifiée `escalate()`), `.github/workflows/hermes-lite.yml`
+  (env), `docs/CI-QUEUE.md` (section « Conflit : l'agent hermes ouvre un chat ZeroClaw »).
+
 ## 2026-10-24
 
 - **Dictée vocale Meta Muse dans le Chat** (`feat/muse-dictation`) : bouton « Dicter »,

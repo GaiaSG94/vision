@@ -37,3 +37,56 @@ disparaît, on retombe sur l'embarquement manuel `@Mergifyio queue`.
 
 Si le diff touche `.mergify.yml` ou `.github/`, la PR doit porter la mention
 `SAMVISION_ALLOW_GUARD_BUMP` dans son corps (`sam-wt merge` le rappelle).
+
+## Conflit : l'agent hermes ouvre un chat ZeroClaw (InferHub)
+
+Un conflit n'est plus une impasse. Quand le gate voit `mergeable_state = dirty`, il
+n'écrit plus seulement un check rouge : il **saisit un agent ZeroClaw** qui va
+résoudre le conflit lui-même.
+
+- **Qui** : alias `hermes` du daemon ZeroClaw qui tourne sur le worker
+  (`/opt/zeroclaw/ephem`), branché sur **InferHub** par le provider
+  `custom.inferhub_ci` (`https://api.inferhub.dev/v1`, modèle `combo/cheap`).
+- **Comment** : `.github/hermes/conflict_agent.py`, lancé **détaché** par le gate
+  (`--spawn`). Le job ne fait que le lancement : il reste sous le plafond de 5 min
+  imposé par `ci-budget`. Le processus détaché envoie le contexte du conflit à
+  `POST /a2a/hermes` sur `127.0.0.1:42617` (le runner et le daemon tournent sous le
+  même utilisateur, le jeton client est dans `~/.config/zeroclaw-serveur/token`),
+  attend la réponse puis la publie en commentaire de la PR.
+- **Ce que l'agent fait** : worktree hors de l'arbre partagé, rebase sur `origin/master`,
+  résolution qui garde les **deux intentions** (jamais un côté choisi à l'aveugle),
+  `:core:test` + `:app:testDebugUnitTest` + `assembleDebug` verts, puis
+  `--force-with-lease` sur **la branche de la PR** (jamais sur `master`). Il commente
+  son travail et laisse la file reprendre la main au push suivant.
+- **Ce qu'il ne fait pas** : merger, toucher `master`, `.github/`, `.mergify.yml` ou
+  les gardes. Après 3 tentatives ratées sur un fichier, il commente le blocage et pose
+  `hermes/intervention-humaine`.
+
+### Garde-fous
+
+| Frein | Effet |
+|---|---|
+| empreinte `pr-<n>-<sha>` + cooldown 20 min | une seule saisine par tête de PR ; pas de boucle si l'agent ne pousse pas |
+| plafond de 3 saisines par période | une rafale de PRs en conflit ne lance pas 20 agents |
+| label `hermes/intervention-humaine` ou `hold` | aucune saisine, la main reste humaine |
+| branche venue d'un fork | aucune saisine (pas de droit d'écriture) |
+| `vars.HERMES_AGENT_RESOLVE=0` | coupe tout le mécanisme sans toucher au code |
+| échec du chat | commentaire + label humain ; le gate reste vert côté saisine (jamais de CI rouge pour un agent) |
+
+### Réglages et relance
+
+Variables de dépôt (toutes optionnelles) : `HERMES_ZC_URL` (défaut
+`http://127.0.0.1:42617`), `HERMES_ZC_AGENT` (défaut `hermes`), `HERMES_ZC_TOKEN_FILE`
+(défaut `~/.config/zeroclaw-serveur/token`), `HERMES_AGENT_TIMEOUT` (1500 s),
+`HERMES_AGENT_RESOLVE` (1).
+
+Relance manuelle après une escalade :
+
+```bash
+python3 .github/hermes/conflict_agent.py --run --repo BaptisteFaisy/sam-vision \
+  --pr <N> --malgre-etat
+```
+
+Traces : `~/.cache/hermes-agent/pr-<N>.log` sur le worker. Check
+`hermes-agent/conflit`, étiquette `hermes/agent-conflit` quand l'agent a rendu son
+compte rendu.

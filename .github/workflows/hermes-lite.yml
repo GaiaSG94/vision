@@ -25,6 +25,13 @@ concurrency:
 
 env:
   GH_TOKEN: ${{ secrets.HERMES_LITE_TOKEN || github.token }}
+  # [HERMES-AGENT] Conflit -> chat ZeroClaw (daemon sur la machine du runner, même
+  # utilisateur). Le job ne fait que lancer : il reste sous les 5 min de `ci-budget`.
+  HERMES_AGENT_RESOLVE: ${{ vars.HERMES_AGENT_RESOLVE || '1' }}
+  HERMES_ZC_URL: ${{ vars.HERMES_ZC_URL || 'http://127.0.0.1:42617' }}
+  HERMES_ZC_AGENT: ${{ vars.HERMES_ZC_AGENT || 'hermes' }}
+  HERMES_ZC_TOKEN_FILE: ${{ vars.HERMES_ZC_TOKEN_FILE || '~/.config/zeroclaw-serveur/token' }}
+  HERMES_AGENT_TIMEOUT: ${{ vars.HERMES_AGENT_TIMEOUT || '1500' }}
   # IMPORTANT (runbook §3) : à renseigner PAR DÉPÔT — contexts de statut requis
   # avant merge, séparés par des virgules. Vide = merge dès que la PR est fraîche.
   HERMES_REQUIRED_CHECKS: ''
