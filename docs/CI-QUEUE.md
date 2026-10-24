@@ -125,3 +125,5 @@ passer le job `ci` au-delà de ~3 min doit sortir de la PR (règle CI 5 min).
 - Cinquième mesure : attente de l’état de fusion au lieu de basculer sur la file.
 
 - Sixième mesure : rebase + re-test + merge, sans mergeStateStatus.
+
+- Septième mesure : diagnostic du push.
