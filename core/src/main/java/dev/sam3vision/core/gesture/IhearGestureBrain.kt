@@ -70,12 +70,14 @@ class IhearGestureBrain(
     /** Premier doigt posé. */
     @Synchronized
     fun onDown(nowMs: Long, x: Float, y: Float) {
-        pendingTapCancelled()
-        if (held) return // une tenue est en cours : elle garde la main jusqu'à la relâche
-        press = Press(downX = x, downY = y, downAt = nowMs)
+        // Le second tap se juge AVANT l'annulation : pendingTapCancelled() remet
+        // pendingSingle à zéro, le calcul lu après lui ne verrait jamais le tap 1.
         val isSecond = pendingSingle &&
             nowMs - lastTapUpAt <= doubleTapMs &&
             hypot(x - lastTapDownX, y - lastTapDownY) <= slopPx * 2
+        pendingTapCancelled()
+        if (held) return // une tenue est en cours : elle garde la main jusqu'à la relâche
+        press = Press(downX = x, downY = y, downAt = nowMs)
         armedDouble = isSecond
     }
 

@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -76,13 +79,26 @@ fun IhearCameraWindow(
             .padding(start = 8.dp, top = CAM_WINDOW_TOP_GAP.dp, end = CAM_WINDOW_GAP.dp, bottom = 8.dp)
             .width(widthDp.dp)
             .height(heightDp.dp)
-            .alpha(windowAlpha)
-            .clip(RoundedCornerShape(CAM_WINDOW_CORNER.dp))
-            .background(Color.Transparent),
+            .alpha(windowAlpha),
     ) {
-        CameraWindowBody(state, glue.granted, glue.failure) {
-            AndroidView(factory = { glue.host.newPreviewView(it) }, modifier = Modifier.fillMaxSize())
+        // La fenêtre clippée d'un côté, la pastille hors clip de l'autre : le point
+        // peut déborder du contour sans être rogné par RoundedCornerShape.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(CAM_WINDOW_CORNER.dp))
+                .background(Color.Transparent),
+        ) {
+            CameraWindowBody(state, glue.granted, glue.failure) {
+                AndroidView(factory = { glue.host.newPreviewView(it) }, modifier = Modifier.fillMaxSize())
+            }
         }
+        RecordingDot(
+            state.recordingVideo,
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (RECORDING_DOT_DP / 2).dp, y = (RECORDING_DOT_DP / 2).dp),
+        )
     }
 }
 
@@ -132,7 +148,6 @@ private fun CameraWindowBody(
             }
         }
         state.photoPath?.let { PhotoFlash(it) }
-        RecordingBadge(state.recordingVideo, Modifier.align(Alignment.TopCenter))
         failure?.let {
             Text(
                 it,
@@ -171,18 +186,15 @@ private fun PhotoFlash(path: String) {
     }
 }
 
-/** Pastille d'enregistrement : un point rouge et « REC » au-dessus de la fenêtre. */
+/** Point blanc d'enregistrement, à cheval sur l'angle haut-droit de la fenêtre. */
 @Composable
-private fun RecordingBadge(active: Boolean, modifier: Modifier = Modifier) {
+private fun RecordingDot(active: Boolean, modifier: Modifier = Modifier) {
     if (!active) return
-    Text(
-        "● REC",
-        color = Color.White,
-        fontSize = 12.sp,
-        modifier = modifier
-            .padding(top = 6.dp)
-            .background(Color(0x99CC2222), RoundedCornerShape(14.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+    Box(
+        modifier
+            .size(RECORDING_DOT_DP.dp)
+            .border(1.dp, Color(0x44000000), CircleShape)
+            .background(Color.White, CircleShape),
     )
 }
 
@@ -193,6 +205,8 @@ private const val CAM_WINDOW_CORNER = 26
 private const val CAM_WINDOW_GAP = 14
 private const val CAM_WINDOW_TOP_GAP = 92
 private const val PHOTO_FLASH_MS = 340
+/** Diamètre du point d'enregistrement (dp). */
+private const val RECORDING_DOT_DP = 14
 
 /** Vrai si la permission caméra est déjà accordée. */
 fun cameraGranted(context: Context): Boolean {
