@@ -1,6 +1,7 @@
 package dev.sam3vision.core.settings
 
 import dev.sam3vision.core.model.ObjectLimits
+import dev.sam3vision.core.speech.SpeechLanguage
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -36,6 +37,18 @@ class SettingsCodecTest {
 
         val vision = Settings.Default.copy(liveSamEnabled = false)
         assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(vision)).liveSamEnabled)
+    }
+
+    @Test
+    fun `la langue de la voix survit a un aller-retour`() {
+        val french = Settings.Default.copy(speechLanguage = SpeechLanguage.Fr)
+        assertEquals(SpeechLanguage.Fr, SettingsCodec.decode(SettingsCodec.encode(french)).speechLanguage)
+        // Un fichier écrit avant la bascule garde la langue par défaut (anglais).
+        val legacy = SettingsCodec.encode(Settings.Default).lines().filterNot { it.startsWith("speechLanguage=") }
+        assertEquals(
+            SpeechLanguage.DEFAULT,
+            SettingsCodec.decode(legacy.joinToString("\n")).speechLanguage,
+        )
     }
 
     @Test

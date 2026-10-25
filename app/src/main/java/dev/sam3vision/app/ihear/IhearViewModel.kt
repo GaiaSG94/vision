@@ -15,10 +15,10 @@ import dev.sam3vision.app.media.HoldTranscript
 import dev.sam3vision.app.media.MediaCacheStore
 import dev.sam3vision.app.media.MediaDatabase
 import dev.sam3vision.app.media.MessageMultimedia
+import dev.sam3vision.app.llmClient
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Role
 import dev.sam3vision.core.net.ElevenLabsTtsClient
-import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
@@ -337,7 +337,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _state.update { it.copy(thinking = true) }
-        val outcome = AskUseCase(InferHubLlmClient(settings.llmBaseUrl, settings.llmApiKey, settings.llmModel))
+        val outcome = AskUseCase(llmClient(settings))
             .invoke(imagePathToB64(), question, buildChatHistory())
         photoCtx.releaseFreeze()
         _state.update { it.copy(thinking = false) }

@@ -25,6 +25,7 @@ import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.ApiError
 import dev.sam3vision.core.net.liveClient
+import dev.sam3vision.core.speech.SpeechLanguage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -120,6 +121,9 @@ class LiveProbe(private val scope: CoroutineScope) {
     /** Vrai si les Réglages autorisent l'annonce (« Annoncer les objets et leur distance »). */
     private var announcePositions = false
 
+    /** Langue de la voix (Réglages) : le français reste le défaut des fonctions pures. */
+    private var speechLanguage: SpeechLanguage = SpeechLanguage.Fr
+
     /** Un réveil `/health` est en cours (un seul à la fois). */
     private var warming = false
 
@@ -134,6 +138,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         lens: LensSpec = LensSpec.Default,
         distancesOn: Boolean = true,
         maxObjects: Int = 0,
+        language: SpeechLanguage = SpeechLanguage.Fr,
     ) {
         val clean = baseUrl.trim()
         session = if (clean.isBlank()) null else LiveSession(
@@ -153,6 +158,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         )
         warmed = false
         announcePositions = announce
+        speechLanguage = language
         distances.enabled = distancesOn
         distances.setLens(lens)
         nextTickAt = 0L
@@ -387,7 +393,7 @@ class LiveProbe(private val scope: CoroutineScope) {
             PositionText.fromDetection(Detection(obj.label, obj.score, obj.box, frame.width, frame.height))
                 ?.copy(meters = metersByBox[obj.box])
         }
-        return announcer.onFrame(at, placed)
+        return announcer.onFrame(at, placed, speechLanguage)
     }
 
     /**

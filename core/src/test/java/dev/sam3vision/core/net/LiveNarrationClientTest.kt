@@ -1,6 +1,7 @@
 package dev.sam3vision.core.net
 
 import dev.sam3vision.core.TestHttpServer
+import dev.sam3vision.core.speech.SpeechLanguage
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -18,8 +19,8 @@ private fun chatReply(content: String): String {
 /** Contrat HTTP de la narration du direct (`describeFrame`), vérifié sans réseau. */
 class LiveNarrationClientTest {
 
-    private fun client(server: TestHttpServer) =
-        InferHubLlmClient(server.baseUrl, "cle", "modele-omni")
+    private fun client(server: TestHttpServer, language: SpeechLanguage = SpeechLanguage.Fr) =
+        InferHubLlmClient(server.baseUrl, "cle", "modele-omni", language)
 
     @Test
     fun `describeFrame envoie la frame et la description precedente`() {
@@ -42,6 +43,23 @@ class LiveNarrationClientTest {
                 parts.getJSONObject(1).getJSONObject("image_url").getString("url"),
             )
             assertEquals(200, body.getInt("max_tokens"))
+        } finally {
+            server.close()
+        }
+    }
+
+    @Test
+    fun `describeFrame suit la langue de la voix`() {
+        val server = TestHttpServer { TestHttpServer.Response(200, chatReply("a person walks to the door")) }
+        try {
+            runBlocking {
+                client(server, SpeechLanguage.En).describeFrame("QUJD", listOf("person"), "a bike")
+            }
+            val messages = JSONObject(server.requests.single().body).getJSONArray("messages")
+            assertTrue(messages.getJSONObject(0).getString("content").contains("English"))
+            val prompt = messages.getJSONObject(1).getJSONArray("content").getJSONObject(0).getString("text")
+            assertTrue(prompt.contains("Tracked objects"))
+            assertTrue(prompt.contains("Previous description"))
         } finally {
             server.close()
         }

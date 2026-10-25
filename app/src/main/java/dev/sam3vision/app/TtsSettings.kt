@@ -33,6 +33,7 @@ fun TtsSettings(
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
         )
+        VoiceLanguageSettings(draft, onChange)
         LabeledField("Clé API ElevenLabs", draft.ttsApiKey, true) { onChange(draft.copy(ttsApiKey = it)) }
         LabeledField("ID de voix ElevenLabs", draft.ttsVoiceId, false) { onChange(draft.copy(ttsVoiceId = it)) }
         Text(
@@ -44,7 +45,7 @@ fun TtsSettings(
         )
         SpeakRow(
             state = speaking,
-            text = TEST_VOICE_TEXT,
+            text = testVoiceText(draft.speechLanguage),
             onSpeak = onSpeak,
             onStop = onStop,
             actionLabel = "Tester la voix",

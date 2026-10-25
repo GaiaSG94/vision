@@ -108,6 +108,15 @@ Délais réellement câblés : frame 10 s (`core/net/HttpLiveClient.kt:11`), ré
   (`core/net/ElevenLabsTtsClient.kt`). Voix **premade** seules passent sur un compte free
   (Sarah `EXAVITQu4vr4xnSDxMaL`, George `JBFqnCBsd6RMkjVDRZzb`) ; voix de bibliothèque → 402
   (rappelé par `TtsSettings.kt:38-42`, détail `docs/ELEVENLABS-TTS.md`).
+- **Langue de la voix** : la personne qui parle — annonces de position, réponses du chat et du
+  direct, narration — parle **en anglais** par défaut (« Person on the left, 1.4 meters away. »),
+  et en français si l'on choisit « Voix en français (fr) » dans Réglages. Boutons
+  **« Langue de la voix »** (`app/VoiceLanguageSettings.kt:24`), réglage
+  `Settings.speechLanguage` (`core/settings/Settings.kt:60`, défaut anglais :
+  `core/speech/SpeechLanguage.kt:32`), annonces (`core/live/PositionText.kt:101`,
+  `core/distance/DistanceText.kt:36`) et consignes du modèle (`core/net/LlmPrompts.kt:14`).
+  L'interface reste en français ; la dictée retranscrit la langue de celui qui parle.
+  Détail : `docs/VOIX-ANGLAIS.md`.
 - **Intro iSee** : l'audio embarqué (`app/src/main/res/raw/intro_ihear.mp3`, voix Jade US) est
   **rejoué à chaque ouverture complète** tant que la bascule est « on » — il n'y a **aucun marqueur
   persisté** (`ihear/IhearIntro.kt:30-33`). Il se coupe par la voix : dictée

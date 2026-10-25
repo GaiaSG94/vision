@@ -1,5 +1,9 @@
 # Voix ElevenLabs — contrat réel, annonce des positions, silence
 
+> La **langue** de cette voix (annonces de position, réponses du chat, consignes du LLM) se
+> règle dans Réglages → « Langue de la voix » : voir `docs/VOIX-ANGLAIS.md`. La voix reste un
+> choix (`ID de voix ElevenLabs`) indépendant de la langue.
+
 Relevé du **2026-10-25** dans le worktree `sam-wt-docs-app` (origin/master, `8f9876a`).
 Chaque affirmation ci-dessous est adossée au code (fichier + ligne) ; les mesures
 datées du 2026-10-24 sont conservées telles quelles, et ce qui est périmé est

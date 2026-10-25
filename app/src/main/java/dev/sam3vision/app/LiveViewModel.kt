@@ -23,7 +23,6 @@ import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.HttpLiveClient
-import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LiveClient
 import dev.sam3vision.core.net.LiveLlmClient
 import dev.sam3vision.core.net.LlmClient
@@ -377,7 +376,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             PositionText.fromDetection(Detection(obj.label, obj.score, obj.box, width, height))
                 ?.copy(meters = metersByBox[obj.box])
         }
-        val phrase = announcer.onFrame(now, placed) ?: return
+        val phrase = announcer.onFrame(now, placed, settings.speechLanguage) ?: return
         _state.update { it.copy(spoken = phrase) }
         viewModelScope.launch { sayPositions(phrase) }
     }
@@ -431,7 +430,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val global = timeline.recent(now, MEMORY_WINDOW_MS)
         val window = focusWindow(now, focusSeconds)
         val focus = timeline.summary(window.first, window.last)
-        val context = timelineContextOrNull(global, focus, focusLabel(focusSeconds))
+        val context = timelineContextOrNull(global, focus, focusLabel(focusSeconds), settings.speechLanguage)
         val useCase = AskUseCase(llm(settings))
         useCase.invoke(jpegB64, question, history, context).fold(
             onSuccess = { answer ->
@@ -446,11 +445,10 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private fun llm(s: Settings): LlmClient = InferHubLlmClient(s.llmBaseUrl, s.llmApiKey, s.llmModel)
+    private fun llm(s: Settings): LlmClient = llmClient(s)
 
     /** Même client que [llm], typé pour la narration continue. */
-    private fun narratorClient(s: Settings): LiveLlmClient =
-        InferHubLlmClient(s.llmBaseUrl, s.llmApiKey, s.llmModel)
+    private fun narratorClient(s: Settings): LiveLlmClient = inferHub(s)
 
     /** Bouton « Parler » du panneau : le micro s'ouvre pour poser la question à la voix. */
     fun startVoice() = liveVoice.start()

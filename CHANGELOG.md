@@ -4,6 +4,37 @@
 > 25/10 19:34) — existe déjà sur `origin/master` mais pas dans la base de ce worktree (`8f9876a`) :
 > elle n'est **pas dupliquée** ici. (12) à (18) = un chiffre par bullet, une sha par fait.
 
+## 2026-10-25 (19) — la voix parle anglais (réglage « Langue de la voix »)
+
+- **Demande user** : « dans l'app ihear, faire en sorte que la personne nous parle en anglais ».
+  C'est un réglage, pas un fork : `SpeechLanguage` (`core/speech/`, `Fr` / `En`, **anglais par
+  défaut**, lecture tolérante des valeurs inconnues), persisté par les deux stores
+  (`speech_language` et `speechLanguage`). Une installation déjà en place bascule donc en anglais
+  à la mise à jour — c'est le demandé ; « Voix en français (fr) » reste à un bouton des Réglages.
+- **Ce que la langue pilote** : les annonces de scène (`PositionText` + `DistanceText.spoken`),
+  les réponses du chat et du direct, la narration continue, le journal caméra joint comme contexte
+  d'une question de mémoire (`TimelineText.context`), et la phrase de « Tester la voix ».
+  **Ce qu'elle ne touche pas** : l'interface, qui reste en français — et la dictée, qui retranscrit
+  la langue de celui qui parle.
+- **Mots anglais, même géométrie** : `on the left` / `in the middle` / `in the top left` /
+  `at the bottom`, distances rendues en `Locale.US` (`1.4 meters`, `85 centimeters`) — la voix lit
+  le texte tel quel, une virgule décimale se prononcerait mal. Forme produite : `Person on the
+  left, 1.4 meters away; chair in the middle, 3 meters away.`
+- **La signature de scène reste française** (`PositionText.key`) : sinon basculer de langue ferait
+  rebavarder toute la scène déjà annoncée.
+- **Prompts LLM** : les quatre consignes codées en dur de `InferHubLlmClient` déménagent dans
+  `core/net/LlmPrompts.kt`, une variante par langue, **mêmes clés JSON** (`description`, `tags`)
+  pour que `parseAnalysis` continue de lire. Client factorisé dans `app/LlmFactory.kt` : iSee,
+  Direct et photo reconstruisent le client LLM par le même chemin, donc avec la même langue.
+- **Vérifié** : 30 tests JVM ajoutés (secteurs, phrases, distances, consignes, requête réelle
+  contre faux serveur, aller-retour du codec, réglage), `assembleDebug` OK,
+  `check-kotlin-limits` OK. Côté compte : Jade US (`TOXPlnYC7z5SQSV2Zgc5`) synthétise une phrase
+  anglaise en `eleven_v4_turbo` → 200, 54 795 octets de MP3. Le modèle a été saturé pendant la
+  recette (`429 capacity_saturated` sur `ali/qwen3.8-omni-flash`) : la consigne anglaise part bien
+  dans `messages[0]`, démontré en JVM contre un faux serveur.
+- Docs : `docs/VOIX-ANGLAIS.md` (table des secteurs par langue, ce qui change et ce qui ne change
+  pas, recette).
+
 ## 2026-10-25 (18) — iSee : l'intro est dite avec le nouveau nom et annonce le balayage (#149)
 
 - **MP3 régénéré** (`app/src/main/res/raw/intro_ihear.mp3`) : même voix Jade US

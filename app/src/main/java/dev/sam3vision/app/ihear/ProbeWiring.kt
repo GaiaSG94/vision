@@ -26,6 +26,7 @@ internal fun LiveProbe.configureFrom(settings: Settings) {
         lens = LensSpec.fromSettings(settings.cameraFovDeg),
         distancesOn = settings.distanceOverlayEnabled,
         maxObjects = settings.objectsOnScreen,
+        language = settings.speechLanguage,
     )
 }
 

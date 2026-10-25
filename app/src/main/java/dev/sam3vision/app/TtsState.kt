@@ -1,6 +1,7 @@
 package dev.sam3vision.app
 
 import dev.sam3vision.core.settings.Settings
+import dev.sam3vision.core.speech.SpeechLanguage
 
 /**
  * État de la voix (ElevenLabs) : inactif, synthèse en cours, lecture, terminé, ou erreur.
@@ -22,8 +23,11 @@ sealed interface SpeakState {
 const val SPEAK_GLYPH = "🔊"
 const val STOP_GLYPH = "⏹"
 
-/** Phrase envoyée par « Tester la voix » dans les réglages. */
-const val TEST_VOICE_TEXT = "Test de voix SAM Vision."
+/** Phrase envoyée par « Tester la voix » dans les réglages, dans la langue de la voix. */
+fun testVoiceText(language: SpeechLanguage = SpeechLanguage.Fr): String = when (language) {
+    SpeechLanguage.Fr -> "Test de voix SAM Vision."
+    SpeechLanguage.En -> "This is the SAM Vision voice."
+}
 
 const val SPEAK_TEXT_MISSING = "rien à lire : texte vide"
 const val SPEAK_NO_KEY = "clé ElevenLabs absente — renseigne-la dans Réglages"

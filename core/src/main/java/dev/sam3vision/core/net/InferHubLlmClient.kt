@@ -3,6 +3,7 @@ package dev.sam3vision.core.net
 import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Role
+import dev.sam3vision.core.speech.SpeechLanguage
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -12,28 +13,7 @@ import org.json.JSONObject
 private const val MAX_TOKENS = 800
 private const val MAX_LIVE_TOKENS = 200
 private const val MAX_LIVE_CHARS = 400
-private const val MAX_PREVIOUS_IN_PROMPT = 300
 private const val TEMPERATURE = 0.2
-
-private val LIVE_SYSTEM =
-    "Tu observes un flux vidéo en direct et tu décris ce que tu vois, en français. " +
-        "Réponds en deux phrases maximum, au présent, sans liste, sans markdown. " +
-        "Si une description précédente est fournie, commence par ce qui a changé."
-
-private val DESCRIBE_SYSTEM =
-    "Tu es un assistant vision. Tu décris une photo en français. " +
-        "Réponds STRICTEMENT en JSON, sans texte autour : " +
-        "{\"description\": \"...\", \"tags\": [\"...\"]}"
-
-private val ASK_SYSTEM =
-    "Tu réponds en français, en quelques phrases, à partir de la photo fournie."
-
-private val ASK_MEMORY_SYSTEM =
-    "Tu es l'assistant mémoire d'une caméra. Tu réponds en français, en quelques phrases. " +
-        "La photo montre l'instant présent ; le contexte joint liste ce que la caméra a vu " +
-        "les secondes précédentes, avec la position et l'heure de chaque objet. " +
-        "Pour une question sur le passé (« il y a 5 s »), réponds d'après ce contexte. " +
-        "Si le contexte ne dit rien de ce qui est demandé, dis-le franchement."
 
 /**
  * Implémentation OkHttp d'un endpoint compatible OpenAI (`POST {baseUrl}/chat/completions`).
@@ -43,6 +23,8 @@ class InferHubLlmClient(
     private val baseUrl: String,
     private val apiKey: String,
     private val model: String,
+    /** Langue de la voix : le modèle répond dans cette langue (elle est lue telle quelle). */
+    private val language: SpeechLanguage = SpeechLanguage.DEFAULT,
     private val client: OkHttpClient = defaultHttpClient(),
     private val maxHistoryTurns: Int = 20,
 ) : LlmClient, LiveLlmClient {
@@ -54,18 +36,16 @@ class InferHubLlmClient(
         previous: String,
     ): Result<String> {
         val messages = JSONArray()
-            .put(system(LIVE_SYSTEM))
-            .put(userWithImage(livePrompt(labels, previous), jpegB64))
+            .put(system(LlmPrompts.liveSystem(language)))
+            .put(userWithImage(LlmPrompts.liveUser(labels, previous, language), jpegB64))
         return postChat(messages, MAX_LIVE_TOKENS).map { it.trim().take(MAX_LIVE_CHARS) }
     }
 
     override suspend fun describe(jpegB64: String, labels: List<String>): Result<Analysis> {
-        val prompt = if (labels.isEmpty()) {
-            "Décris cette image."
-        } else {
-            "Objets déjà détectés : ${labels.joinToString(", ")}. Décris cette image."
-        }
-        val messages = JSONArray().put(system(DESCRIBE_SYSTEM)).put(userWithImage(prompt, jpegB64))
+        val prompt = LlmPrompts.describeUser(labels, language)
+        val messages = JSONArray()
+            .put(system(LlmPrompts.describeSystem(language)))
+            .put(userWithImage(prompt, jpegB64))
         return postChat(messages).mapCatching { content -> parseAnalysis(content, labels) }
     }
 
@@ -76,8 +56,9 @@ class InferHubLlmClient(
         context: String?,
     ): Result<String> {
         val withContext = !context.isNullOrBlank()
-        val messages = JSONArray().put(system(if (withContext) ASK_MEMORY_SYSTEM else ASK_SYSTEM))
-        if (withContext) messages.put(system("Contexte observé par la caméra :\n$context"))
+        val messages = JSONArray()
+            .put(system(if (withContext) LlmPrompts.askMemorySystem(language) else LlmPrompts.askSystem(language)))
+        if (withContext) messages.put(system("${LlmPrompts.contextHeader(language)}\n$context"))
         history.takeLast(maxHistoryTurns).forEach { messages.put(role(it.role, it.content)) }
         messages.put(userWithImage(question, jpegB64))
         return postChat(messages).map { it.trim() }
@@ -133,15 +114,6 @@ private fun userWithImage(text: String, jpegB64: String): JSONObject = JSONObjec
                     .put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$jpegB64")),
             ),
     )
-
-/** Consigne de la frame du direct : objets suivis, puis continuité avec la description précédente. */
-internal fun livePrompt(labels: List<String>, previous: String): String = buildString {
-    append("Décris cette frame du direct.")
-    if (labels.isNotEmpty()) append(" Objets suivis : ").append(labels.joinToString(", ")).append('.')
-    if (previous.isNotBlank()) {
-        append(" Description précédente : « ").append(previous.take(MAX_PREVIOUS_IN_PROMPT)).append(" ».")
-    }
-}
 
 internal fun parse(raw: String): JSONObject? = try {
     JSONObject(raw)

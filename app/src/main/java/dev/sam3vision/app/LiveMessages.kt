@@ -2,6 +2,7 @@ package dev.sam3vision.app
 
 import dev.sam3vision.core.live.TimelineText
 import dev.sam3vision.core.model.TimelineSummary
+import dev.sam3vision.core.speech.SpeechLanguage
 
 /**
  * Textes et règles pures du mode Direct : messages d'état, libellés du transport et
@@ -37,7 +38,8 @@ fun timelineContextOrNull(
     global: TimelineSummary,
     focus: TimelineSummary?,
     label: String?,
+    language: SpeechLanguage = SpeechLanguage.Fr,
 ): String? {
     if (global.empty && (focus == null || focus.empty)) return null
-    return TimelineText.context(global, focus, label)
+    return TimelineText.context(global, focus, label, language)
 }

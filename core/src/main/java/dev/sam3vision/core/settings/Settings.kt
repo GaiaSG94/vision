@@ -1,6 +1,7 @@
 package dev.sam3vision.core.settings
 
 import dev.sam3vision.core.model.ObjectLimits
+import dev.sam3vision.core.speech.SpeechLanguage
 
 /**
  * Réglages de l'app. [samBaseUrl] vide = segmentation désactivée (la photo part
@@ -51,6 +52,12 @@ data class Settings(
      * Choisit l'endpoint appelé, n'allume aucune carte. Voir [resolveSamEndpoint].
      */
     val samRegion: SamRegion = SamRegion.Eu,
+    /**
+     * Langue de la **voix** (annonces de scène et réponses du chat lues à voix haute,
+     * consignes données au LLM). Anglais par défaut : l'intro embarquée est déjà en
+     * anglais. L'interface, elle, reste en français.
+     */
+    val speechLanguage: SpeechLanguage = SpeechLanguage.DEFAULT,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"

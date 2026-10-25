@@ -1,5 +1,7 @@
 package dev.sam3vision.core.live
 
+import dev.sam3vision.core.speech.SpeechLanguage
+
 /**
  * Déclencheur de l'annonce vocale des positions, calqué sur le flux du direct :
  * une à deux frames par seconde, des objets qui tremblent d'une frame à l'autre.
@@ -33,16 +35,21 @@ class PositionAnnouncer(
 
     /**
      * Frame observée à [atMs] : renvoie la phrase à prononcer, ou `null` s'il faut
-     * garder le silence.
+     * garder le silence. [language] est la langue de la voix (Réglages) : elle ne
+     * change ni les seuils, ni la mémoire de scène.
      */
-    fun onFrame(atMs: Long, labels: List<PlacedLabel>): String? {
+    fun onFrame(
+        atMs: Long,
+        labels: List<PlacedLabel>,
+        language: SpeechLanguage = SpeechLanguage.Fr,
+    ): String? {
         val key = PositionText.key(labels)
         if (key.isEmpty()) return onEmptyScene()
         advance(key)
         if (pendingCount < minFrames || key == spokenKey) return null
         val last = lastSpokenAtMs
         if (last != null && atMs - last < cooldownMs) return null
-        val phrase = PositionText.phrase(labels, maxObjects) ?: return null
+        val phrase = PositionText.phrase(labels, maxObjects, language) ?: return null
         spokenKey = key
         lastSpokenAtMs = atMs
         lastPhrase = phrase

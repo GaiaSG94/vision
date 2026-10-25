@@ -18,7 +18,6 @@ import dev.sam3vision.core.net.ElevenLabsTtsClient
 import dev.sam3vision.core.net.HttpSamClient
 import kotlinx.coroutines.CoroutineScope
 import dev.sam3vision.core.net.releaseSam
-import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.net.SamClient
 import dev.sam3vision.core.settings.Settings
@@ -110,8 +109,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
-    private fun llm(settings: Settings): LlmClient =
-        InferHubLlmClient(settings.llmBaseUrl, settings.llmApiKey, settings.llmModel)
+    private fun llm(settings: Settings): LlmClient = llmClient(settings)
 
     private fun sam(settings: Settings): SamClient? =
         if (!settings.samConfigured()) null else HttpSamClient(settings.samEndpoint())
@@ -175,7 +173,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val placed = objects.mapNotNull {
             PositionText.fromDetection(Detection(it.label, it.score, it.box, photo.width, photo.height))
         }
-        val phrase = PositionText.phrase(placed) ?: return
+        val phrase = PositionText.phrase(placed, language = settings.speechLanguage) ?: return
         viewModelScope.launch { voice.say(settings, phrase) }
     }
 
@@ -398,7 +396,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Bouton « Tester la voix » des réglages. */
-    fun testVoice() = speak(TEST_VOICE_TEXT)
+    fun testVoice() = speak(testVoiceText(_state.value.settings.speechLanguage))
 
     fun stopSpeaking() {
         speakJob?.cancel()
