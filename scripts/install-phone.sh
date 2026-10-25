@@ -236,27 +236,27 @@ prepare_source() {
 
 # Compare à ce qui est installé puis installe : plus vieux = refusé, identique = rien.
 install_if_needed() {
-  local sha="$1" code="$2" name="$3" installed inst_code
+  local sha="$1" code="$2" name="$3" inst_code after
+  # Un seul verrou pour toute l'opération (lecture, comparaison, installation) : le
+  # trap couvre aussi les sorties en erreur, sinon le téléphone resterait bloqué.
+  take_lock "$name"
+  trap release_lock EXIT
   installed_meta
-  installed="$INSTALLED"
   [[ -n "$UNREADABLE" ]] && die "$UNREADABLE"
-  inst_code="${installed%% *}"
-  if [[ -n "$installed" && "$inst_code" == "$code" ]] && [[ $FORCE -eq 0 ]]; then
+  inst_code="${INSTALLED%% *}"
+  if [[ -n "$INSTALLED" && "$inst_code" == "$code" ]] && [[ $FORCE -eq 0 ]]; then
     note "déjà à jour : $name ($code)"
     return 0
   fi
   if [[ -n "$inst_code" && "$code" -lt "$inst_code" ]] && [[ $ALLOW_DOWNGRADE -eq 0 ]]; then
     die "refus : build plus ancienne ($code < $inst_code installée). Rebuild sur origin/master, ou --allow-downgrade."
   fi
-  take_lock "$name"
   local flags=(-r)
   [[ $ALLOW_DOWNGRADE -eq 1 ]] && flags+=(-d)
-  if ! adb_ install "${flags[@]}" "$APK" >/dev/null 2>&1; then
-    release_lock
-    die "adb install a échoué (signature différente ? désinstaller à la main)"
-  fi
-  installed_meta; local after="$INSTALLED"
-  release_lock
+  adb_ install "${flags[@]}" "$APK" >/dev/null 2>&1 \
+    || die "adb install a échoué (signature différente ? désinstaller à la main)"
+  installed_meta
+  after="$INSTALLED"
   [[ "${after%% *}" == "$code" ]] || die "installée, mais versionCode inattendu ($after)"
   write_state "${sha:-local}" "$code" "$name"
   ok "installé $name ($code) sur $SERIAL"
