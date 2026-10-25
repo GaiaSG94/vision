@@ -54,6 +54,14 @@ qui revient est mesuré à neuf.
 L'étiquette porte le « ≈ » pour cette raison, et le format dégressif (cm sous 1 m,
 décimètre jusqu'à 10 m, mètre au-delà) ne promet pas plus de précision que ça.
 
+## Cadrage des pastilles
+
+Une pastille est centrée sur le milieu horizontal de sa boîte, puis **ramenée dans
+le cadre** (`pillTranslationX`) et **hors du bandeau du haut** (`pillTranslationY`,
+230 dp : boutons « Arrêter / Réglages », ligne d'état, concepts). Sans ça, un objet
+collé au bord droit sortait à moitié de l'écran et un objet dans le haut de l'image
+voyait sa distance cachée derrière les boutons (constaté le 25/10, corrigé).
+
 ## Réglages
 
 - **Distances sur le direct** (bascule, activée par défaut) : coupe l'overlay et

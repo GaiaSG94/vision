@@ -50,6 +50,31 @@ fun cropTransform(imageWidth: Int, imageHeight: Int, boxWidth: Float, boxHeight:
 data class ScreenLabel(val text: String, val x: Float, val y: Float, val colorIndex: Int)
 
 /**
+ * Décalage horizontal à appliquer à une pastille de [pillWidth] px, centrée sur
+ * [anchorX], pour qu'elle reste **entièrement** dans un cadre de [boxWidth] : une
+ * pastille posée sur un objet collé au bord sortait à moitié de l'écran (constaté
+ * le 25/10 sur le bord droit).
+ */
+fun pillTranslationX(anchorX: Float, pillWidth: Float, boxWidth: Float): Float {
+    val centered = -pillWidth / 2f
+    val left = anchorX + centered
+    return when {
+        pillWidth >= boxWidth -> (boxWidth - pillWidth) / 2f - anchorX
+        left < 0f -> centered - left
+        left + pillWidth > boxWidth -> centered - (left + pillWidth - boxWidth)
+        else -> centered
+    }
+}
+
+/**
+ * Décalage vertical pour qu'une pastille ancrée en [anchorY] ne passe pas sous le
+ * bandeau du haut ([topInset] px) : le texte restait caché derrière les boutons
+ * « Arrêter / Réglages » pour un objet dans le haut de l'image.
+ */
+fun pillTranslationY(anchorY: Float, topInset: Float): Float =
+    (topInset - anchorY).coerceAtLeast(0f)
+
+/**
  * Étiquettes des objets mesurés de [layer], dans l'ordre des objets de la frame
  * (la couleur suit donc le masque). Une boîte illisible est ignorée.
  */

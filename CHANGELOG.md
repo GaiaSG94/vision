@@ -1,5 +1,16 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (3) — distances : pastilles toujours visibles (bords et bandeau du haut)
+
+- **Recette v2 sur le téléphone** (même A100, déjà chaude) : `Direct · 2,6 ips · 54 ms ·
+  2 objets · plus proche 1,2 m`, pastilles « personne 1,4 m » / « chaise 1,2 m », plus aucune
+  distance absurde sur un objet coupé. Restaient deux défauts d'affichage.
+- **Pastille ramenée dans le cadre** (`pillTranslationX`) : un objet collé au bord droit
+  sortait à moitié de l'écran (« ≈ 1, » tronqué).
+- **Pastille hors du bandeau du haut** (`pillTranslationY`, 230 dp) : un objet dans le haut de
+  l'image voyait sa distance cachée derrière « Arrêter / Réglages ».
+- Tests : 273 JVM verts (+2 `app`), `assembleDebug` et `check-kotlin-limits` verts.
+
 ## 2026-10-25 — le Direct et l'accueil classique rouvrés (ils étaient inatteignables)
 
 - **Bug de navigation** : la refonte iHear (accueil gestes-only) n'ouvrait plus ni le

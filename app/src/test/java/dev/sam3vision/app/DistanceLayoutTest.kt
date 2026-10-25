@@ -51,6 +51,20 @@ class DistanceLayoutTest {
     }
 
     @Test
+    fun `pastille centree reste entiere dans le cadre`() {
+        // 200 px de large : au milieu, la pastille se centre ; aux bords, elle est ramenee
+        assertEquals(-100f, pillTranslationX(540f, 200f, 1080f), 0.01f)
+        assertEquals(0f, pillTranslationX(0f, 200f, 1080f), 0.01f)
+        assertEquals(-200f, pillTranslationX(1080f, 200f, 1080f), 0.01f)
+    }
+
+    @Test
+    fun `pastille ne se cache pas sous le bandeau du haut`() {
+        assertEquals(550f, pillTranslationY(50f, 600f), 0.01f)
+        assertEquals(0f, pillTranslationY(700f, 600f), 0.01f)
+    }
+
+    @Test
     fun `champ de vision saisi est tolere et borne`() {
         assertEquals(72.5f, parseFov("72,5"), 0.01f)
         assertEquals(0f, parseFov(""), 0f)

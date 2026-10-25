@@ -38,8 +38,12 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
             boxHeight = constraints.maxHeight.toFloat(),
         )
         val lift = with(LocalDensity.current) { LABEL_LIFT.toPx() }
+        val topInset = with(LocalDensity.current) { TOP_SAFE_INSET.toPx() }
+        val boxWidth = constraints.maxWidth.toFloat()
         val fontSize = (BASE_FONT_SP * sqrt(transform.scale)).coerceIn(MIN_FONT_SP, MAX_FONT_SP).sp
         screenLabels(layer, transform).forEach { label ->
+            val anchorX = label.x.roundToInt().toFloat()
+            val anchorY = (label.y - lift).roundToInt().coerceAtLeast(0).toFloat()
             Text(
                 text = label.text,
                 color = Color.White,
@@ -47,14 +51,11 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            label.x.roundToInt().coerceAtLeast(0),
-                            (label.y - lift).roundToInt().coerceAtLeast(0),
-                        )
+                    .offset { IntOffset(anchorX.toInt(), anchorY.toInt()) }
+                    .graphicsLayer {
+                        translationX = pillTranslationX(anchorX, size.width.toFloat(), boxWidth)
+                        translationY = pillTranslationY(anchorY, topInset)
                     }
-                    // ancre = milieu de la boîte : la pastille se centre sur elle
-                    .graphicsLayer { translationX = -size.width / 2f }
                     .background(maskColorAt(label.colorIndex).copy(alpha = 0.92f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
@@ -64,6 +65,9 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
 
 /** Hauteur de pastille laissée libre au-dessus de la boîte (le texte ne masque pas l'objet). */
 private val LABEL_LIFT = 30.dp
+
+/** Bandeau du haut (boutons + état + concepts) : aucune pastille ne s'y cache. */
+private val TOP_SAFE_INSET = 230.dp
 
 /** Corps de la police : adapté à la résolution de l'aperçu, borné pour rester lisible. */
 private const val BASE_FONT_SP = 11f
