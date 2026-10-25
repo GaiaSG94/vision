@@ -66,9 +66,14 @@ parse_args() {
 }
 
 # ---------------------------------------------------------------- git / APK -----
+# Renvoie le sha d'origin/master, ou échoue (1) : l'appelant décide du message, car un
+# `die` dans une substitution $(...) ne tuerait que la sous-couche.
 master_sha() {
-  git -C "$REPO" fetch -q origin master 2>/dev/null || die "fetch origin master impossible"
-  git -C "$REPO" rev-parse --verify --quiet FETCH_HEAD || die "FETCH_HEAD introuvable dans $REPO"
+  local sha
+  git -C "$REPO" fetch -q origin master 2>/dev/null || return 1
+  sha="$(git -C "$REPO" rev-parse --verify --quiet origin/master)"
+  [[ -n "$sha" ]] || return 1
+  printf '%s\n' "$sha"
 }
 
 # Worktree détaché sur [sha] : on bâtit exactement ce que GitHub a, pas la branche locale.
@@ -80,6 +85,8 @@ checkout_master() {
     git -C "$WT" checkout -q --detach "$sha" || die "checkout $sha impossible dans $WT"
     git -C "$WT" reset -q --hard "$sha"
   fi
+  local head; head="$(git -C "$WT" rev-parse HEAD 2>/dev/null || true)"
+  [[ "$head" == "$sha" ]] || die "worktree $WT sur $head au lieu de $sha — supprime-le et relance"
   [[ -f "$WT/local.properties" ]] || cp "$REPO/local.properties" "$WT/local.properties" 2>/dev/null || true
 }
 
@@ -94,6 +101,23 @@ build_apk() {
     || die "gradle a échoué dans $dir"
   APK="$dir/app/build/outputs/apk/debug/app-debug.apk"
   [[ -f "$APK" ]] || die "APK absente après build : $APK"
+  check_apk_fresh "$dir"
+}
+
+# Une APK dont le versionCode n'est pas la date du commit est périmée (Gradle n'a pas
+# rebâti) : on la refuse plutôt que d'installer silencieusement l'ancienne version.
+check_apk_fresh() {
+  local dir="$1" expected actual
+  expected="$(git -C "$dir" log -1 --format=%ct 2>/dev/null || true)"
+  [[ -n "$expected" ]] || return 0
+  actual="$(apk_meta "$APK" | cut -d' ' -f1)"
+  if [[ "$actual" != "$expected" ]]; then
+    say "APK périmée (versionCode $actual ≠ commit $expected) — rebuild propre"
+    ( cd "$dir" && timeout "${SAM_BUILD_TIMEOUT:-900}" ./gradlew :app:assembleDebug --rerun-tasks --console=plain -q ) \
+      || die "rebuild propre impossible dans $dir"
+    actual="$(apk_meta "$APK" | cut -d' ' -f1)"
+    [[ "$actual" == "$expected" ]] || die "APK toujours périmée après rebuild ($actual ≠ $expected)"
+  fi
 }
 
 # versionCode / versionName gravés dans l'APK (écrits par Gradle à côté d'elle).
@@ -111,14 +135,27 @@ PY
 # ---------------------------------------------------------------- téléphone -----
 adb_() { adb -s "$SERIAL" "$@"; }
 
-installed_meta() {  # "versionCode versionName" ou vide si l'app n'est pas installée
-  local line
-  line="$(adb_ shell "dumpsys package $APP_ID 2>/dev/null" | grep -m1 -oE 'versionCode=[0-9]+ .*versionName=[^ ]+' || true)"
-  [[ -n "$line" ]] || return 0
-  local code name
-  code="${line#versionCode=}"; code="${code%% *}"
-  name="$(printf '%s' "$line" | sed -E 's/.*versionName=([^ ]+).*/\1/')"
-  echo "$code $name"
+# Lecture de l'appareil : résultat dans INSTALLED ("versionCode versionName"), raison
+# d'un échec dans UNREADABLE. Des variables, pas une sortie : appelée dans $(...) les
+# affectations seraient perdues avec le sous-shell.
+INSTALLED=""
+UNREADABLE=""
+
+# "versionCode versionName" ; vide si l'app n'est pas installée. Le wrapper `adb` du
+# poste refuse de parler au téléphone quand un AUTRE agent tient le verrou : ce refus
+# est signalé au lieu de faire croire que rien n'est installé. (versionCode et
+# versionName sont sur deux lignes différentes dans `dumpsys package`.)
+installed_meta() {
+  local dump code name
+  INSTALLED=""; UNREADABLE=""
+  dump="$(adb_ shell "dumpsys package $APP_ID" 2>&1 || true)"
+  case "$dump" in
+    *occupé*|*OCCUPÉ*|*TTL*) UNREADABLE="téléphone occupé par un autre agent — version illisible"; return 0 ;;
+  esac
+  code="$(printf '%s' "$dump" | grep -m1 -oE 'versionCode=[0-9]+' | cut -d= -f2)"
+  [[ -n "$code" ]] || return 0
+  name="$(printf '%s' "$dump" | grep -m1 -oE 'versionName=[^ ]+' | cut -d= -f2)"
+  INSTALLED="$code $name"
 }
 
 phone_busy() { "$PHONE" status 2>&1 | grep -q "OCCUPÉ" ; }
@@ -141,8 +178,11 @@ read_state() { grep -E "^$1=" "$STATE" 2>/dev/null | cut -d= -f2- ; }
 cmd_status() {
   local target_meta installed
   target_meta="$(apk_meta "$1")"
-  installed="$(installed_meta)"
-  if [[ -n "$installed" ]]; then echo "téléphone : $installed"; else echo "téléphone : rien"; fi
+  installed_meta
+  installed="$INSTALLED"
+  if [[ -n "$UNREADABLE" ]]; then echo "téléphone : $UNREADABLE"; else
+    if [[ -n "$installed" ]]; then echo "téléphone : $installed"; else echo "téléphone : rien d'installé"; fi
+  fi
   echo "github    : $target_meta  (${2:-origin/master})"
   echo "état local: sha=$(read_state sha) au $(read_state at)"
 }
@@ -169,7 +209,8 @@ main() {
 prepare_source() {
   case "$MODE" in
     master|status)
-      sha="$(master_sha)"
+      sha="$(master_sha)" || die "origin/master inaccessible (réseau ? réessaie)"
+      [[ -n "$sha" ]] || die "origin/master introuvable dans $REPO"
       checkout_master "$sha"
       build_apk "$WT"
       ;;
@@ -185,7 +226,9 @@ prepare_source() {
 # Compare à ce qui est installé puis installe : plus vieux = refusé, identique = rien.
 install_if_needed() {
   local sha="$1" code="$2" name="$3" installed inst_code
-  installed="$(installed_meta)"
+  installed_meta
+  installed="$INSTALLED"
+  [[ -n "$UNREADABLE" ]] && die "$UNREADABLE"
   inst_code="${installed%% *}"
   if [[ -n "$installed" && "$inst_code" == "$code" ]] && [[ $FORCE -eq 0 ]]; then
     note "déjà à jour : $name ($code)"
@@ -201,7 +244,7 @@ install_if_needed() {
     release_lock
     die "adb install a échoué (signature différente ? désinstaller à la main)"
   fi
-  local after; after="$(installed_meta)"
+  installed_meta; local after="$INSTALLED"
   release_lock
   [[ "${after%% *}" == "$code" ]] || die "installée, mais versionCode inattendu ($after)"
   write_state "${sha:-local}" "$code" "$name"
