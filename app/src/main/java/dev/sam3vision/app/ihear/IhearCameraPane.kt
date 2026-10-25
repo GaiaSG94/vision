@@ -1,6 +1,7 @@
 package dev.sam3vision.app.ihear
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -57,6 +58,9 @@ class IhearCameraHost(private val context: Context) {
     private var videoCapture: androidx.camera.video.VideoCapture<androidx.camera.video.Recorder>? = null
     private var recording: androidx.camera.video.Recording? = null
     private var finalizing: CompletableDeferred<File>? = null
+
+    /** Frames converties depuis la liaison caméra (le log de coût ne tire qu'un coup sur 20). */
+    private var conversionFrames = 0
 
     /** L'implémentation [IhearCameraActions] exposée au ViewModel. */
     val actions: IhearCameraActions = object : IhearCameraActions {
@@ -139,8 +143,12 @@ class IhearCameraHost(private val context: Context) {
             ResolutionSelector.Builder()
                 .setResolutionStrategy(
                     ResolutionStrategy(
+                        // On demande la taille **envoyée** : un buffer 640×480 pour un JPEG
+                        // de 320 px coûtait 12-42 ms de conversion par frame (mesuré au
+                        // logcat). Le repli prend le plus proche en dessous, quitte à
+                        // redimensionner à peine.
                         Size(IHEAR_FRAME_EDGE, IHEAR_FRAME_EDGE),
-                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER,
                     ),
                 )
                 .build(),
@@ -148,17 +156,46 @@ class IhearCameraHost(private val context: Context) {
         .build()
         .also { it.setAnalyzer(executor, ::analyse) }
 
-    /** ImageProxy → bitmap redressé → JPEG base64 ; la frame est fermée quoi qu'il arrive. */
+    /**
+     * ImageProxy → bitmap redressé → JPEG base64 ; la frame est fermée quoi qu'il arrive.
+     *
+     * Chronométré (tous les [LOG_EVERY_FRAMES] frames) : ce coût-là n'est **pas** dans la
+     * latence affichée par la sonde, qui ne mesure que l'appel réseau. Or c'est du temps
+     * mural entre ce que voit l'utilisateur et ce que SAM reçoit.
+     */
     private fun analyse(proxy: ImageProxy) {
+        if (wantsFrame?.invoke() == false) {
+            proxy.close()
+            return
+        }
+        val startedAt = SystemClock.elapsedRealtime()
         try {
-            if (wantsFrame?.invoke() == false) return
-            val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
-            onFrame?.invoke(bitmapToJpegBase64(scaleToEdge(rotated, IHEAR_FRAME_EDGE), IHEAR_FRAME_QUALITY))
+            // Réduire **avant** de tourner : la rotation coûte le nombre de pixels, et
+            // 320 px tournés valent 4× moins que 640. La géométrie finale est identique.
+            val scaled = scaleToEdge(proxy.toBitmap(), IHEAR_FRAME_EDGE)
+            val rotated = rotateBitmap(scaled, proxy.imageInfo.rotationDegrees)
+            val jpeg = bitmapToJpegBase64(rotated, IHEAR_FRAME_QUALITY)
+            onFrame?.invoke(jpeg)
+            countConversion(
+                frames = ++conversionFrames,
+                ms = SystemClock.elapsedRealtime() - startedAt,
+                size = proxy.width to proxy.height,
+                bytes = jpeg.length,
+            )
         } catch (_: Throwable) {
             // frame illisible : la suivante arrive tout de suite
         } finally {
             proxy.close()
         }
+    }
+
+    /** Log périodique de la conversion : un toutes les [LOG_EVERY_FRAMES] frames. */
+    private fun countConversion(frames: Int, ms: Long, size: Pair<Int, Int>, bytes: Int) {
+        if (frames % LOG_EVERY_FRAMES != 0) return
+        android.util.Log.i(
+            "sam3vision",
+            "conversion: ${ms} ms (capteur ${size.first}×${size.second}, jpeg ${bytes / 1024} Ko)",
+        )
     }
 
     /** Démarre l'enregistrement du MP4 dans [file] ; `false` si non prêt ou déjà lancé. */
@@ -226,5 +263,8 @@ class IhearCameraHost(private val context: Context) {
 
     companion object {
         private const val FINALIZE_TIMEOUT_MS = 4_000L
+
+        /** Une ligne de log de conversion toutes N frames (mesure, pas trace complète). */
+        private const val LOG_EVERY_FRAMES = 20
     }
 }

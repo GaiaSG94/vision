@@ -99,6 +99,9 @@ class LiveProbe(private val scope: CoroutineScope) {
 
     /** Cadence affichée : moyenne sur les 8 dernières frames, pas l'écart deux frames. */
     private val rate = FrameRate()
+
+    /** Paquets de masques décodées depuis la configuration courante (pour le log). */
+    private var decodedFrames = 0
     private var nextTickAt = 0L
 
     /** Distances (sténopé sur hauteurs connues) : 100 % téléphone, aucun appel en plus. */
@@ -357,13 +360,27 @@ class LiveProbe(private val scope: CoroutineScope) {
         if (error is ApiError.Timeout) "réveil du GPU en cours… (nouvel essai à la frame suivante)"
         else error.message ?: "échec de l'appel SAM"
 
-    /** Masques colorisés de la frame, calculés hors du thread principal. */
+    /**
+     * Masques colorisés de la frame, calculés hors du thread principal. Le coût est
+     * mesuré (une ligne tous les 20 paquets) : c'est du temps mural entre la réponse
+     * réseau et ce qui arrive à l'écran, et il n'est pas dans `latence`.
+     */
     private suspend fun overlaysFor(frame: LiveFrame): List<Bitmap> = withContext(Dispatchers.Default) {
-        frame.objects.mapIndexedNotNull { index, obj ->
+        val startedAt = android.os.SystemClock.elapsedRealtime()
+        val overlays = frame.objects.mapIndexedNotNull { index, obj ->
             decodeMaskPng(obj.maskPngB64)?.let { gray ->
                 colorizeMask(gray, maskColorAt(index).toArgb(), MASK_ALPHA)
             }
         }
+        logDecoding(android.os.SystemClock.elapsedRealtime() - startedAt, overlays.size)
+        overlays
+    }
+
+    /** Log périodique du décodage des masques. */
+    private fun logDecoding(ms: Long, masks: Int) {
+        decodedFrames += 1
+        if (decodedFrames % LOG_EVERY_FRAMES != 0) return
+        android.util.Log.i("sam3vision", "masques décodés: $masks en ${ms} ms")
     }
 
     /**
@@ -401,6 +418,9 @@ class LiveProbe(private val scope: CoroutineScope) {
     companion object {
         /** Plafond d'objets quand les Réglages n'en imposent pas (valeur du Direct). */
         private const val DEFAULT_MAX_OBJECTS = 12
+
+        /** Un log de décodage toutes N frames décodées. */
+        private const val LOG_EVERY_FRAMES = 20
 
         /** Délai du premier appel : couvre le démarrage d'un conteneur Modal (30-50 s). */
         const val COLD_TIMEOUT_SECONDS = 60L
