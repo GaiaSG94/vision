@@ -58,7 +58,13 @@ fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveVi
             Route.Live -> LiveRoute(viewModel, liveViewModel, push, pop)
             Route.Chat -> ChatRoute(state, viewModel, pop)
             is Route.Tap -> TapCaptureScreen(state.settings, pop, route.autoStart)
-            Route.Settings -> SettingsRoute(viewModel, state, pop)
+            Route.Settings -> SettingsRoute(
+                viewModel = viewModel,
+                state = state,
+                pop = pop,
+                onOpenLive = { push(Route.Live) },
+                onOpenClassic = { push(Route.Capture) },
+            )
         }
 
         state.dictation.overlay?.let { overlay ->
@@ -141,7 +147,13 @@ private fun ChatRoute(state: UiState, viewModel: AppViewModel, pop: () -> Unit) 
 
 /** Réglages : délègue au ViewModel et ferme l'écran après enregistrement. */
 @Composable
-private fun SettingsRoute(viewModel: AppViewModel, state: UiState, pop: () -> Unit) {
+private fun SettingsRoute(
+    viewModel: AppViewModel,
+    state: UiState,
+    pop: () -> Unit,
+    onOpenLive: () -> Unit,
+    onOpenClassic: () -> Unit,
+) {
     SettingsScreen(
         settings = state.settings,
         statusLine = state.statusLine,
@@ -153,6 +165,8 @@ private fun SettingsRoute(viewModel: AppViewModel, state: UiState, pop: () -> Un
         onTestAsr = viewModel::testAsr,
         onSpeak = viewModel::speak,
         onStopVoice = viewModel::stopSpeaking,
+        onOpenLive = onOpenLive,
+        onOpenClassic = onOpenClassic,
         onBack = pop,
     )
 }

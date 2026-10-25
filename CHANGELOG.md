@@ -1,5 +1,16 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — le Direct et l'accueil classique rouvrés (ils étaient inatteignables)
+
+- **Bug de navigation** : la refonte iHear (accueil gestes-only) n'ouvrait plus ni le
+  **Direct** (flux SAM en continu, annonces de position) ni l'**accueil classique**
+  (photo → analyse avec masques) : `Route.Live` et `Route.Capture` n'étaient poussées
+  par personne, donc **inatteignables** — l'annonce vocale des positions n'était
+  testable que par le code.
+- Nouvelle section **« Autres écrans »** dans les Réglages (seul écran à boutons
+  encore accessible depuis l'accueil iHear, via le retour système) : « Mode Direct
+  (vidéo en continu) » et « Accueil classique (photo + analyse) ».
+
 ## 2026-10-25 (2) — distances : rien sur un objet coupé, pastilles centrées (recette téléphone)
 
 - **Recette sur le téléphone réel** (`2c6852ac`, Direct sur l'A100) : les pastilles

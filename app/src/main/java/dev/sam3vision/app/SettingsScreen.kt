@@ -43,6 +43,8 @@ fun SettingsScreen(
     onTestAsr: () -> Unit,
     onSpeak: (String) -> Unit,
     onStopVoice: () -> Unit,
+    onOpenLive: () -> Unit,
+    onOpenClassic: () -> Unit,
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(settings) }
@@ -72,6 +74,7 @@ fun SettingsScreen(
             )
             DictationSettings(draft) { draft = it }
             SettingsActions(draft, llmConfigured, onSave, onTestLlm, onTestSam, onTestAsr)
+            ClassicScreens(onOpenLive, onOpenClassic)
             statusLine?.let { StatusBanner(it, AppColors.surfaceHigh) }
         }
     }
@@ -102,6 +105,32 @@ private fun SettingsActions(
     BigButton("Tester le LLM", llmConfigured, AppColors.surfaceHigh, onTestLlm)
     BigButton("Tester SAM", draft.samBaseUrl.isNotBlank(), AppColors.surfaceHigh, onTestSam)
     BigButton("Tester la dictée Meta", draft.asrConfigured, AppColors.surfaceHigh, onTestAsr)
+}
+
+/**
+ * Accès aux écrans hérités, absents de l'accueil iHear (gestes seulement, sans bouton) :
+ * le **Direct** (flux SAM en continu, annonces de position) et l'**accueil classique**
+ * (photo → analyse avec masques). Sans cette porte, ces écrans n'étaient atteignables
+ * par aucun chemin depuis la refonte ihear.
+ */
+@Composable
+private fun ClassicScreens(onOpenLive: () -> Unit, onOpenClassic: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            "Autres écrans",
+            color = AppColors.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        BigButton("Mode Direct (vidéo en continu)", true, AppColors.primary, onOpenLive)
+        BigButton("Accueil classique (photo + analyse)", true, AppColors.surfaceHigh, onOpenClassic)
+        Text(
+            "Le Direct décrit à voix haute la position des objets détectés ; " +
+                "l'accueil classique garde la photo, les masques SAM et le chat par image.",
+            color = AppColors.textMuted,
+            fontSize = 11.sp,
+        )
+    }
 }
 
 /** Section « Dictée Meta » : base URL, clé et modèle du moteur principal (repli ElevenLabs Scribe). */
