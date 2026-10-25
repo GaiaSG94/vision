@@ -90,7 +90,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val dictation = DictationFeature(app, _state, viewModelScope) { settings -> speech(settings) }
 
     init {
-        viewModelScope.launch { _state.update { it.copy(settings = seeded(store.load()), settingsReady = true) } }
+        viewModelScope.launch { _state.update { it.copy(settings = seededFromBuild(store.load()), settingsReady = true) } }
         // Une seule règle : chaque nouveau bandeau est lu à voix haute (ElevenLabs).
         viewModelScope.launch {
             _state
@@ -107,30 +107,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         speech.release()
         voice.release()
         super.onCleared()
-    }
-
-    /** Applique les valeurs de build (debug) quand rien n'a encore été saisi. */
-    private fun seeded(loaded: Settings): Settings = withTtsDefaults(seedVoice(withLlmKey(loaded)))
-
-    /** Clé LLM de local.properties (BuildConfig) si rien n'est saisi dans Réglages. */
-    private fun withLlmKey(loaded: Settings): Settings {
-        val fromBuild = BuildConfig.LLM_API_KEY
-        if (loaded.llmApiKey.isNotBlank() || fromBuild.isBlank()) return loaded
-        return loaded.copy(
-            llmApiKey = fromBuild,
-            llmBaseUrl = loaded.llmBaseUrl.ifBlank { BuildConfig.LLM_BASE_URL },
-            llmModel = loaded.llmModel.ifBlank { BuildConfig.LLM_MODEL },
-            samBaseUrl = loaded.samBaseUrl.ifBlank { BuildConfig.SAM_BASE_URL },
-        )
-    }
-
-    /** Clé ElevenLabs de build (debug) : voix du chat + repli de dictée, si rien n'est saisi. */
-    private fun seedVoice(loaded: Settings): Settings {
-        if (loaded.ttsApiKey.isNotBlank() || BuildConfig.TTS_API_KEY.isBlank()) return loaded
-        return loaded.copy(
-            ttsApiKey = BuildConfig.TTS_API_KEY,
-            ttsVoiceId = loaded.ttsVoiceId.ifBlank { BuildConfig.TTS_VOICE_ID },
-        )
     }
 
     private fun llm(settings: Settings): LlmClient =

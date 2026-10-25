@@ -40,6 +40,11 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   (cadence adaptative 350–900 ms), masques SAM superposés, ligne d'état
   « Direct · 1,4 ips · 780 ms · 8 objets · plus proche 1,4 m · A100 », concepts éditables à
   chaud (« Suivre »), distances par objet (`docs/DISTANCES.md`).
+- **Annonce vocale des positions** : à chaque fois que la scène change, la voix ElevenLabs dit
+  **où sont les objets** — « Personne à gauche, chaise en bas à droite. » (Direct et analyse
+  photo). La phrase s'affiche aussi sous la barre d'état du Direct (🔊). Anti-bavardage :
+  scène stable 2 frames, jamais deux fois la même scène, 4 s minimum entre deux annonces.
+  Bascule « Annoncer la position des objets détectés » dans Réglages (activée par défaut).
 - **Mémoire du direct** : bouton « Poser une question » dans l'écran Direct → panneau qui garde
   les **60 dernières secondes** de flux avec un identifiant stable par objet. Pastilles
   « personne · il y a 3 s », choix de l'instant (« maintenant », « il y a 5 s », « 15 s »,
@@ -55,7 +60,8 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
   9 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, clé ElevenLabs
   masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteurs « Lire les
-  réponses automatiquement » et « Intro à la 1re ouverture », boutons « Enregistrer »,
+  réponses automatiquement », « Annoncer la position des objets détectés » et « Intro à la
+  1re ouverture », boutons « Enregistrer »,
   « Tester le LLM » (mini-image 16×16, statut « LLM OK — … »), « Tester SAM », « 🔊 Tester la
   voix », « Tester la dictée Meta » (1 s de silence).
 

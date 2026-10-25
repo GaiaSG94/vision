@@ -80,6 +80,52 @@ la bascule **« Lire les réponses automatiquement »** commande la lecture à l
 (activée par défaut quand une clé existe). Une lecture à la fois : toute nouvelle lecture
 coupe la précédente, et `reset()` / `onCleared()` coupent la voix.
 
+## Annonce vocale des positions (Direct + analyse photo)
+
+Demande user du 2026-10-25 : « décris-moi la position des objets qu'il voit, avec la voix
+ElevenLabs ». Livré en trois briques, dont deux pures et testées en JVM.
+
+| Élément | Où |
+|---|---|
+| Mise en mots des positions | `core/live/PositionText.kt` (secteurs, phrase, signature de scène) |
+| Déclencheur anti-bavardage | `core/live/PositionAnnouncer.kt` |
+| Voix + sous-titre du Direct | `app/LiveViewModel.kt` (`announcePositions`, `sayPositions`) |
+| Annonce après une photo | `app/AppViewModel.kt` (`announcePositions`) |
+| Bascule | `Settings.ttsAnnouncePositions` (défaut `true`), « Annoncer la position des objets détectés » |
+
+**Forme de la phrase.** Labels + secteur, sans article (donc sans faute de genre sur des
+labels libres) : `Personne à gauche, chaise en bas à droite.` Ordre de lecture gauche → droite,
+un label répété au même endroit n'est cité qu'une fois, 3 objets au plus puis
+« et N autres objets ». Secteurs : `centerX < 0,34` → à gauche, `> 0,66` → à droite, sinon au
+centre ; même découpage en vertical (`en haut` / au milieu / `en bas`).
+
+**Quand elle parle** (sinon elle se tairait ou bavarderait à 2 im/s) :
+1. la scène doit être vue **2 frames de suite** (un masque qui clignote ne déclenche rien) ;
+2. une scène **déjà annoncée** reste muette, même si les objets sont toujours là — la signature
+   est `label|secteur` triée, insensible à l'ordre et aux doublons ;
+3. **4 s minimum** entre deux annonces ;
+4. scène vide ⇒ la mémoire de scène retombe, donc le retour des objets est de nouveau annoncé.
+
+**Où ça parle.** Direct : à chaque frame publiée (`LiveViewModel.publish`), silencieux pendant
+une question sur la mémoire du direct (`memory.asking`) et sans clé ElevenLabs. Photo : après
+une analyse réussie, sur les objets segmentés par SAM (boîtes normalisées par la taille de la
+photo envoyée). Un `Mutex` garantit qu'une phrase en cours n'est ni coupée ni doublée par la
+frame suivante ; le Direct a son propre dossier audio (`cacheDir/positions`) pour ne pas
+écraser le MP3 des bandeaux de dictée.
+
+**Clé de build.** `seededFromBuild()` (`app/SettingsSeed.kt`, ex-bloc privé d'`AppViewModel`)
+complète les réglages lus du store avec les valeurs de `local.properties` : **`LiveViewModel`
+l'utilise aussi** — sans ça, le Direct restait muet quand la clé venait du build et non de
+l'écran Réglages (bug trouvé en recette le 25/10).
+
+**Recette émulateur jouée (25/10)** : faux backend SAM (`/tmp/mock_sam.py` : `/health` +
+`/live` renvoyant une personne à gauche et une chaise à droite), app pointée dessus via
+`sam.base.url` de `local.properties`, `emul-instance@1` (emulator-5556). Résultat : sous-titre
+`🔊 Personne à gauche, chaise en bas à droite.`, `dumpsys media.player` montre le
+`MediaPlayer` de l'app en `audio/mpeg` (décodeur `c2.android.mp3.decoder`, 127 008 frames
+rendues ≈ 2,9 s). Bascule coupée + Enregistrer ⇒ frames toujours traitées (2,8 ips) mais plus
+aucun sous-titre : l'annonce est bien conditionnée par le réglage.
+
 ## Intro de la première ouverture
 
 `app/src/main/res/raw/intro_ihear.mp3` : 309 caractères, voix Jade US, `eleven_v3`,

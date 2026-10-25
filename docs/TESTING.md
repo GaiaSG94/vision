@@ -1,6 +1,6 @@
 # TESTING — sam-vision-kotlin
 
-## Tests JVM (271 = 216 `:core` + 55 `:app`, réseau simulé)
+## Tests JVM (290 = 235 `:core` + 55 `:app`, réseau simulé)
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
@@ -168,6 +168,26 @@ Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
    gros caractères ; un appui ferme le bandeau. Recette : `docs/TEST-LONGPRESS-DICTEE.md`.
 5. Screenshot : `adb -s emulator-5554 shell screencap /sdcard/s.png && adb -s emulator-5554 pull
    /sdcard/s.png /tmp/samvision_manual.png`. Clé visible nulle part (champ masqué `•••`).
+
+### Annonce vocale des positions — recette sans GPU (25/10/2026)
+
+Aucune carte GPU nécessaire : un faux `/live` suffit à prouver détection → phrase → voix.
+
+```bash
+python3 /tmp/mock_sam.py 8099            # /health + /live : personne à gauche, chaise à droite
+# local.properties : sam.base.url=http://10.0.2.2:8099  puis
+./gradlew assembleDebug                  # 10.0.2.2 vu depuis l'émulateur = hôte
+systemctl --user start emul-instance@1   # emulator-5556
+adb -s emulator-5556 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5556 shell pm grant dev.sam3vision.app android.permission.CAMERA
+```
+
+Puis dans l'app : toucher l'écran (intro), **Direct (vidéo)**. Attendu au bout de ~2 frames :
+sous-titre `🔊 Personne à gauche, chaise en bas à droite.` et `dumpsys media.player` avec un
+client `dev.sam3vision.app` en `audio/mpeg`. Couper « Annoncer la position des objets
+détectés » dans Réglages + Enregistrer ⇒ les frames défilent toujours, plus aucun sous-titre.
+**Ne pas oublier** de remettre `sam.base.url` sur le vrai endpoint Modal après la recette
+(sinon la segmented photo et le Direct tapent le faux serveur).
 
 ## Voix (ElevenLabs)
 

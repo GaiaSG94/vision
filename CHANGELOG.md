@@ -49,6 +49,32 @@
 - Tests : 265 JVM verts (+28 `core` : `LensSpecTest`, `KnownSizesTest`, `DistanceMeterTest`,
   `DistanceTextTest`, un cas de plus dans `LiveTimelineTest` ; +7 `app` : `DistanceLayoutTest`),
   `assembleDebug` vert, `check-kotlin-limits` vert.
+## 2026-10-25 — la voix dit où sont les objets (« Personne à gauche, chaise à droite »)
+
+- **Annonce vocale des positions** (ElevenLabs) : dès que la scène change, en mode **Direct**
+  comme après l'**analyse d'une photo**, la voix dit où sont les objets —
+  « Personne à gauche, chaise en bas à droite. » Secteurs gauche/centre/droite et
+  haut/bas, ordre de lecture gauche → droite, label dédoublonné, 3 objets au plus puis
+  « et N autres objets ». Nouveau `core/live/PositionText.kt` (pur) et
+  `core/live/PositionAnnouncer.kt` (anti-bavardage : 2 frames de stabilité, jamais deux fois
+  la même scène, 4 s minimum entre deux annonces).
+- **Sous-titre sur le Direct** : la phrase annoncée s'affiche sous la barre d'état (🔊) — la
+  recette se lit à l'écran, sans écouter.
+- **Bascule « Annoncer la position des objets détectés »** dans Réglages
+  (`Settings.ttsAnnouncePositions`, vrai par défaut, persistée par les deux stores). Coupée :
+  plus aucune annonce, la voix du chat reste intacte.
+- **Jamais deux voix en même temps** : `Mutex` dans `LiveViewModel`, dossier audio dédié
+  (`cacheDir/positions`), silence pendant une question sur la mémoire du direct.
+- **Bug corrigé au passage** : seule la vue photo complétait les réglages avec les valeurs du
+  build (`local.properties`) ; `LiveViewModel` lisait le store brut, donc le **Direct restait
+  muet** quand la clé ElevenLabs venait du build. `seededFromBuild()` est désormais partagé
+  (`app/SettingsSeed.kt`) et appliqué par les deux vues.
+- Tests : `core.live.PositionTextTest` 8, `core.live.PositionAnnouncerTest` 7,
+  `core.settings.SettingsAnnounceTest` 4 → **235 `:core` + 55 `:app`** verts,
+  `assembleDebug` OK, `tools/check-kotlin-limits.py` OK (`TtsSettings` découpé en
+  `VoiceSwitches`). Recette émulateur sans GPU jouée (faux `/live`) : sous-titre + MediaPlayer
+  MP3 actif, silence bascule coupée. Détail : `docs/ELEVENLABS-TTS.md`, `docs/TESTING.md`.
+
 ## 2026-10-24 — un tap lance la vidéo, un appui long parle (les deux ensemble)
 
 - **Tap sur l'aperçu de Capture = mode vidéo, enregistrement lancé d'office.** Le bouton
