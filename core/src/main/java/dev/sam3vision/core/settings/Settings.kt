@@ -98,7 +98,7 @@ data class Settings(
     /**
      * Intro attendue à chaque ouverture complète de l'app (relance après fermeture,
      * pas au simple retour d'arrière-plan) : seule la coupure par la voix
-     * (« Disable iHear intro », [introEnabled] = false) la fait taire définitivement.
+     * (« Disable iSee intro », [introEnabled] = false) la fait taire définitivement.
      */
     val introPending: Boolean get() = introEnabled
 

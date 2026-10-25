@@ -199,9 +199,14 @@ annonce muette n'est donc jamais une raison de redéployer.
   effective seulement si `ttsConfigured`).
 - **iSee, bulles** : chaque bulle garde son MP3 dans Room ; la réponse la plus récente
   est lue dès son arrivée (`speakLatestAnswer`). Une seule lecture à la fois.
-- **Intro embarquée** : `app/src/main/res/raw/intro_ihear.mp3` — 309 caractères, voix
-  Jade US, rendu **une fois** en `eleven_v3`, MP3 44,1 kHz mono 128 kb/s, ~22 s,
-  347 785 octets (mesures du 2026-10-24, conservées). Aucun réseau pour la jouer.
+- **Intro embarquée** : `app/src/main/res/raw/intro_ihear.mp3` — 351 caractères, voix
+  Jade US (`TOXPlnYC7z5SQSV2Zgc5`), rendu **une fois** en `eleven_v3`, MP3 44,1 kHz mono
+  128 kb/s, 24,08 s, 386 237 octets (relevé `ffprobe` du 2026-10-25 ; le rendu du
+  2026-10-24 faisait 309 caractères / ~22 s). Aucun réseau pour la jouer. Le texte dit
+  « Welcome to iSee… », annonce le balayage vers le bas pour relire les messages
+  précédents, puis la phrase de coupe « Disable iSee intro. » — dans cet ordre, et
+  `app.UiLogicTest` le vérifie. **Non écouté ici** (pas de sortie audio sur le poste de
+  travail) : contrôle par `ffprobe` et par le texte seulement.
   ⚠️ **Périmé** : la note du 2026-10-24 « lue **une seule fois**, `introPlayed` posé
   avant lecture » ne décrit plus le comportement. Aujourd'hui l'intro est **rejouée à
   chaque ouverture complète** tant qu'elle est autorisée : `Settings.introPending`
@@ -214,8 +219,9 @@ annonce muette n'est donc jamais une raison de redéployer.
 ## Coût (relevé du 2026-10-24, conservé)
 
 Compteur du compte : **321 / 130 005 caractères** consommés (tier `creator`) au premier
-relevé, plus les essais de vérification (~200 caractères) et le rendu de l'intro
-(~309 caractères, une seule fois). Une lecture coûte ~1 caractère par caractère lu.
+relevé, plus les essais de vérification (~200 caractères) et les rendus de l'intro
+(309 puis 351 caractères, un par version). Une lecture coûte ~1 caractère par
+caractère lu.
 Un énoncé déjà en cache disque (bulle du chat) coûte **0** caractère.
 
 ## Reste ouvert

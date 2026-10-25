@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Voix de l'intro iSee : le texte écrit reste toujours le premier message du
- * chat ; seul cet audio se coupe par la voix (« Disable iHear intro »).
+ * chat ; seul cet audio se coupe par la voix (« Disable iSee intro »).
  * L'audio est dit à chaque ouverture complète tant qu'il est autorisé.
  */
 class IhearIntro(

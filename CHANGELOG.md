@@ -2,7 +2,23 @@
 
 > **Numérotation** : l'entrée **(11)** — « retour à 8 objets à l'écran par défaut » (`04e7f7c`,
 > 25/10 19:34) — existe déjà sur `origin/master` mais pas dans la base de ce worktree (`8f9876a`) :
-> elle n'est **pas dupliquée** ici. (12) à (17) = un chiffre par bullet, une sha par fait.
+> elle n'est **pas dupliquée** ici. (12) à (18) = un chiffre par bullet, une sha par fait.
+
+## 2026-10-25 (18) — iSee : l'intro est dite avec le nouveau nom et annonce le balayage (#149)
+
+- **MP3 régénéré** (`app/src/main/res/raw/intro_ihear.mp3`) : même voix Jade US
+  (`TOXPlnYC7z5SQSV2Zgc5`), même modèle `eleven_v3`, **351 caractères** au lieu de 309,
+  **24,08 s**, 386 237 octets, MP3 44,1 kHz mono 128 kb/s (`ffprobe`).
+- **Texte** : « Welcome to iSee… », puis la phrase nouvelle « To listen to previous
+  messages, swipe down. », dite **avant** « Disable iSee intro. » — le balayage vers le
+  bas remonte aux bulles plus anciennes (`swipeStep`). `IHEAR_INTRO_TEXT` (bulle d'intro
+  du chat) porte exactement le texte envoyé à ElevenLabs, caractère pour caractère.
+- **Phrase de coupe** : « Disable iSee intro ». `isIntroDisablePhrase` compare désormais
+  sans espaces ni ponctuation : la dictée écrit souvent « I see » en deux mots.
+- Réglages, commentaires, `docs/ELEVENLABS-TTS.md` et `docs/TESTING.md` alignés ;
+  `app.UiLogicTest` teste l'ordre swipe ↔ désactivation et la variante « I see ».
+- **Non vérifié** : aucun contrôle d'écoute du nouveau MP3 ici (pas de sortie audio) ;
+  `ffprobe` donne 24,08 s, mp3, 44,1 kHz, mono, 128 kb/s.
 
 ## 2026-10-25 (12) — iSee : la liaison caméra ne dépend plus de la bulle média (`9856d9e`, #139, 19:34)
 

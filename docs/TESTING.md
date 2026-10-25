@@ -292,7 +292,7 @@ Parcours validé (coordonnées px centrées sur les cibles uiautomator) :
 
 1. `adb shell pm clear dev.sam3vision.app` puis relancer.
 2. Écran de garde « SAM Vision / Touchez l'écran pour commencer », **aucun son** avant l'appui (écouter 5 s).
-3. Appui → intro embarquée (`res/raw/intro_ihear.mp3`, voix Jade US, ~22 s) **sans réseau ni clé** ; caméra.
+3. Appui → intro embarquée (`res/raw/intro_ihear.mp3`, voix Jade US, ~24 s) **sans réseau ni clé** ; caméra.
 4. `force-stop` + relance : pas de garde, pas de lecture (drapeau `Settings.introPlayed`).
 5. Réglages → couper « Intro à la 1re ouverture », `pm clear`, relancer : plus rien.
 6. JVM : `settings.SettingsIntroTest` (6) + `app.UiLogicTest` (`introToggleLabel`, `introGateVisible`).

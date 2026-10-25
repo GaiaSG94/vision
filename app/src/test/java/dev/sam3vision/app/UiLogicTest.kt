@@ -49,18 +49,25 @@ class UiLogicTest {
     }
 
     @Test
-    fun `la phrase Disable iHear intro coupe l'intro et rien d'autre`() {
-        assertTrue(isIntroDisablePhrase("Please disable iHear intro"))
-        assertTrue(isIntroDisablePhrase("  DISABLE IHEAR INTRO. "))
-        assertFalse(isIntroDisablePhrase("What does iHear intro say?"))
+    fun `la phrase Disable iSee intro coupe l'intro et rien d'autre`() {
+        assertTrue(isIntroDisablePhrase("Please disable iSee intro"))
+        assertTrue(isIntroDisablePhrase("  DISABLE ISEE INTRO. "))
+        // La dictée entend « i see » en deux mots : la coupe doit quand même marcher.
+        assertTrue(isIntroDisablePhrase("ok, disable I see intro please"))
+        assertFalse(isIntroDisablePhrase("What does iSee intro say?"))
         assertFalse(isIntroDisablePhrase(""))
     }
 
     @Test
     fun `le texte de l'intro est celui que la voix dit`() {
-        assertTrue(IHEAR_INTRO_TEXT.startsWith("Welcome to iHear."))
+        assertTrue(IHEAR_INTRO_TEXT.startsWith("Welcome to iSee."))
         assertTrue(IHEAR_INTRO_TEXT.contains("tap again to stop"))
-        assertTrue(IHEAR_INTRO_TEXT.contains("Disable iHear intro"))
+        assertTrue(IHEAR_INTRO_TEXT.contains("Disable iSee intro"))
+        // Le geste de balayage est annoncé avant la phrase de désactivation.
+        val swipe = IHEAR_INTRO_TEXT.indexOf("swipe down")
+        val disable = IHEAR_INTRO_TEXT.indexOf("Disable iSee intro")
+        assertTrue(swipe > 0)
+        assertTrue(swipe < disable)
     }
 
     @Test
