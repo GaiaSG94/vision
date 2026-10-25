@@ -77,8 +77,8 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Caméra de la fenêtre flottante, câblée par le composable à l'attachement. */
     var camera: IhearCameraActions? = null
 
-    /** Dernière photo du double tap : contexte image de la question suivante. */
-    private var photoContext: File? = null
+    /** Photo-contexte de la question suivante : frame vivante de l'appui long ou gel du double tap. */
+    private val photoCtx = IhearPhotoContext()
 
     /** Minuteur d'évaporation de la photo (relancé à chaque photo en rafale). */
     private var photoEvaporation: Job? = null
@@ -141,7 +141,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     // ————— Gestes —————
 
-    /** Appui long maintenu : le micro s'ouvre (dictée Muse), salve haptique dédiée. */
+    /** Appui long : la frame courante devient le contexte (sauf photo gelée), puis le micro s'ouvre. */
     fun onHoldStart() {
         if (!active) return
         // Parler coupe la lecture en cours (sinon la tenue est jetée, le micro reste pris).
@@ -149,6 +149,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
             player.stop()
             _state.update { it.copy(speakingEntryId = null) }
         }
+        photoCtx.captureForHold(camera, media::newPhotoFile)
         _state.update { it.copy(holding = true, status = null) }
         haptics.holdStart()
         if (!mic.start()) {
@@ -234,7 +235,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Photo écrite : elle se montre dans la fenêtre, puis s'évapore (en rafale : remplace). */
     private fun onPhotoSaved(target: File, saved: Boolean) {
         if (!saved) return
-        photoContext = target
+        photoCtx.freeze(target)
         _state.update { it.copy(photoPath = target.path, distanceLayer = null, status = null) }
         armEvaporation(target, PHOTO_SHOW_MS)
         measurePhoto(target)
@@ -338,6 +339,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(thinking = true) }
         val outcome = AskUseCase(InferHubLlmClient(settings.llmBaseUrl, settings.llmApiKey, settings.llmModel))
             .invoke(imagePathToB64(), question, buildChatHistory())
+        photoCtx.releaseFreeze()
         _state.update { it.copy(thinking = false) }
         outcome.fold(
             onSuccess = { answer ->
@@ -454,11 +456,9 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private fun playerIdle(): Boolean =
         _state.value.speakingEntryId == null
 
-    /** La photo du dernier double tap, réencodée en base64 JPEG (contexte visuel). */
-    private fun imagePathToB64(): String {
-        val file = photoContext ?: return ""
-        return decodeScaledExact(file)?.let { bitmapToJpegBase64(it) } ?: ""
-    }
+    /** La photo-contexte (frame de l'appui long ou gel du double tap), réencodée en base64 JPEG. */
+    private fun imagePathToB64(): String =
+        photoCtx.file?.let { decodeScaledExact(it) }?.let { bitmapToJpegBase64(it) } ?: ""
 
     private fun existingFile(path: String): File? = File(path).takeIf { it.isFile }
 
