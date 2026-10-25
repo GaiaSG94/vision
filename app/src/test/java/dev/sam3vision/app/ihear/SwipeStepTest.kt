@@ -43,4 +43,19 @@ class SwipeStepTest {
     fun `sans selection, vers le haut pose la premiere bulle`() {
         assertEquals(SwipeStep.Move(0), swipeStep(3, -1, false, false))
     }
+
+    @Test
+    fun `bulle unique, aucun choix de bulle possible`() {
+        assertEquals(false, hasBubbleChoice(1))
+    }
+
+    @Test
+    fun `sans bulle, aucun choix de bulle possible`() {
+        assertEquals(false, hasBubbleChoice(0))
+    }
+
+    @Test
+    fun `deux bulles ou plus, le choix existe`() {
+        assertEquals(true, hasBubbleChoice(2))
+    }
 }

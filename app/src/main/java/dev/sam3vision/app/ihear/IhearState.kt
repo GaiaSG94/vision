@@ -78,6 +78,12 @@ fun swipeStep(
     }
 }
 
+/**
+ * Une seule bulle (ou aucune) : aucun changement de bulle n'est possible —
+ * le balayage ne vibre pas, il relit juste la bulle unique.
+ */
+fun hasBubbleChoice(entriesSize: Int): Boolean = entriesSize > 1
+
 /** Les actions que seule la caméra de la fenêtre flottante peut exécuter. */
 interface IhearCameraActions {
     val ready: Boolean

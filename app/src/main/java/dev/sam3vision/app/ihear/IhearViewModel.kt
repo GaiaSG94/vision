@@ -177,9 +177,11 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { transcribeAndAnswer() }
     }
 
-    /** Balayage vertical commencé : vibration distincte tant que le doigt glisse. */
+    /** Balayage vertical commencé : vibration tant que le doigt glisse — sauf à
+     * bulle unique, où il n'y a rien à changer : pas de vibration, juste la lecture. */
     fun onVerticalDragStart() {
         if (!active) return
+        if (!hasBubbleChoice(_state.value.entries.size)) return
         haptics.verticalSwipeStart()
     }
 
@@ -201,7 +203,11 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(firstSwipeDownDone = step.firstSwipeDownDone) }
                     playSelected()
                 }
-                SwipeStep.NoMove -> Unit
+                // Pas de bulle voisine (dont bulle unique) : pas de vibration,
+                // juste la relecture de la bulle courante.
+                SwipeStep.NoMove -> {
+                    if (!hasBubbleChoice(state.entries.size)) playSelected()
+                }
             }
         }
     }
