@@ -25,14 +25,21 @@ class DistanceLayoutTest {
     }
 
     @Test
-    fun `etiquette posee en haut a gauche de la boite`() {
+    fun `etiquette centree au-dessus de la boite`() {
         val layer = DistanceLayer(384, 512, listOf(reading("personne", 3.288f, listOf(100f, 100f, 160f, 300f))))
         val labels = screenLabels(layer, cropTransform(384, 512, 1080f, 2400f))
         assertEquals(1, labels.size)
         assertEquals("≈ 3,3 m", labels.first().text)
-        assertEquals(108.75f, labels.first().x, 0.5f)
+        // centre de la boîte (130 px) → 130 × 4,6875 − 360
+        assertEquals(249.375f, labels.first().x, 0.5f)
         assertEquals(468.75f, labels.first().y, 0.5f)
         assertEquals(0, labels.first().colorIndex)
+    }
+
+    @Test
+    fun `etiquette sur un bord reste dans le cadre`() {
+        val layer = DistanceLayer(384, 512, listOf(reading("personne", 2f, listOf(0f, 100f, 0f, 300f))))
+        assertEquals(0f, screenLabels(layer, cropTransform(384, 512, 1080f, 2400f)).first().x, 0.01f)
     }
 
     @Test

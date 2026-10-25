@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -52,6 +53,8 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
                             (label.y - lift).roundToInt().coerceAtLeast(0),
                         )
                     }
+                    // ancre = milieu de la boîte : la pastille se centre sur elle
+                    .graphicsLayer { translationX = -size.width / 2f }
                     .background(maskColorAt(label.colorIndex).copy(alpha = 0.92f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )

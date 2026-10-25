@@ -42,6 +42,28 @@ class DistanceMeterTest {
     }
 
     @Test
+    fun `objet coupe par le bord haut ou bas n'a pas de distance`() {
+        val meter = DistanceMeter()
+        // collé au bord haut, puis au bord bas : la hauteur ne mesure plus l'objet
+        assertTrue(meter.measure(512, 384, listOf(detection("personne", listOf(100f, 0f, 200f, 200f)))).isEmpty())
+        assertTrue(meter.measure(512, 384, listOf(detection("personne", listOf(100f, 200f, 200f, 384f)))).isEmpty())
+        // coupé à gauche : la hauteur reste fiable, la mesure tient
+        assertEquals(1, meter.measure(512, 384, listOf(detection("personne", listOf(0f, 100f, 200f, 300f)))).size)
+        // marge de tolérance (2 px) : plus bas que ça, la boîte n'est pas coupée
+        assertEquals(1, meter.measure(512, 384, listOf(detection("personne", listOf(100f, 100f, 200f, 380f)))).size)
+        assertTrue(Pinhole.isVerticallyCut(listOf(100f, 100f, 200f, 382f), 384))
+        assertTrue(!Pinhole.isVerticallyCut(listOf(100f, 100f, 200f, 380f), 384))
+    }
+
+    @Test
+    fun `boite collee aux deux bords est ecartee`() {
+        val meter = DistanceMeter()
+        val fullHeight = listOf(0f, 0f, 512f, 384f)
+        assertTrue(Pinhole.isVerticallyCut(fullHeight, 384))
+        assertTrue(meter.measure(512, 384, listOf(detection("personne", fullHeight))).isEmpty())
+    }
+
+    @Test
     fun `meter rend une lecture par objet calibre`() {
         val meter = DistanceMeter()
         val readings = meter.measure(

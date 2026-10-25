@@ -7,7 +7,13 @@ import dev.sam3vision.core.distance.DistanceText
  * Reproduire ce calcul côté Compose garantit que les étiquettes de distance
  * tombent sur les mêmes pixels que les masques, quel que soit l'écran.
  */
-data class CropTransform(val scale: Float, val offsetX: Float, val offsetY: Float) {
+data class CropTransform(
+    val scale: Float,
+    val offsetX: Float,
+    val offsetY: Float,
+    val boxWidth: Float = 0f,
+    val boxHeight: Float = 0f,
+) {
 
     /** Abscisse écran d'un point de l'image analysée. */
     fun screenX(frameX: Float): Float = frameX * scale + offsetX
@@ -30,10 +36,17 @@ fun cropTransform(imageWidth: Int, imageHeight: Int, boxWidth: Float, boxHeight:
         scale = scale,
         offsetX = (boxWidth - imageWidth * scale) / 2f,
         offsetY = (boxHeight - imageHeight * scale) / 2f,
+        boxWidth = boxWidth,
+        boxHeight = boxHeight,
     )
 }
 
-/** Étiquette de distance prête à poser à l'écran (pixels), ancrée en haut à gauche de la boîte. */
+/**
+ * Étiquette de distance prête à poser à l'écran (pixels) : ancrée au **milieu
+ * horizontal** de la boîte et juste au-dessus d'elle. Centrer plutôt qu'aligner à
+ * gauche évite l'empilement de plusieurs pastilles sur le bord de l'image (constaté
+ * le 25/10 quand plusieurs objets touchent le bord gauche).
+ */
 data class ScreenLabel(val text: String, val x: Float, val y: Float, val colorIndex: Int)
 
 /**
@@ -43,9 +56,10 @@ data class ScreenLabel(val text: String, val x: Float, val y: Float, val colorIn
 fun screenLabels(layer: DistanceLayer, transform: CropTransform): List<ScreenLabel> =
     layer.readings.mapIndexedNotNull { index, reading ->
         if (reading.box.size < 4) return@mapIndexedNotNull null
+        val centerX = (reading.box[0] + reading.box[2]) / 2f
         ScreenLabel(
             text = DistanceText.approximate(reading.meters),
-            x = transform.screenX(reading.box[0]),
+            x = transform.screenX(centerX).coerceIn(0f, transform.boxWidth),
             y = transform.screenY(reading.box[1]),
             colorIndex = index,
         )

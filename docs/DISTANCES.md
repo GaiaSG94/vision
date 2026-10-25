@@ -26,6 +26,12 @@ Deux entrées, deux sources :
 Bornes de plausibilité (`Pinhole`) : rien sous **0,3 m**, rien au-delà de **60 m**,
 rien pour une boîte de moins de **4 px** de haut. Hors bornes ⇒ pas d'affichage.
 
+**Objet coupé par le bord haut ou bas ⇒ pas de distance** (`Pinhole.isVerticallyCut`,
+marge de 2 px). Vérifié sur téléphone le 25/10 : une couette segmentée à tort en
+« personne », collée aux deux bords, sortait à **31 m** — la boîte ne mesurait plus
+la hauteur réelle. Les bords gauche/droite restent acceptés : seule la hauteur
+porte la mesure.
+
 ## Lissage : lisible à 1-2 images par seconde
 
 `DistanceSmoother` : moyenne mobile exponentielle **par piste** (l'identité stable
@@ -41,8 +47,7 @@ qui revient est mesuré à neuf.
 
 - **hauteur réelle supposée** : un enfant mesuré comme « personne » (1,70 m) sort
   deux fois trop loin ;
-- **objet coupé** par le bord bas de l'image : hauteur sous-estimée ⇒ distance
-  surestimée ;
+- **objet coupé** par un bord haut/bas : écarté depuis le 25/10 (il n'affiche rien) ;
 - **objet penché ou allongé** (chaise vue de dessus, table basse) : la boîte ne
   mesure plus la hauteur réelle.
 
@@ -70,8 +75,13 @@ décimètre jusqu'à 10 m, mètre au-delà) ne promet pas plus de précision que
   proche, une distance par étiquette.
 - `core.live.LiveTimelineTest` (+1) : `record` rend l'identité **dans l'ordre des
   détections** (`null` pour une détection inexploitable).
-- `app.DistanceLayoutTest` (7) : transformation `Crop` identique à l'aperçu,
-  ancrage des étiquettes, boîte illisible, saisie du champ (± bornes), pastilles.
+- `app.DistanceLayoutTest` (9) : transformation `Crop` identique à l'aperçu,
+  étiquette **centrée sur la boîte** et ramenée dans le cadre, boîte illisible,
+  saisie du champ (± bornes), pastilles du bas.
+- Recette sur téléphone réel (`2c6852ac`, 1220×2712, 25/10) : ligne d'état
+  « Direct · 1,5 ips · 635 ms · 4 objets · plus proche 2,0 m · NVIDIA A100 »,
+  pastilles « ≈ 2,0 m / ≈ 2,1 m / ≈ 2,3 m » superposées aux masques, section
+  Réglages « Distances » rendue.
 
 ## Pistes (non faites)
 

@@ -35,6 +35,20 @@ object Pinhole {
     /** Sous cette hauteur de boîte, un pixel d'erreur vaut des mètres. */
     private const val MIN_BOX_PX = 4f
 
+    /** Marge d'un bord d'image : en deçà, la boîte est considérée coupée. */
+    const val EDGE_TOLERANCE_PX = 2f
+
+    /**
+     * Boîte coupée par le bord **haut ou bas** de l'image : sa hauteur ne mesure plus
+     * l'objet, donc la distance serait surestimée (mesuré le 25/10 : une couette mal
+     * segmentée en « personne », collée aux deux bords, sortait à 31 m). Les bords
+     * gauche/droite ne gênent pas : c'est la hauteur qui porte la mesure.
+     */
+    fun isVerticallyCut(box: List<Float>, imageHeight: Int, tolerancePx: Float = EDGE_TOLERANCE_PX): Boolean {
+        if (box.size < 4 || imageHeight <= 0) return false
+        return box[1] <= tolerancePx || box[3] >= imageHeight - tolerancePx
+    }
+
     /** Distance en mètres, `null` si la boîte ou le calibrage ne permet pas de conclure. */
     fun distanceMeters(box: List<Float>, realHeightMeters: Float, focalPx: Float): Float? {
         if (box.size < 4 || focalPx <= 0f || realHeightMeters <= 0f) return null
@@ -87,11 +101,17 @@ class DistanceMeter(
         val focalPx = lens.focalPx(width, height)
         if (focalPx <= 0f) return emptyList()
         return detections.mapIndexedNotNull { index, detection ->
-            readOne(detection, trackIds.getOrNull(index), focalPx)
+            readOne(detection, trackIds.getOrNull(index), focalPx, height)
         }
     }
 
-    private fun readOne(detection: Detection, trackId: Int?, focalPx: Float): DistanceReading? {
+    private fun readOne(
+        detection: Detection,
+        trackId: Int?,
+        focalPx: Float,
+        imageHeight: Int,
+    ): DistanceReading? {
+        if (Pinhole.isVerticallyCut(detection.box, imageHeight)) return null
         val realHeight = KnownSizes.heightMeters(detection.label) ?: return null
         val raw = Pinhole.distanceMeters(detection.box, realHeight, focalPx) ?: return null
         val id = trackId ?: UNTRACKED_ID

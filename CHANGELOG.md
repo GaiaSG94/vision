@@ -1,5 +1,20 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (2) — distances : rien sur un objet coupé, pastilles centrées (recette téléphone)
+
+- **Recette sur le téléphone réel** (`2c6852ac`, Direct sur l'A100) : les pastilles
+  tombent juste (« ≈ 2,0 m », « ≈ 2,1 m », « ≈ 2,3 m », « plus proche 2,0 m » dans la
+  ligne d'état) mais deux défauts sont sortis de l'image.
+- **Objet coupé par le bord haut ou bas ⇒ plus de distance** (`Pinhole.isVerticallyCut`,
+  marge 2 px) : une couette segmentée à tort en « personne », collée aux deux bords,
+  affichait **31 m**. La boîte ne mesurant plus la hauteur réelle, la valeur était fausse
+  avec un bel aplomb. Gauche/droite restent acceptés (seule la hauteur porte la mesure).
+- **Pastilles centrées sur la boîte** (ancre au milieu horizontal, ramenée dans le cadre,
+  `graphicsLayer translationX`) : trois objets touchant le bord gauche empilaient leurs
+  étiquettes au même endroit.
+- Tests : 271 JVM verts (216 `core` + 55 `app`, dont deux coupes de boîte, centrage, cadre), `assembleDebug` vert,
+  installée et revue sur le téléphone. Détail dans `docs/DISTANCES.md`.
+
 ## 2026-10-25 — clic « Direct (vidéo) » = réveil garanti de l'A100 40 Go sur Modal
 
 - **Le réveil passait avant la fin du démarrage.** `/health` utilisait le client du direct,
