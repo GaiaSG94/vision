@@ -1,5 +1,15 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — le plafond d'objets est bien persisté (correctif)
+
+- **Bug trouvé à la recette téléphone** : le réglage « Objets à l'écran » changeait bien
+  dans l'UI, mais revenait à 4 après redémarrage. `EncryptedSettingsStore` (le store
+  réellement utilisé) ne lisait ni n'écrivait `max_objects` — seul le repli fichier
+  chiffré le faisait. Les deux stores sont désormais alignés.
+- **Parité documentée** dans `EncryptedSettingsStore` : tout champ ajouté à `Settings`
+  doit être écrit dans `save` et relu dans `load`, sinon il retombe sur son défaut
+  silencieusement à chaque lancement.
+
 ## 2026-10-25 — nombre d'objets à l'écran réglable (Réglages)
 
 - **Réglage « Objets à l'écran »** : section dédiée dans Réglages (deux gros boutons − / +,

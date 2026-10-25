@@ -13,6 +13,10 @@ private const val PREFS_FILE = "sam3vision_secure_settings"
 /**
  * Stockage chiffré (Jetpack security-crypto : AES256-SIV pour les clés,
  * AES256-GCM pour les valeurs, maître dans le Keystore matériel).
+ *
+ * ⚠️ Parité obligatoire avec [SettingsCodec] (repli fichier chiffré) : un champ
+ * ajouté à [Settings] doit être écrit **ici** (`save`) et relu **là-bas** (`load`),
+ * sinon il retombe silencieusement sur son défaut à chaque redémarrage.
  */
 class EncryptedSettingsStore(context: Context) : SettingsStore {
 
@@ -42,6 +46,9 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
                 .ifBlank { default.asrModel },
             introEnabled = prefs.getBoolean(KEY_INTRO_ENABLED, default.introEnabled),
             introPlayed = prefs.getBoolean(KEY_INTRO_PLAYED, default.introPlayed),
+            maxObjects = ObjectLimits.clamp(
+                prefs.getInt(KEY_MAX_OBJECTS, default.maxObjects),
+            ),
         )
     }
 
@@ -60,6 +67,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_ASR_MODEL, s.asrModel)
             .putBoolean(KEY_INTRO_ENABLED, s.introEnabled)
             .putBoolean(KEY_INTRO_PLAYED, s.introPlayed)
+            .putInt(KEY_MAX_OBJECTS, s.objectsOnScreen)
             .apply()
     }
 
