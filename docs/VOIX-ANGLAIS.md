@@ -1,7 +1,8 @@
 # Voix en anglais — la personne qui parle, pas l'interface
 
 Demande user du 2026-10-25 : « dans l'app ihear, faire en sorte que **la personne nous
-parle en anglais** ». Réglage `speechLanguage` (Anglais par défaut), un bouton dans
+parle en anglais** » (l'app s'appelle **iSee** depuis la reprise des docs ; le module code
+est toujours `app/ihear/`). Réglage `speechLanguage` (Anglais par défaut), un bouton dans
 Réglages → section « Voix ElevenLabs » → **Langue de la voix**.
 
 ## Ce que la langue change, et ce qu'elle ne change pas
@@ -14,7 +15,8 @@ Réglages → section « Voix ElevenLabs » → **Langue de la voix**.
 | journal caméra joint comme contexte d'une question de mémoire (`TimelineText.context`) | |
 | phrase du bouton « Tester la voix » (`testVoiceText`) | |
 
-L'intro embarquée (`res/raw/intro_ihear.mp3`, voix Jade US) était **déjà** en anglais :
+L'intro embarquée (`res/raw/intro_ihear.mp3`, « Welcome to iSee… », voix Jade US) était
+**déjà** en anglais :
 c'est elle qui a donné le sens de la demande, tout le reste la rejoint.
 
 ## Où vit la langue
