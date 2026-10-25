@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
         onSingleTap = ihear::onSingleTap
         onDoubleTap = ihear::onDoubleTap
         onVerticalDragStart = ihear::onVerticalDragStart
+        onVerticalDragMove = { downward -> ihear.onVerticalDragMove(downward) }
         onVerticalSwipeEnd = { committed, downward -> ihear.onVerticalSwipeEnd(committed, downward) }
         addView(
             ComposeView(this@MainActivity).apply { setContent { SamRoot(viewModel, ihear, glasses) } },

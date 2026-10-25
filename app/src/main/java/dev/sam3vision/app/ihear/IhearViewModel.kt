@@ -182,31 +182,34 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         haptics.verticalSwipeStart()
     }
 
-    /** Balayage vertical terminé : marche d'une bulle, ou lue si c'est la première. */
-    fun onVerticalSwipeEnd(committed: Boolean, downward: Boolean) {
+    /** Début du glissement vertical (dès le seuil franchi) : la marche se joue ici,
+     * pas au relâchement — un balayage court emporte son effet, et la sélection ne
+     * peut pas être perdue en route. Un geste = une bulle. */
+    fun onVerticalDragMove(downward: Boolean) {
         if (!active) return
-        haptics.verticalSwipeEnd()
         val snapshot = _state.value
-        if (!committed || snapshot.recordingVideo || snapshot.entries.isEmpty()) return
+        if (snapshot.recordingVideo || snapshot.entries.isEmpty()) return
         viewModelScope.launch {
             val state = _state.value
-            val firstGesture = !state.firstSwipeDownDone
-            if (downward) {
-                when {
-                    firstGesture && state.lastSelected -> {
-                        _state.update { it.copy(firstSwipeDownDone = true) }
-                        playSelected()
-                    }
-                    state.selected > 0 -> {
-                        _state.update { it.copy(selected = it.selected - 1) }
-                        playSelected()
-                    }
+            when (val step = swipeStep(state.entries.size, state.selected, state.firstSwipeDownDone, downward)) {
+                is SwipeStep.Move -> {
+                    _state.update { it.copy(selected = step.selected) }
+                    playSelected()
                 }
-            } else if (state.selected < state.entries.lastIndex) {
-                _state.update { it.copy(selected = it.selected + 1) }
-                playSelected()
+                is SwipeStep.Replay -> {
+                    _state.update { it.copy(firstSwipeDownDone = step.firstSwipeDownDone) }
+                    playSelected()
+                }
+                SwipeStep.NoMove -> Unit
             }
         }
+    }
+
+    /** Relâchement : la marche a déjà été jouée au début du glissement ; on coupe
+     * juste l'haptique — même en dehors d'iHear, pour ne pas laisser la vibration collée. */
+    fun onVerticalSwipeEnd(committed: Boolean, downward: Boolean) {
+        haptics.verticalSwipeEnd()
+        if (!active) return
     }
 
     /** Tap simple n'importe où : démarre la vidéo (fenêtre flottante), ou la ferme. */

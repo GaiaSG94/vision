@@ -41,6 +41,43 @@ data class IhearUiState(
     val lastSelected: Boolean get() = selected >= entries.lastIndex
 }
 
+// ————— Geste vertical : une marche de bulle par geste —————
+
+/** Décision d'une marche verticale du chat (pure, testable JVM). */
+sealed interface SwipeStep {
+    /** La sélection change de bulle (nouvel index dans [IhearUiState.entries]). */
+    data class Move(val selected: Int) : SwipeStep
+
+    /** La sélection ne quitte pas la dernière bulle : elle est relue ; la première
+     * marche descendante se mémorise ([IhearUiState.firstSwipeDownDone]). */
+    data class Replay(val firstSwipeDownDone: Boolean) : SwipeStep
+
+    /** Rien à faire : on est déjà au bord demandé. */
+    object NoMove : SwipeStep
+}
+
+/** Un geste = une marche de bulle, appliquée dès le début du glissement (pas au
+ * relâchement) : vers le bas on remonte vers les bulles plus anciennes, vers le
+ * haut on descend vers les plus récentes. La première marche vers le bas sur la
+ * dernière bulle ne la quitte pas : elle la relit (marche de découverte). */
+fun swipeStep(
+    entriesSize: Int,
+    selected: Int,
+    firstSwipeDownDone: Boolean,
+    downward: Boolean,
+): SwipeStep {
+    val lastIndex = entriesSize - 1
+    return if (downward) {
+        when {
+            !firstSwipeDownDone && selected >= lastIndex -> SwipeStep.Replay(firstSwipeDownDone = true)
+            selected > 0 -> SwipeStep.Move(selected - 1)
+            else -> SwipeStep.NoMove
+        }
+    } else {
+        if (selected < lastIndex) SwipeStep.Move(selected + 1) else SwipeStep.NoMove
+    }
+}
+
 /** Les actions que seule la caméra de la fenêtre flottante peut exécuter. */
 interface IhearCameraActions {
     val ready: Boolean

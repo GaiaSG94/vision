@@ -6,17 +6,14 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
-import android.view.View
 import android.widget.FrameLayout
 import androidx.annotation.RequiresApi
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import dev.sam3vision.core.gesture.IhearGestureBrain
 import dev.sam3vision.core.gesture.LongPressTrigger
 
 /**
  * Racine de la fenêtre iHear : la seule vue qui voit **tous** les gestes de la surface
- * de l'app (les deux pages, hors zone système du bas). Deux machines y tournent :
+ * de l'app (l'unique page chat, textures et bulles confondues). Deux machines y tournent :
  *
  * - [LongPressTrigger] : appui maintenu ~300 ms → [onHoldStart] (micro ouvert) ; la
  *   vue intercepte alors tout (les enfants reçoivent un ACTION_CANCEL) jusqu'au
@@ -27,8 +24,10 @@ import dev.sam3vision.core.gesture.LongPressTrigger
  *
  * Les taps ne sont jamais consommés en-dehors d'une tenue : ce sont des observations
  * posées sur les événements, les écrans iHear restent libres de leur rendu. Les deux
- * bords latéraux sont exclus des gestes système (repli haut/bas restent hors de
- * portée : ils appartiennent à Android, aucune app ne peut les empêcher).
+ * bords latéraux restent exclus du geste système « retour » ; en revanche les balayages
+ * haut/bas appartiennent à l'app : la page est alimentée sur **toute** la surface, bande
+ * du bas comprise — quand la navigation gestuelle d'Android revendique d'elle-même son
+ * geste « Home », le toucher n'arrive jamais jusqu'ici et la bulle n'est pas avancée.
  */
 class IhearRootLayout(context: Context) : FrameLayout(context) {
 
@@ -39,8 +38,8 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
     var onVerticalDragStart: (() -> Unit)? = null
     var onVerticalSwipeEnd: ((committed: Boolean, downward: Boolean) -> Unit)? = null
 
-    /** Hauteur de la zone système du bas en pixels (0 = pas d'exclusion). */
-    var systemBottomPx: () -> Int = { bottomSystemInset(this) }
+    /** Marche décidée dès le début du glissement vertical : une bulle par geste. */
+    var onVerticalDragMove: ((downward: Boolean) -> Unit)? = null
 
     /** Geste actif seulement quand les panneaux iHear sont à l'écran, sinon à l'ancienne UI. */
     var gesturesEnabled: () -> Boolean = { true }
@@ -74,6 +73,7 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
             override fun onVerticalDrag(downward: Boolean) {
                 draggingVertical = true
                 onVerticalDragStart?.invoke()
+                onVerticalDragMove?.invoke(downward)
             }
 
             override fun onVerticalSwipe(committed: Boolean, downward: Boolean) {
@@ -126,13 +126,10 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         }
         val now = System.currentTimeMillis()
         when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN ->
-                if (inSystemZone(ev)) {
-                    trigger.reset()
-                } else {
-                    trigger.onDown(ev.x, ev.y)
-                    brain.onDown(now, ev.x, ev.y)
-                }
+            MotionEvent.ACTION_DOWN -> {
+                trigger.onDown(ev.x, ev.y)
+                brain.onDown(now, ev.x, ev.y)
+            }
 
             MotionEvent.ACTION_MOVE -> {
                 trigger.onMove(ev.x, ev.y)
@@ -168,11 +165,6 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         )
     }
 
-    private fun inSystemZone(ev: MotionEvent): Boolean {
-        val inset = systemBottomPx()
-        return inset > 0 && ev.y >= height - inset
-    }
-
     override fun onDetachedFromWindow() {
         trigger.reset()
         brain.reset()
@@ -183,12 +175,5 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
     companion object {
         /** Bande latérale exclue du geste système (retour) : moindre que le plafond 200dp. */
         private const val EXCLUSION_SIDE_DP = 48f
-    }
-
-    private fun bottomSystemInset(view: View): Int {
-        val insets = ViewCompat.getRootWindowInsets(view) ?: return 0
-        val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-        val gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures())
-        return maxOf(bars.bottom, gestures.bottom)
     }
 }
