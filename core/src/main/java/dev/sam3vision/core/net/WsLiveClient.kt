@@ -57,11 +57,15 @@ class WsLiveClient(
         return raw.then { text -> parseReply(text) }
     }
 
+    /** Vrai tant que le socket est ouvert — l'UI s'en sert pour dire « WebSocket » ou « KO ». */
+    val isConnected: Boolean get() = synchronized(lock) { connected }
+
     /** Le WebSocket ne sert pas au health : un seul appel `/health`, celui du client HTTP. */
     override suspend fun health(): Result<LiveHealth> = http.health()
 
     override fun close() {
         transport.close()
+        synchronized(lock) { connected = false }
         failPending(ApiError.Network(WS_CLOSED))
     }
 

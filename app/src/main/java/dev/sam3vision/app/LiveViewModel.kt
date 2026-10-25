@@ -15,15 +15,12 @@ import dev.sam3vision.core.live.LiveTimeline
 import dev.sam3vision.core.live.PlacedLabel
 import dev.sam3vision.core.live.PositionAnnouncer
 import dev.sam3vision.core.live.PositionText
-import dev.sam3vision.core.live.TimelineText
 import dev.sam3vision.core.mask.colorizeMask
 import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
-import dev.sam3vision.core.model.TimelineSummary
 import dev.sam3vision.core.model.toDetections
-import dev.sam3vision.core.net.AutoLiveClient
 import dev.sam3vision.core.net.HttpLiveClient
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LiveClient
@@ -118,11 +115,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(running = true, starting = false, error = SAM_ABSENT_LINE) }
             return
         }
-        val http = HttpLiveClient(base)
-        val live = AutoLiveClient(
-            WsLiveClient(base, http = http),
-            http,
-        ) { reason -> _state.update { it.copy(transport = TRANSPORT_HTTP) } }
+        // WebSocket uniquement : plus aucun POST /live pour les frames. Le client HTTP
+        // ne sert plus qu'au /health (une requête GET, une fois par session).
+        val live = WsLiveClient(base, http = HttpLiveClient(base))
         client = live
         session = LiveSession(live, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
         _state.update {
@@ -231,7 +226,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             val result = active.runFrame(jpegB64) ?: return@launch
             result.fold(
                 onSuccess = { frame -> publish(frame, jpegB64) },
-                onFailure = { error -> _state.update { it.copy(error = error.message, objectsCount = 0) } },
+                onFailure = { error ->
+                    _state.update { it.copy(error = error.message, objectsCount = 0, transport = transportLabel()) }
+                },
             )
         }
     }
@@ -449,6 +446,10 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
+    /** « WebSocket » quand le socket tient, « WebSocket KO » dès qu'il est tombé (aucun repli). */
+    private fun transportLabel(): String =
+        if ((client as? WsLiveClient)?.isConnected == true) TRANSPORT_WS else TRANSPORT_WS_KO
+
     /** Lit les réglages chiffrés puis démarre la session (appelé à l'entrée à l'écran). */
     fun startFromSettings() = viewModelScope.launch { start(store.load()) }
 
@@ -463,37 +464,4 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         /** Dossier audio de l'annonce des positions : distinct de celui des bandeaux. */
         const val POSITION_VOICE_DIR = "positions"
     }
-}
-
-/** Direct sans détecteur : l'écran reste utilisable pour les questions sur l'image. */
-const val SAM_ABSENT_LINE = "Détecteur SAM non configuré — questions sur l'image seule"
-
-/** Direct sans détecteur joignable : même repli, avec la raison exacte. */
-fun samUnreachableLine(reason: String): String =
-    "Détecteur SAM injoignable ($reason) — questions sur l'image seule"
-
-/** Direct en WebSocket : une frame par message, sans le surcoût HTTP d'un POST. */
-const val TRANSPORT_WS: String = "WebSocket"
-
-/** Repli HTTP : le WebSocket a échoué, le direct continue en POST /live. */
-const val TRANSPORT_HTTP: String = "HTTP"
-
-/** Aucune clé LLM : rien ne peut fonctionner, ni la vision ni les questions. */
-const val LLM_ABSENT_LINE = "Clé LLM absente — renseigne-la dans Réglages"
-
-/** Question posée avant la première frame gardée : on le dit clairement, sans bloquer. */
-const val NO_FRAME_LINE = "Aucune image pour l'instant — recadre et réessaie dans une seconde"
-
-/**
- * Contexte du journal pour le LLM, `null` s'il n'y a **aucune piste** : mieux vaut
- * pas de contexte du tout que « rien de visible » alors que l'image est fournie.
- * Fonction pure, testée en JVM.
- */
-fun timelineContextOrNull(
-    global: TimelineSummary,
-    focus: TimelineSummary?,
-    label: String?,
-): String? {
-    if (global.empty && (focus == null || focus.empty)) return null
-    return TimelineText.context(global, focus, label)
 }

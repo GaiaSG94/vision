@@ -11,7 +11,7 @@ internal val SAMPLE_HEALTH = LiveHealth(ok = true, model = "sam3.1", device = "c
 
 /**
  * Client live de test, sans réseau : compte les appels et renvoie le scénario fourni.
- * Partagé par [WsLiveClientTest] et [AutoLiveClientTest] — une seule implémentation.
+ * Utilisé par [WsLiveClientTest] — une seule implémentation de faux client.
  */
 internal class RecordingLiveClient(
     private val frames: (String) -> Result<LiveFrame> = { Result.success(SAMPLE_FRAME) },

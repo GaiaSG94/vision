@@ -121,15 +121,15 @@ vide » + annonce `Failed`. Clips `launched/sent/failed.mp3` présents dans
 Aucun test ne touche le GPU : `/live` est simulé par `TestHttpServer`
 (`net.LiveClientTest` 9) et la mémoire est testée sans réseau.
 
-### Direct : WebSocket d'abord, HTTP en repli
+### Direct : WebSocket uniquement
 
-Le direct parle à `/live/ws` (un message JSON par frame, ~31 ms gagnées par frame :
-50,3 ms en WebSocket contre 81,4 ms en POST, même région) et retombe **tout seul** sur
-`POST /live` au premier échec structurel du socket (connexion refusée, délai dépassé,
-socket fermé) — puis y reste pour la session. Tests JVM sans réseau : `net.WsLiveClientTest`
-9 et `net.AutoLiveClientTest` 9 (transport factice). Pour **forcer le repli HTTP** dans un
-test manuel : pointer `sam.base.url` vers un serveur sans `/live/ws` (ex. `python3
-/tmp/mock_sam.py 8099`) ou construire `AutoLiveClient(ws, http, forceHttp = true)`.
+Le direct parle **exclusivement** à `/live/ws` (un message JSON par frame ; mesuré 208 ms
+d'aller-retour contre 435 ms en POST, et un p95 de 228 ms contre 495 ms). Aucun repli
+`POST /live` : si le socket ne s'ouvre pas, la frame échoue avec « WebSocket /live/ws
+injoignable » et le bandeau du direct l'affiche — c'est voulu, pour que la panne soit
+visible au lieu d'être masquée par un transport deux fois plus lent. Le seul appel HTTP
+restant est `GET /health` (réveil du conteneur), délégué au client HTTP par `WsLiveClient`.
+Tests JVM sans réseau : `net.WsLiveClientTest` (transport factice `TestLiveClients`).
 
 ### Recette manuelle du direct (nécessite l'endpoint Modal réveillé)
 

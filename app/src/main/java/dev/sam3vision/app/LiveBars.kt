@@ -70,13 +70,17 @@ fun LiveTopBar(
 }
 
 /**
- * Pastille du transport : « WebSocket » (rapide) ou « HTTP » (repli après un échec).
- * Vide = le direct n'a pas encore de transport.
+ * Pastille du transport : « WebSocket » (vert) ou « WebSocket KO » (rouge) — il n'y a
+ * plus de repli POST, donc un socket tombé se voit tout de suite.
  */
 @Composable
 fun TransportChip(transport: String) {
     if (transport.isBlank()) return
-    val color = if (transport == TRANSPORT_WS) AppColors.success else AppColors.surfaceHigh
+    val color = when (transport) {
+        TRANSPORT_WS -> AppColors.success
+        TRANSPORT_WS_KO -> AppColors.danger
+        else -> AppColors.surfaceHigh
+    }
     Chip(transport, color, null)
 }
 

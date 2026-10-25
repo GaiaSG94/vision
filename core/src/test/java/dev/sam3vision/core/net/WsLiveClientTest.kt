@@ -4,6 +4,7 @@ import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -174,5 +175,18 @@ class WsLiveClientTest {
 
         assertEquals(SAMPLE_HEALTH, health)
         assertEquals(1, http.healthCalls)
+    }
+
+    @Test
+    fun `isConnected_reflete_l_etat_du_socket`() = runBlocking {
+        val transport = FakeTransport(fun(json: JSONObject): List<String> = listOf(frameReply(json.getInt("id"))))
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient())
+
+        assertFalse(client.isConnected)
+        client.live("AA==", listOf("person"), 640, 4).getOrThrow()
+        assertTrue(client.isConnected)
+
+        client.close()
+        assertFalse(client.isConnected)
     }
 }
