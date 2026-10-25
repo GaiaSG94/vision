@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.compose.ui.graphics.toArgb
 import dev.sam3vision.core.audio.Wav
 import dev.sam3vision.core.live.PositionText
+import dev.sam3vision.core.live.shouldPrewarm
 import dev.sam3vision.core.mask.colorizeMask
 import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.Analysis
@@ -267,6 +268,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Réveil préventif du GPU : un appel `/health` lance le démarrage du conteneur Modal
+     * (30-40 s à froid) sans attendre de frame. Lancé à l'affichage de l'écran caméra,
+     * il fait passer ce délai derrière la préparation du cadrage : le tap sur « Direct »
+     * trouve alors une carte chaude. Ignoré si un réveil a déjà été tenté dans la fenêtre
+     * [PREWARM_WINDOW_MS] (évite de rallumer la carte à chaque navigation).
+     */
+    fun prewarmGpu() {
+        val settings = _state.value.settings
+        if (settings.samBaseUrl.isBlank()) return
+        val now = System.currentTimeMillis()
+        if (!shouldPrewarm(now, lastPrewarmAt, PREWARM_WINDOW_MS)) return
+        lastPrewarmAt = now
+        viewModelScope.launch {
+            // Résultat ignoré : seul le démarrage du conteneur nous intéresse ici.
+            HttpSamClient(settings.samBaseUrl).health()
+        }
+    }
+
+    /** Horodatage du dernier réveil préventif (0 = jamais). */
+    private var lastPrewarmAt = 0L
+
     fun testSam() = viewModelScope.launch {
         val settings = _state.value.settings
         if (settings.samBaseUrl.isBlank()) {
@@ -413,5 +436,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stopSpeaking()
         dictation.abort()
         _state.update { UiState(settings = it.settings, settingsReady = it.settingsReady) }
+    }
+
+    private companion object {
+        /** Fenêtre anti-rallumage : deux réveils rapprochés ne servent à rien. */
+        const val PREWARM_WINDOW_MS = 120_000L
     }
 }

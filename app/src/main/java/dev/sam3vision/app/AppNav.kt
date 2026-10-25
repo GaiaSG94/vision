@@ -91,6 +91,7 @@ private fun CaptureRoute(viewModel: AppViewModel, push: (Route) -> Unit) {
             push(Route.Tap(autoStart = startNow))
         },
         onOpenLive = { push(Route.Live) },
+        onShown = viewModel::prewarmGpu,
     )
 }
 

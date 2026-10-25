@@ -67,6 +67,7 @@ fun CaptureScreen(
     onOpenSettings: () -> Unit,
     onOpenTap: (startNow: Boolean) -> Unit,
     onOpenLive: () -> Unit,
+    onShown: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(hasCameraPermission(context)) }
@@ -80,6 +81,9 @@ fun CaptureScreen(
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) pickFromGallery(context, uri, onPhoto) { error = it }
     }
+
+    // Écran affiché : on lance le réveil du GPU tout de suite (le temps de cadrer).
+    LaunchedEffect(Unit) { onShown() }
 
     LaunchedEffect(granted, attached, bindToken) {
         if (!granted || !attached) return@LaunchedEffect

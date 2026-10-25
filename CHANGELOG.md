@@ -1,5 +1,13 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — réveil préventif du GPU à l'ouverture de l'écran caméra
+
+- **Le délai de réveil passe derrière la préparation.** `AppViewModel.prewarmGpu()` lance un
+  `/health` dès que l'écran caméra s'affiche : le conteneur Modal A100 (30-40 s à froid)
+  démarre pendant que l'on cadre, au lieu d'attendre le tap sur « Direct (vidéo) ».
+- **Un seul réveil par fenêtre de 2 min** (`shouldPrewarm`, pur et testé) : pas de carte
+  rallumée à chaque navigation, et le tap garde son propre réveil patient (`wakeGpu`).
+
 ## 2026-10-25 (4) — la voix dit les distances (« Personne à gauche, à 1,4 mètre »)
 
 - **Annonce vocale des distances** : `PositionText.item` ajoute la distance à l'objet et
