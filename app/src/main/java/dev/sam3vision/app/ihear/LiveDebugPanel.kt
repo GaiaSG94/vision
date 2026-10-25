@@ -32,9 +32,17 @@ fun LiveDebugPanel(
     dense: Boolean = false,
 ) {
     if (!state.debugVisible || state.idle) return
+    // En mode dense (fenêtre caméra, un peu moins d'un demi-écran), le panneau ne garde
+    // que la ligne d'état et une éventuelle erreur : le détail complet masquait l'aperçu
+    // et les masques, c'est-à-dire exactement ce qu'on vient regarder.
+    val details = if (dense) {
+        panelDetails(state, dense).filter { it.startsWith(ERROR_PREFIX) }
+    } else {
+        panelDetails(state, dense)
+    }
     Column(
         modifier
-            .statusBarsPadding()
+            .then(if (dense) Modifier else Modifier.statusBarsPadding())
             .padding(
                 horizontal = if (dense) 4.dp else 12.dp,
                 vertical = if (dense) 6.dp else 34.dp,
@@ -50,11 +58,14 @@ fun LiveDebugPanel(
             fontWeight = FontWeight.Medium,
             maxLines = if (dense) 2 else Int.MAX_VALUE,
         )
-        panelDetails(state, dense).forEach { line ->
+        details.forEach { line ->
             Text(line, color = PanelDetail, fontSize = if (dense) 8.sp else 11.sp, maxLines = 1)
         }
     }
 }
+
+/** Préfixe des lignes d'erreur de [liveProbeDetails] : les seules gardées en mode dense. */
+private const val ERROR_PREFIX = "erreur"
 
 /**
  * Lignes du détail. En mode [dense] (fenêtre caméra flottante, ~500 px de large), on

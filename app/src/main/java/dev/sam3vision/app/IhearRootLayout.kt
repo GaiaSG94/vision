@@ -33,6 +33,9 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
 
     var onHoldStart: (() -> Unit)? = null
     var onHoldEnd: (() -> Unit)? = null
+
+    /** Tenue annulée sans transcription (app passée en arrière-plan pendant l'appui). */
+    var onHoldCancel: (() -> Unit)? = null
     var onSingleTap: (() -> Unit)? = null
     var onDoubleTap: (() -> Unit)? = null
     var onVerticalDragStart: (() -> Unit)? = null
@@ -94,15 +97,37 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         }
     }
 
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        if (!capturing) feed(ev) else feedHeld(ev)
-        return capturing
-    }
+    /**
+     * iHear n'a **aucun** contrôle tactile (ni bouton, ni champ) : quand ses panneaux sont
+     * à l'écran, la racine prend le geste dès le DOWN. Sans ça, un balayage non consommé
+     * remontait au système, qui ouvrait le volet de notifications au milieu d'un swipe
+     * (mesuré sur le téléphone). Hors iHear, rien n'est intercepté : Réglages garde ses
+     * boutons.
+     */
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = gesturesEnabled()
 
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (!capturing) return super.onTouchEvent(ev)
-        feedHeld(ev)
+        if (!gesturesEnabled()) return super.onTouchEvent(ev)
+        if (capturing) feedHeld(ev) else feed(ev)
         return true
+    }
+
+    /**
+     * Annule le geste en cours (app en arrière-plan au milieu d'un appui long) : la tenue
+     * est jetée sans transcription et l'haptique est coupée, sinon l'écran restait sur
+     * « Listening… » avec le micro ouvert.
+     */
+    fun cancelGesture() {
+        trigger.reset()
+        brain.reset()
+        if (draggingVertical) {
+            draggingVertical = false
+            onVerticalSwipeEnd?.invoke(false, false)
+        }
+        if (capturing) {
+            capturing = false
+            onHoldCancel?.invoke()
+        }
     }
 
     /** Pendant une tenue : l'appui long fait tout arrêt/relance sur relâchement. */

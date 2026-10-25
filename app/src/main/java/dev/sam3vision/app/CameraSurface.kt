@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.camera.view.PreviewView
@@ -29,6 +30,12 @@ class CameraSurface(context: Context, preview: PreviewView) : FrameLayout(contex
     private var shown: List<Bitmap> = emptyList()
 
     init {
+        // La PreviewView est créée une seule fois pour toute l'activité (le `bind()` de
+        // CameraX en dépend) et chaque bulle média fabrique une nouvelle surface : il
+        // faut donc la détacher de l'ancienne avant de l'ajouter ici, sinon Android
+        // lève « The specified child already has a parent » et l'app se ferme au
+        // deuxième passage (mesuré sur le téléphone : photo après vidéo → crash).
+        (preview.parent as? ViewGroup)?.removeView(preview)
         addView(preview, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(maskView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }

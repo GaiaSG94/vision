@@ -32,6 +32,9 @@ class IhearIntro(
         val file = withContext(Dispatchers.IO) { IntroAudio.ensure(app) }
         introFile = file
         update { it.copy(introVisible = true, speakingEntryId = null, status = null) }
+        // Trace volontairement gardée : « l'intro ne se dit plus » se diagnostique en une
+        // ligne (audio coupé par la voix, ou lecture réellement lancée).
+        android.util.Log.i(INTRO_TAG, "intro: engaged=${settings().introPending} file=${file.length()}")
         if (!settings().introPending) return
         update { it.copy(speakingEntryId = INTRO_BUBBLE_ID) }
         player.playFile(file).onFailure { cause ->
@@ -57,6 +60,10 @@ class IhearIntro(
                 )
             }
         }
+    }
+
+    private companion object {
+        const val INTRO_TAG = "ihear-intro"
     }
 
     /** La dictée coupe la voix de l'intro : le texte écrit reste premier message. */

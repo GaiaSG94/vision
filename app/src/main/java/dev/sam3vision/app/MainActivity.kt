@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModelProvider
 import dev.sam3vision.app.glasses.GlassesController
 import dev.sam3vision.app.ihear.IhearViewModel
@@ -47,6 +48,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var ihear: IhearViewModel
     private lateinit var glasses: GlassesController
 
+    /** Racine des gestes : annulée si l'app passe en arrière-plan en pleine tenue. */
+    private lateinit var root: IhearRootLayout
+
     /** Permission demandée au premier lancement ; un refus est annoncé à la voix. */
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (!granted) viewModel.onMicDenied()
@@ -60,6 +64,7 @@ class MainActivity : ComponentActivity() {
         }
         viewModel = ViewModelProvider(this)[AppViewModel::class.java]
         ihear = ViewModelProvider(this)[IhearViewModel::class.java]
+        applyDarkSystemBars()
         setContentView(buildRoot())
         requestMicIfNeeded()
         routeIntent(intent)
@@ -76,10 +81,26 @@ class MainActivity : ComponentActivity() {
         glasses.handleIntent(intent)
     }
 
-    private fun buildRoot() = IhearRootLayout(this).apply {
+    /**
+     * Les deux bandeaux système (heure/batterie en haut, 3 boutons en bas) sur fond noir.
+     * Le thème de l'app est clair (`Theme.Material.Light`), donc sans ça le bandeau du bas
+     * restait blanc et cassait la page noir d'iHear.
+     */
+    private fun applyDarkSystemBars() {
+        window.statusBarColor = android.graphics.Color.BLACK
+        window.navigationBarColor = android.graphics.Color.BLACK
+        window.navigationBarDividerColor = android.graphics.Color.BLACK
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+    }
+
+    private fun buildRoot() = IhearRootLayout(this).also { root = it }.apply {
         gesturesEnabled = { ihear.active }
         onHoldStart = ihear::onHoldStart
         onHoldEnd = ihear::onHoldEnd
+        onHoldCancel = ihear::onHoldCancel
         onSingleTap = ihear::onSingleTap
         onDoubleTap = ihear::onDoubleTap
         onVerticalDragStart = ihear::onVerticalDragStart
@@ -94,6 +115,7 @@ class MainActivity : ComponentActivity() {
 
     /** Option C : minuteur d'inactivité démarré / annulé autour de l'arrière-plan. */
     override fun onPause() {
+        root.cancelGesture()
         ihear.onBackground()
         super.onPause()
     }

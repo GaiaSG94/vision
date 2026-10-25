@@ -114,3 +114,15 @@ interface IhearCameraActions {
 
 /** ID de la bulle d'intro : en dehors du domaine des lignes Room. */
 const val INTRO_BUBBLE_ID = -2L
+
+/** Marqueur audio d'une transcription : « [silence] », « [outro jingle] »… */
+private val AUDIO_MARKER = Regex("\\[[^\\]]*]").toPattern()
+
+/**
+ * Vrai si le texte vaut la peine d'être synthétisé : une fois les marqueurs audio
+ * retirés, il reste au moins une lettre ou un chiffre. ElevenLabs retire lui aussi ces
+ * marqueurs et répond 400 « empty text » sur une transcription qui n'en contient que
+ * (mesuré sur le téléphone : « Voice: erreur HTTP 400 » après un swipe).
+ */
+fun speakableText(text: String): Boolean =
+    AUDIO_MARKER.matcher(text).replaceAll(" ").any { it.isLetterOrDigit() }

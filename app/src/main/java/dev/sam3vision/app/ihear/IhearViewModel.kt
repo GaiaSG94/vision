@@ -32,12 +32,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Toute la mécanique iSee : un seul écran — le chat — avec la caméra reléguée dans
- * une fenêtre flottante (vidéo du tap au premier plan, photo du double tap + flash).
- * Appui long vocal transcrit par Muse, historique Room `MessageMultimedia`, MP3 de
- * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée (anglais) est dite à
- * chaque ouverture complète de l'app et posée comme premier message du chat tant
- * que le user ne l'a pas coupée par la voix.
+ * Toute la mécanique de l'écran unique (chat, caméra dans une bulle : vidéo du tap, photo
+ * du double tap) : appui long vocal transcrit, historique Room, MP3 en cache, purge A/B/C,
+ * voix ElevenLabs. L'intro embarquée est dite à chaque ouverture complète tant que le user
+ * ne l'a pas coupée par la voix ; son texte reste le premier message.
  */
 class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -54,8 +52,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private val player = SpeechPlayer(
         dir = File(app.cacheDir, "ihear-play"),
         onComplete = {
-            // La bulle d'intro reste posée dans le chat pendant toute l'ouverture
-            // (seule la coupure par la voix la retire) : elle ne disparaît plus à la fin.
+            // L'intro reste posée à l'écran : seule la coupure par la voix la retire.
             _state.update { st -> st.copy(speakingEntryId = null) }
         },
         onPlaybackError = { _state.update { st -> st.copy(speakingEntryId = null) } },
@@ -147,6 +144,11 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Appui long maintenu : le micro s'ouvre (dictée Muse), salve haptique dédiée. */
     fun onHoldStart() {
         if (!active) return
+        // Parler coupe la lecture en cours (sinon la tenue est jetée, le micro reste pris).
+        if (!playerIdle()) {
+            player.stop()
+            _state.update { it.copy(speakingEntryId = null) }
+        }
         _state.update { it.copy(holding = true, status = null) }
         haptics.holdStart()
         if (!mic.start()) {
@@ -163,26 +165,31 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { transcribeAndAnswer() }
     }
 
-    /** Balayage vertical commencé : vibration tant que le doigt glisse — sauf à
-     * bulle unique (intro seule comprise), où il n'y a rien à changer. */
+    /** Tenue annulée (app en arrière-plan ou geste perdu) : micro relâché, rien de transcrit. */
+    fun onHoldCancel() {
+        if (!_state.value.holding) return
+        mic.abort()
+        haptics.holdEnd()
+        _state.update { it.copy(holding = false) }
+    }
+
+    /** Balayage vertical commencé : vibration tant que le doigt glisse, sauf à bulle unique. */
     fun onVerticalDragStart() {
         if (!active) return
-        val state = _state.value
-        if (!hasBubbleChoice(bubbleCount(state.entries.size, state.introVisible))) return
+        // L'intro n'est sélectionnable que seule : la compter faisait vibrer un swipe inutile.
+        if (!hasBubbleChoice(_state.value.entries.size)) return
         haptics.verticalSwipeStart()
     }
 
-    /** Début du glissement vertical (dès le seuil franchi) : la marche se joue ici,
-     * pas au relâchement — un balayage court emporte son effet, et la sélection ne
-     * peut pas être perdue en route. Un geste = une bulle. */
+    /** Début du glissement vertical : la marche se joue ici (un geste = une bulle), pas
+     * au relâchement — un balayage court emporte son effet. */
     fun onVerticalDragMove(downward: Boolean) {
         if (!active) return
         if (_state.value.recordingVideo) return
         viewModelScope.launch {
             val state = _state.value
-            val total = bubbleCount(state.entries.size, state.introVisible)
+            val total = state.entries.size
             if (state.entries.isEmpty()) {
-                // Seule l'intro : pas de vibration, juste sa relecture.
                 if (state.introVisible) intro.replay()
                 return@launch
             }
@@ -195,8 +202,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(firstSwipeDownDone = step.firstSwipeDownDone) }
                     playSelected()
                 }
-                // Pas de bulle voisine (dont bulle unique) : pas de vibration,
-                // juste la relecture de la bulle courante.
+                // Bulle unique ou bord atteint : pas de vibration, relecture seule.
                 SwipeStep.NoMove -> {
                     if (!hasBubbleChoice(total)) playSelected()
                 }
@@ -245,9 +251,8 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Distances de la photo : la pastille de chaque objet arrive après coup, sans bloquer
-     *  l'affichage ; les mesures gagnent du temps d'écran (photo maintenue plus longtemps).
-     *  Chaque échec est dit dans le chat au lieu de rester muet. */
+    /** Distances de la photo : les pastilles arrivent après coup, la photo reste plus
+     *  longtemps à l'écran, et chaque échec est dit dans le chat au lieu de rester muet. */
     private fun measurePhoto(target: File) {
         viewModelScope.launch {
             when (val outcome = photoDistances.measureOutcome(target, settings)) {
@@ -282,8 +287,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Fin de la tenue : transcription, coupe d'intro éventuelle, puis réponse IA. */
     private suspend fun transcribeAndAnswer() {
         if (!playerIdle()) {
-            // Tenue pendant une lecture : on jette la capture pour ne jamais bloquer
-            // le micro des tenues suivantes, et on l'explique au lieu de rester muet.
+            // Tenue pendant une lecture : capture jetée, micro jamais bloqué, et dit.
             mic.abort()
             _state.update { it.copy(status = "Busy speaking — try again") }
             return
@@ -352,14 +356,16 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    /** Synthèse ElevenLabs du texte ; octets vides si la clé manque (le choix reste dit). */
-    private suspend fun synthesize(text: String): ByteArray =
-        ElevenLabsTtsClient(settings.ttsApiKey, settings.ttsVoiceId)
+    /** Synthèse ElevenLabs ; octets vides si la clé manque ou s'il n'y a rien à dire. */
+    private suspend fun synthesize(text: String): ByteArray {
+        if (!speakableText(text)) return ByteArray(0)
+        return ElevenLabsTtsClient(settings.ttsApiKey, settings.ttsVoiceId)
             .synthesize(text)
             .getOrElse { error ->
                 _state.update { it.copy(status = "Voice: ${error.message ?: "unavailable"}") }
                 ByteArray(0)
             }
+    }
 
     /** La réponse la plus récente est jouée à voix haute dès son arrivée. */
     private suspend fun speakLatestAnswer() {
