@@ -1,32 +1,103 @@
 # Mode US — la GPU SAM 3.1 aux États-Unis
 
-Réglages → section **« GPU SAM 3.1 — région »** : deux boutons **EU · Europe (eu)** et
-**US · États-Unis (us)**. Le choix est persisté (`samRegion`, chiffré comme le reste) et
-s'applique **à tous les écrans** : le Direct (`LiveState.liveBaseUrl`) et l'analyse photo
-(`AppViewModel`).
+Réglages → section **« GPU SAM 3.1 — région »** (`GpuRegionSettings.kt:24`) : un bouton **pleine
+largeur** par région, la région active en couleur pleine (`GpuRegionSettings.kt:51-63`). Libellés
+exacts, lus dans l'enum : « GPU en Europe (eu) » et « GPU aux États-Unis (us) »
+(`SamRegion.kt:19`, `:24`). Le choix est persisté et s'applique au Direct, à la sonde iSee et à
+l'analyse photo (tableau plus bas).
 
 ## Ce que fait le réglage (et ce qu'il ne fait pas)
 
-Il **élit l'endpoint** appelé, il **n'allume aucune carte** :
+Il **élit l'endpoint** appelé, il **n'allume aucune carte** (`SamRegion.kt:6-8`).
 
-| Région | App Modal | Conteneur | Endpoint HTTP |
+| Région | App Modal | Conteneur | Preset d'endpoint (`SamRegion.kt`) |
 |---|---|---|---|
-| EU | `sam3-eu-a100` | `region=eu`, `routing_region=eu-west` | `https://baptiste-faisy--sam3-eu-a100-sam3live-web.eu-west.modal.run` |
-| US | `sam3-us-a100` | `region=us`, `routing_region=us-east` | `https://baptiste-faisy--sam3-us-a100-sam3live-web.us-east.modal.run` |
+| EU (défaut) | `sam3-eu-a100` | `region=eu`, `routing_region=eu-west` | `https://baptiste-faisy--sam3-eu-a100-sam3live-web.eu-west.modal.run` (ligne 21) |
+| US | `sam3-us-a100` | `region=us`, `routing_region=us-east` | `https://baptiste-faisy--sam3-us-a100-sam3live-web.us-east.modal.run` (ligne 26) |
 
-Ordre de résolution (`core/settings/SamRegion.kt::resolveSamEndpoint`) :
+## Ordre de résolution — **corrigé le 25/10**
 
-1. **Base URL SAM 3.1** saisie à la main dans les Réglages (hors preset) ;
-2. preset de la **région** choisie ;
-3. URL injectée au build pour cette région (`sam.base.url` / `sam.us.base.url` de
-   `local.properties`).
+Le code (`core/settings/SamRegion.kt:50-55`) fait, dans cet ordre :
 
-Une URL qui n'est **que** le preset d'une région (injectée par le build, ou persistée par une
-version antérieure) ne compte pas comme une saisie manuelle : elle est effacée au chargement
-(`SettingsSeed.dropPresetUrl`) pour ne pas figer le mode. Sans ça, une install existante
-serait bloquée sur l'EU et la bascule US semblerait sans effet.
+1. **Base URL saisie à la main**, si elle n'est pas un preset (`:51-52`) ;
+2. **URL injectée au build pour la région choisie** — `sam.base.url` pour EU,
+   `sam.us.base.url` pour US (`:53`, injectées en `BuildConfig.SAM_BASE_URL` /
+   `SAM_US_BASE_URL`, `app/build.gradle.kts:68`, `:70`) ;
+3. **preset de la région** — seulement si l'URL du build est vide (`:54`,
+   `injected.trim().ifBlank { samRegion.presetBaseUrl }`).
 
-## Allumer la carte américaine
+⚠️ **Ce que ce document disait avant était faux**, et le commentaire du code l'est aussi : le KDoc
+de `resolveSamEndpoint` (`SamRegion.kt:46-49`) comme celui de `Settings.samEndpoint()`
+(`SamEndpoint.kt:7-8`) annoncent « manuel > preset de la région > URL du build ». L'implémentation
+donne **la priorité à l'URL du build sur le preset**. Conséquences concrètes :
+
+- `sam.base.url` renseigné ⇒ en région **EU** c'est cette URL qui répond, jamais le preset ;
+  idem `sam.us.base.url` en région **US**. Le preset ne sert que de repli quand la clé de la
+  région visée est vide.
+- Si les deux clés portent **la même URL** (cas d'un ancien endpoint commun), la bascule EU/US
+  ne change plus rien à l'appel — et ça ne se voit pas dans les Réglages, puisque « Endpoint
+  actif » affiche justement cette URL.
+- `dropPresetUrl` n'y change rien : il nettoie la valeur **persistée** (`samBaseUrl`), pas les
+  `BuildConfig`.
+
+Pour que les boutons de région pilotent réellement l'appel, ces deux clés doivent donc rester
+**vides**. (Le KDoc est à corriger ; il n'est pas modifié ici, cette mission n'écrit que dans
+quatre docs.)
+
+## Le piège `dropPresetUrl`
+
+Une URL qui n'est **que** le preset d'une région (persistée par une version antérieure) ne doit
+pas compter comme une saisie manuelle : au chargement, `seededFromBuild` l'efface
+(`SettingsSeed.kt:16-25`, `dropPresetUrl` : `if (SamRegion.isPreset(samBaseUrl)) copy(samBaseUrl =
+"")`). Sans ça, une installation existante resterait figée sur l'EU et la bascule US semblerait
+sans effet. La comparaison ignore les espaces et la barre finale (`SamRegion.isPreset`,
+`SamRegion.kt:39-42`).
+
+Le même nettoyage est refait **au moment du clic** : `pickRegion()` efface une `samBaseUrl` qui
+n'est qu'un preset et conserve une URL tapée à la main (`GpuRegionSettings.kt:70-73`). Une saisie
+manuelle gagne donc toujours — c'est voulu, et c'est le seul moyen de viser un autre profil Modal.
+
+## L'UI des Réglages, telle qu'elle est
+
+- Section « GPU SAM 3.1 — région », placée avec le reste des réglages SAM
+  (`SettingsScreen.kt:75`) ; sous les boutons, le rappel : une seule GPU à la fois, allumer la
+  bonne app (`GpuRegionSettings.kt:30-36`).
+- **« Endpoint actif : … »** sous les boutons, calculé avec la vraie résolution
+  (`GpuRegionSettings.kt:37-41`).
+- Champ **« Base URL SAM 3.1 (vide = région choisie ci-dessous) »** (`SettingsScreen.kt:116-117`).
+- **« Tester SAM »** : actif si `samConfigured()` (`SettingsScreen.kt:133`), affiche la région
+  testée — « Test SAM en cours… (EU|US) » (`AppViewModel.kt:284`) — puis « SAM OK — endpoint
+  joignable. » / « SAM KO — … » (`AppViewModel.kt:286-291`).
+- Persistance : `sam_region` dans le store chiffré (`EncryptedSettingsStore.kt:35`, `:63`) et
+  `samRegion` dans le store fichier (`PrivateFileSettingsStore.kt:47`, `:67`, `:94`) ; valeur
+  inconnue ou absente ⇒ **EU** (`SamRegion.fromName`, `SamRegion.kt:31-32`).
+
+## Où la résolution s'applique… et où elle ne s'applique pas
+
+| Chemin | Preuve |
+|---|---|
+| Direct (vidéo en continu) : `liveBaseUrl()` = `samEndpoint()` | `LiveState.kt:125`, `LiveViewModel.kt:112` |
+| Sonde SAM d'iSee (page caméra, WebSocket) | `ProbeWiring.kt:24` |
+| Analyse photo | `AppViewModel.kt:113` (`HttpSamClient(settings.samEndpoint())`) |
+| « Tester SAM » | `AppViewModel.kt:279-285` |
+| `segmentationEnabled` = `resolveSamEndpoint().isNotBlank()` | `Settings.kt:112` — appelé **sans** argument de build, donc c'est le preset qui décide ici |
+| ❌ **Mode tap** : `BuildConfig.SAM31_ENDPOINT` en direct, aucune région | `TapConfig.kt:35`, `TapCaptureScreen.kt:171` (voir `docs/MODE-TAP.md`) |
+| ❌ **Réveil préventif** `prewarmGpu()` : lit `samBaseUrl` brut et **sort si vide** | `AppViewModel.kt:262-272` — or `dropPresetUrl` vide justement `samBaseUrl` en mode région : le réveil préventif ne part donc pas ; le Direct a son propre réveil (`LiveViewModel.kt:134`, `:185`) |
+| ❌ **Spike lunettes** : `Settings(...)` construit depuis `BuildConfig`, SAM = `SAM31_ENDPOINT` | `glasses-spike/…/MainActivity.kt:168-181` |
+
+## Transport depuis iSee : WebSocket uniquement
+
+Le Direct et la sonde iSee passent par **WebSocket `/live/ws`** ; le client HTTP ne sert plus
+qu'à `GET /health` (une requête par session) : `LiveClientFactory.kt:3-8`,
+`LiveViewModel.kt:119-121`, `WsLiveClient.kt:63`, chemin `LIVE_WS_PATH = "/live/ws"`
+(`WsTransport.kt:27`). La pastille de transport affiche « WebSocket » (vert) ou
+« WebSocket KO » (rouge), sans repli (`LiveMessages.kt:23`, `LiveBars.kt:73`,
+`LiveViewModel.kt:450`). Le mode US ne change rien à ce transport : il ne change que la base.
+
+## Allumer la carte américaine (outil hors dépôt)
+
+`~/bin/sam3-gpu-us` vit sur le r630, **pas dans ce dépôt** : non relu ici, non revérifié.
+Commandes telles que documentées le 24/10 :
 
 ```bash
 ~/bin/sam3-gpu-us status                     # app US déployée ? conteneurs ? bail ?
@@ -34,17 +105,25 @@ serait bloquée sur l'EU et la bascule US semblerait sans effet.
 ~/bin/sam3-gpu-us off --reason "fini"        # extinction (app laissée déployée)
 ```
 
-`sam3-gpu-us` est un simple enrobage : `SAM3_APP=sam3-us-a100 SAM3_REGION=us
-SAM3_ROUTING=us-east` autour de `~/bin/sam3-gpu` — mêmes règles, même journal
-(`~/logs/sam3-gpu.log`), même bail extinctif, même watchdog.
+C'est un enrobage `SAM3_APP=sam3-us-a100 SAM3_REGION=us SAM3_ROUTING=us-east` autour de
+`~/bin/sam3-gpu` : même bail extinctif, même journal, même watchdog.
 
-- Premier `on` = **déploiement** puis réveil : cold start ~50 s (poids 20,9 Go + build du
-  predictor 22,3 s). `--warm` attend que `/health` réponde.
-- **Une seule GPU, jamais deux** : `sam3-gpu on` / `sam3-gpu-us on` refusent d'allumer tant
-  qu'un conteneur d'une autre app tourne ; `modal-one-gpu-watch` (r630) ramène à une carte.
-  Donc EU et US ne tournent jamais en même temps : on éteint l'une avant d'allumer l'autre.
-- Coût : `region=us` est une région **large** (×1,15 ; `us-west` serait ×1,75). A100-40GB :
-  2,415 $/h, extinction automatique à la fin du bail.
+- **Une seule GPU, jamais deux** : EU et US ne tournent jamais en même temps, on éteint l'une
+  avant d'allumer l'autre. Côté machine, `modal-one-gpu-watch` (r630) ramène à une carte.
+  Côté app, ce réglage n'allume rien.
+- Coût et cold start (constat **24/10**, hors dépôt, **non remesuré**) : A100-40GB 2,415 $/h ;
+  `region=us` est une région large (×1,15 ; `us-west` serait ×1,75) ; premier `on` = déploiement
+  puis réveil, cold start ~50 s (poids 20,9 Go + build du predictor 22,3 s), `--warm` attendant
+  que `/health` réponde.
+
+## ⚠️ Le conteneur déployé n'est pas reconstructible — ne pas redéployer
+
+État **vérifié le 25/10 côté backend** (rien dans ce dépôt ne le vérifie ni ne le contredit) : le
+conteneur réellement déployé sur `sam3-eu-a100` tourne une image `sam3.1-fast` (avec
+`batch_prompts`, edge appliqué 518) **dont le source n'existe nulle part**. Un redéploiement
+depuis le dépôt écraserait cette image : perte d'environ **235 ms de temps serveur**, plus le
+WebSocket. Donc : **ne pas redéployer l'app EU**. Et toujours une seule GPU allumée, toutes apps
+et tous agents confondus.
 
 ## Vérifier
 
@@ -54,18 +133,30 @@ curl -s https://baptiste-faisy--sam3-us-a100-sam3live-web.us-east.modal.run/heal
 # → {"ok":true,"gpu":"NVIDIA A100-…","region":"us",…}   (réveille la carte si elle dort)
 ```
 
-Dans l'app : Réglages affiche « Endpoint actif : …us-east… » sous les deux boutons ;
-« Tester SAM » appelle `/health` de la région choisie et affiche `(US)` pendant le test.
+Dans l'app : « Endpoint actif : … » sous les deux boutons, et « Tester SAM » avec la région
+affichée (voir plus haut).
+
+## Latence : les chiffres de référence ne sont pas ici
+
+Les mesures de latence du mode EU **et** du mode US datent du **24/10** : elles sont **périmées**
+et ne sont pas reprises dans ce document. La référence vit dans le dépôt **backend**,
+`docs/LATENCE.md` (absent de ce dépôt : `ls docs/LATENCE.md` → absent, mesuré le 25/10) — il est
+cité dans `docs/TESTING.md:69`, qui rappelle les ordres de grandeur : serveur 82-95 ms, A/R PC
+p50 240,1 ms, téléphone 600-710 ms dont ~80 ms non comptés. Ce sont des chiffres **du backend**,
+pas des mesures faites ici, et ils n'ont pas été refaits.
+
+Ce qui reste vrai sans mesure : depuis la France, l'EU garde l'avantage du routage (Dublin) ; le
+mode US sert quand l'Europe est à sec ou indisponible, **pas** pour gagner en latence.
 
 ## Pièges
 
-- **`routing_region` ne se change pas** après le premier déploiement d'une fonction : c'est
-  pour ça que le mode US est une **app distincte** (`sam3-us-a100`) et pas un redéploiement de
-  `sam3-eu-a100` avec d'autres variables.
-- App US non déployée ou arrêtée ⇒ le proxy Modal répond `404 invalid function call` sur
-  toutes les routes ; l'app le traduit en `BackendStopped` (« backend arrêté (404) — relance-le :
-  sam3-gpu on »).
-- Depuis la France, l'EU reste plus rapide (routage Dublin) : le mode US sert quand l'Europe
-  est à sec ou indisponible, pas pour gagner en latence.
+- **`routing_region` ne se change pas** après le premier déploiement d'une fonction : d'où une
+  **app distincte** (`sam3-us-a100`) plutôt qu'un redéploiement de `sam3-eu-a100` avec d'autres
+  variables.
+- App US non déployée ou arrêtée ⇒ le proxy Modal répond `404 invalid function call` sur toutes
+  les routes ; l'app le traduit en `BackendStopped` (« backend arrêté (404) — relance-le :
+  sam3-gpu on ») — `core/…/net/Errors.kt:35`, `Http.kt:67`.
 - Le preset suppose le profil Modal `baptiste-faisy`. Un autre profil ⇒ mettre l'URL dans
-  « Base URL SAM 3.1 » (elle gagne sur le preset).
+  « Base URL SAM 3.1 » (elle gagne sur tout le reste).
+- Une URL du build (`sam.base.url` / `sam.us.base.url`) gagne sur le preset : voir le premier
+  piège de ce document.

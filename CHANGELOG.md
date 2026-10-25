@@ -1,26 +1,125 @@
 # CHANGELOG — sam-vision-kotlin
 
-## 2026-10-25 (12) — l'application s'appelle iSee
+> **Numérotation** : l'entrée **(11)** — « retour à 8 objets à l'écran par défaut » (`04e7f7c`,
+> 25/10 19:34) — existe déjà sur `origin/master` mais pas dans la base de ce worktree (`8f9876a`) :
+> elle n'est **pas dupliquée** ici. (12) à (17) = un chiffre par bullet, une sha par fait.
 
-- **Nom affiché** : `app_name` passe de « iHear » à « iSee » (étiquette du lanceur, manifeste),
-  avec le titre de l'en-tête du chat et le message « iSee needs the camera. ».
-- **Documentation** : README, AGENTS, `docs/` et CHANGELOG parlent d'iSee.
-- **Inchangé volontairement** : le package `dev.sam3vision.app.ihear`, les classes `Ihear*`, les
-  noms de fichiers et le dossier de cache `cacheDir/ihear` gardent leur nom — rien de visible.
-  `IHEAR_INTRO_TEXT` et la phrase « Disable iHear intro » restent mot pour mot celles du MP3
-  embarqué (`intro_ihear.mp3`) : l'intro audio dit donc encore « iHear » jusqu'à régénération de
-  la voix (`docs/ELEVENLABS-TTS.md`).
+## 2026-10-25 (12) — iSee : la liaison caméra ne dépend plus de la bulle média (`9856d9e`, #139, 19:34)
 
-## 2026-10-25 (11) — retour à 8 objets à l'écran par défaut
+- **Symptôme mesuré sur le téléphone** (build `1.0.139`) : « Lifecycle unavailable » puis « Camera not
+  ready » au premier tap — `bind()` cherchait le cycle de vie **dans l'arbre de vues** de l'aperçu
+  (`findViewTreeLifecycleOwner`), alors que la bulle média n'est composée qu'une fois l'enregistrement
+  demandé : l'aperçu n'était pas encore à l'écran.
+- **`bind(owner: LifecycleOwner)`** prend le cycle de vie de l'**activité** ; l'aperçu se montre quand
+  la bulle apparaît (commentaire `IhearCameraPane.kt:95-106` **tel que publié par `9856d9e`** — la
+  base de ce worktree, `8f9876a`, porte encore l'ancien `bind()` sans argument).
+- **`CameraGlue` porte la `PreviewView`** (`glue.preview`, créée à la liaison) ; `IhearCameraWindow`
+  ne se rappelle plus `newPreviewView`, la bulle se contente de la montrer. 2 fichiers, +28/−10
+  (travail : `fccd744`).
 
-- `ObjectLimits.DEFAULT_ON_SCREEN` : **4 → 8** (demande user du 25/10, déjà consignée
-  alors que #106 avait fixé 4). Bornes 1..12 inchangées, réglage − / + toujours dans Réglages.
-- Conséquence côté direct : `max_objects` envoyé à `/live` / `/live/ws` vaut 8 par défaut ;
-  côté photo : `AnalyzeUseCase` garde 8 objets.
-- Côté appareil : la valeur est **persistée** dans les réglages chiffrés — un téléphone
-  déjà réglé à 4 le reste jusqu'à appui sur + ou Enregistrer (défaut = valeur absente).
-- Tests mis à jour : `ObjectLimitsTest`, `LiveSessionTest`, `UseCasesTest` (12 objets entrés,
-  8 conservés).
+## 2026-10-25 (13) — iSee : la sonde passe au WebSocket et ses stats cessent de mentir (`8f9876a`, #136, 19:20)
+
+- **Fabrique unique `liveClient()`** (`core/…/net/LiveClientFactory.kt` + `LiveClientFactoryTest`) :
+  `WsLiveClient` d'abord, repli `POST /live` au premier échec structurel — Direct et page caméra iSee
+  partagent le même chemin (9 fichiers, +223/−25).
+- **Le handshake reprend le délai de la frame** (session froide 60 s, `LiveProbe.kt:406`) : figé à 10 s
+  il échouait pendant les 26–50 s de réveil et le repli HTTP devenait définitif pour la session
+  (`564123d`, `d20f5db`, `7b6e41f`).
+- **`FrameRate`** (nouveau, fenêtre glissante de 8 instants, `DEFAULT_WINDOW = 8`) : la cadence se
+  compte **à l'envoi**, plus à la réponse — le panneau affichait « 40,0 ips · 17192 ms · 2 frames »
+  après un réveil (deux frames finies à 25 ms d'écart). La frame de réveil (17 s en WS contre 40 s en
+  HTTP, commentaire `LiveSession.kt:96-99`) sort des stats et le régulateur attend **3 mesures**
+  (`REGULATE_MIN_SAMPLES`, `LiveSession.kt:147`).
+- **`transport : WebSocket` / `WebSocket KO`** dans le détail, branché sur `LiveSession.socketOpen` →
+  `WsLiveClient.isConnected` (`LiveProbe.kt:323`) : plus de libellé collé. **Trou de couverture** :
+  `LiveProbeTextTest` n'assertionne pas cette ligne (vérifié à `8f9876a`).
+
+## 2026-10-25 (14) — Direct : `/live/ws` seul, plus aucun POST pour les frames (`973d256` 17:37, `98a1f08` #137 19:01)
+
+- `973d256` (13 fichiers, +725/−24) : **`WsTransport`** (interface + impl OkHttp, injectable → tests
+  JVM sans réseau) et **`WsLiveClient`** (140 l.) — corrélation par **`id`**, **une file par `id` et
+  non FIFO** : réponses dans le désordre tolérées, message sans `id` correspondant ignoré
+  (`WsLiveClient.kt:14-16,39-56`) ; `parseLiveFrame` partagé avec le client HTTP ; pastille de transport.
+- `98a1f08` = **#137**, demande user du 25/10 (« websocket de base et plus de post ») : `AutoLiveClient`
+  et son repli HTTP supprimés avec leurs 9 tests (+88/−250). Sans repli la panne se voit : « WebSocket
+  /live/ws injoignable » et pastille **« WebSocket KO »** (`LiveMessages.kt:20,23`). Seul appel HTTP
+  restant : `GET /health` (réveil), délégué par `WsLiveClient`. **`close()` remet `isConnected` à zéro**
+  (test `isConnected_reflete_l_etat_du_socket`) ; `LiveViewModel` 502 → 469 lignes annoncées (468 au
+  `wc -l`), textes extraits dans `LiveMessages.kt` (garde 500 lignes). 427 tests verts annoncés.
+- **Gains mesurés en prod le 25/10** : aller-retour médian **159 ms en WS contre 173 ms en POST**
+  (message de `973d256`) ; **serveur 50,3 ms contre 81,4 ms, soit ~31 ms par frame**
+  (`WsLiveClient.kt:11`, repris `LiveClientFactory.kt:7-8`). Sont **périmés** : les chiffres non datés
+  encore lus à la base de ce worktree dans `docs/TESTING.md` (« 208 ms contre 435 ms », « p95 228 contre
+  495 ») et l'historique du 24/10 (294–298 ms serveur, A/R 472–503 ms eu-west, 1 107–1 115 ms us-east).
+- ⚠️ **Le conteneur déployé n'est pas dans les dépôts** : `/live/ws` ne figure dans **aucun** dépôt
+  backend. `sam3-eu-a100` tourne sur un build `sam3.1-fast` (`levers.batch_prompts = true`, edge appliqué
+  **518**) **dont le source n'existe sur aucune machine**, alors que `master` du backend répond
+  `model: sam3.1` sans ces leviers. **Ne rien redéployer** : on perdrait ≈ **−235 ms de serveur**
+  (340 ms → 90–95 ms) **et le WebSocket** (`docs/LATENCE.md` de `75a6267`, `docs/TESTING.md`). Le WS est
+  donc un contrat serveur **non versionné** : à réécrire dans le dépôt avant toute reconstruction.
+
+## 2026-10-25 (15) — iSee : les chiffres posés par #135 sans être écrits (`3e61a57`, 18:43, 30 fichiers +1480/−104)
+
+Les entrées (4), (9) et (10) disent les masques, les distances et la voix ; la cadence et la frame de
+cette même fusion n'étaient pas chiffrées.
+
+- **Frame iSee 448 px / q55** (`IhearCameraPane.kt:37,40`) : l'encodage et l'upload sont le vrai coût,
+  pas le serveur ; le Direct garde **512 px / q65** (`LiveScreen.kt:47-48`). **Coquille relevée** :
+  l'entrée (4) ci-dessous annonce « 512 px, q65 » pour la page caméra d'iSee — le code de `3e61a57`
+  comme celui de HEAD disent 448 / q55 ; le texte historique n'est pas réécrit.
+- **`Cadence.Fast`** (`LiveSession.kt:41-47`) : plus de plancher (`fastMs = 0`), 2 créneaux possibles
+  (`FrameGate.capacity` réglable), **budget de latence 200 ms** avec hystérésis (`RELAX_RATIO = 0,5`) —
+  mesuré 115 ms de GPU mais 344 ms de latence à deux en vol : le backend sérialise, donc le régulateur
+  referme à 1 créneau (carte à ~55 % avec un seul créneau, d'où l'essai à 2).
+- **Le REC réveille la carte** (`LiveProbe.wake()` : `/health` 6 essais espacés de 10 s) et dit pourquoi
+  il n'y a pas encore de masque (« réveil du GPU SAM… », « en attente de la première analyse… ») ;
+  **premier `/live` patient à 60 s** ; encodage JPEG **pendant** la requête précédente (cycle =
+  `max(encodage, requête)` au lieu de la somme) ; plafond d'objets pris des Réglages.
+- **Huit concepts par défaut** (`LivePrompts.Default`) : mesure du 25/10 sur `/live` (5 tirs par point,
+  même image, 4 objets max) — 2 concepts = 118 ms médian, 8 concepts = 118 ms : l'app déployée batche
+  les prompts, les huit sont gratuits (`LivePrompts.kt:13-19`) ; le panneau affiche « suivis (N) » en
+  plus de « reconnus ».
+
+## 2026-10-25 (16) — iSee : la caméra vit dans une bulle du chat (`7c9af29`, 18:31, 8 fichiers +222/−94)
+
+- L'aperçu n'est plus une fenêtre flottante : **une bulle du chat** (aperçu vidéo, photo + pastilles),
+  avec liaison composée en permanence. C'est ce changement d'ordre de composition que #139 répare
+  (entrée (12)).
+- **Intro** : l'écrit reste toujours premier message, seule sa voix se coupe ; à bulle unique le swipe
+  vertical **relit** la bulle, sans vibration, avec son icône.
+- **Statuts** : les échecs SAM sur photo s'expliquent en statut au lieu du silence ; pendant une
+  lecture le micro est jeté proprement avec son statut (fini le micro bloqué) ; textes en anglais.
+- Porté deux fois : `8d36556` est le même travail sur la branche (doublon, message identique).
+
+## 2026-10-25 (17) — latence : livré **en branche**, pas sur master (`e7b95b0` app, `75a6267` backend)
+
+À lire comme du travail livré sur `feat/latency-ms`, **non fusionné** : aucune de ces briques n'est
+dans ce worktree (vérifié à `8f9876a` : pas de `LiveTimings.kt`, pas de `bits` / LUT / `ALPHA_8` /
+`canAcceptFrame` dans `core/…/mask`). Ne pas les documenter comme acquises.
+
+- **app `e7b95b0`** (25/10 19:09, 28 fichiers, +1561/−136, 396 tests annoncés) : cadence
+  `(averageMs / 4).coerceIn(50, 250)` sans plancher à 500 ms (−164 ms/cycle au poste fixe, −42 ms au
+  téléphone) ; OkHttp **partagé** (connect 3 s, write 5 s, read 60 s, `callTimeout` 0 — réveil mesuré
+  26,8 s), corps **one-shot** (fin du re-POST) ; masques par table de 256 niveaux, PNG décodé en
+  `ALPHA_8`, codec **`bits`** (M1 + zlib) avec repli PNG ; admission de frame **avant** conversion
+  (`canAcceptFrame` : 28 frames sur 30 étaient converties puis jetées) ; `LiveTimings` / `TimingsText`
+  poste par poste — la latence affichée ne sous-estime plus d'~80 ms.
+- **backend `75a6267`** (25/10 19:09 ; `master` backend = `9c40bb3`) : codec `bits` serveur (0,165 ms
+  et 166 o par masque contre 1,015 ms et 504 o en PNG), `mask_encoding` (défaut `png`, contrat des APK
+  installés), tri et troncature avant encodage, dédup des alias FR/EN, cache d'embeddings texte,
+  découpe `prepare`/`encode_vision`/`run_concepts`/`finalize`, décodage **hors** verrou GPU,
+  `@modal.concurrent(max_inputs = 2)`, `scaledown_window` 120 s (les 23,6 s de réveil après pause),
+  `timings` JSON + en-tête `Server-Timing`, `scripts/bench_latency.py`, `test_units.py` scindé (153 OK).
+- **Référence des chiffres : `docs/LATENCE.md`**, présent **seulement** dans `75a6267` (absent du
+  working tree `master`) — serveur **82–95 ms (p50 91)**, A/R PC **p50 240,1 ms** (min 142,6),
+  réseau + file **p50 150,1 ms**, frame **34,1 Ko** (27 ↑ + 7 ↓), téléphone **600–710 ms dont ~80 ms
+  non comptés**, TLS + DNS 67,4 ms, réveil **23,6 s**. Leviers serveur : « code livré, **non déployé** » ;
+  le cumul annoncé (−250 à −300 ms perçus, dont −235 ms serveur) attend un déploiement interdit
+  (⚠️ entrée (14) et règle « une seule GPU Modal »).
+- **Faux gains mesurés, à ne pas refaire** (`docs/LATENCE.md`) : gzip/zstd/br sur la réponse
+  (−40 % d'octets = 0,12 ms à 192 Mbit/s), réduire le payload montant (27 Ko = 1,15 ms), PNG 1 bit /
+  RLE / masques à résolution réduite (`bits` est sans perte), `work_edge` client sur le build déployé
+  (refusé, edge figé 518), `?timing=1` (sans effet), JPEG natif CameraX (absent de CameraX 1.6.0).
 
 ## 2026-10-25 (10) — tout dans une seule app : masques, distances et voix dans la fenêtre caméra
 
@@ -318,263 +417,7 @@
   `VoiceSwitches`). Recette émulateur sans GPU jouée (faux `/live`) : sous-titre + MediaPlayer
   MP3 actif, silence bascule coupée. Détail : `docs/ELEVENLABS-TTS.md`, `docs/TESTING.md`.
 
-## 2026-10-24 — un tap lance la vidéo, un appui long parle (les deux ensemble)
 
-- **Tap sur l'aperçu de Capture = mode vidéo, enregistrement lancé d'office.** Le bouton
-  « Vidéo (tap) » reste l'entrée explicite (sans auto-démarrage, pour se placer). Le tap est
-  classé au lever par `core/gesture/TapOrHold` avec les seuils de l'appui long (300 ms,
-  ~8 dp) : un appui tenu ne déclenche donc jamais la vidéo, et les commandes au-dessus
-  gardent leurs taps.
-- **Appui long = voix, y compris pendant la vidéo.** Android n'autorisant qu'un `AudioRecord`
-  par app, la vidéo renonce à sa piste audio (`TapConfig.VIDEO_WITH_AUDIO = false`) :
-  l'analyse demandée à SAM 3.1 est visuelle, et le micro reste libre pour la dictée.
-  `MicBus` continue d'arbitrer (le mode tap ne réserve le micro que si l'audio revient).
-- **Rappel visible** sur l'accueil : « Tap : vidéo · Appui long : parler ».
-- Recette sur téléphone réel (1220×2712, API 35) : tap → « Enregistrement » ; appui long
-  pendant l'enregistrement → « J'ÉCOUTE » puis « DICTÉE : [clicking] » (le micro a bien
-  capté pendant que la vidéo tournait) ; second tap → « Échec — endpoint SAM 3.1 vide »
-  (aucun envoi, l'endpoint n'est pas configuré). 156 tests JVM verts (122 `core` + 34 `app`,
-  +4 `TapOrHoldTest`), `assembleDebug` vert.
+## Historique antérieur au 2026-10-25
 
-## 2026-10-24 — intro vocale d'accueil (voix Jade US), jouée une fois et sur appui
-
-- **Intro embarquée.** `app/src/main/res/raw/intro_ihear.mp3` (voix **Jade US**
-  `TOXPlnYC7z5SQSV2Zgc5`, MP3 44,1 kHz mono, ~22 s) est livrée dans l'APK : aucune clé
-  ElevenLabs, aucun réseau. `IntroAudio` recopie l'asset une fois dans `cacheDir/intro`
-  (`MediaPlayer` ne lit qu'un chemin).
-- **Un seul lecteur.** L'intro passe par le `SpeechPlayer` du TTS (`playFile`) : toute
-  lecture de réponse coupe l'intro, et inversement. Aucun second lecteur audio.
-- **Premier lancement, sur geste explicite.** Écran de garde tactile tant que
-  `Settings.introPending` (intro autorisée et pas encore entendue) ; l'appui joue l'intro
-  et persiste `introPlayed`. Bascule **« Intro à la 1re ouverture »** dans Réglages
-  (`introToggleLabel`, `introGateVisible` : logique pure testée). Les deux stores
-  (`EncryptedSharedPreferences`, fichier privé AES/GCM) persistent `introEnabled` et
-  `introPlayed` ; un réglage d'avant l'intro garde l'intro active.
-- **Découpage en phrases réutilisable** (`core/audio/SentenceChunker`,
-  `core/usecase/SpeechUseCase`, `SpeechCache` LRU 6 entrées) : une phrase par requête
-  ElevenLabs, rejouer une réponse ne re-consomme pas de caractères. Testé en JVM.
-- Tests : `settings.SettingsIntroTest` 6, `core.audio.SentenceChunkerTest`,
-  `core.usecase.SpeechUseCaseTest`, `app.UiLogicTest` +2 → **185 `core` + 45 `app`** verts,
-  `assembleDebug` OK, `tools/check-kotlin-limits.py` OK.
-- Docs : `docs/ELEVENLABS-TTS.md` (contrat, Jade US, intro), `docs/TESTING.md` (recette
-  d'intro), `README.md`.
-
-## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
-
-- **Le gate ne dit plus « intervention humaine » et s'arrête là.** Sur
-  `mergeable_state = dirty`, `gate.py` saisit l'agent `hermes` du daemon ZeroClaw
-  (provider `custom.inferhub_ci` → `https://api.inferhub.dev/v1`, modèle `combo/cheap`)
-  via A2A `POST /a2a/hermes` sur la machine du runner, **en processus détaché** pour
-  rester sous les 5 min de `ci-budget`.
-- L'agent rebase la branche de la PR, résout en gardant les deux intentions, valide
-  (`:core:test`, `:app:testDebugUnitTest`, `assembleDebug`), pousse en
-  `--force-with-lease` sur la branche de la PR et commente son compte rendu. Ni merge,
-  ni `master`, ni gardes. 3 tentatives puis `hermes/intervention-humaine`.
-- **Garde-fous** : une saisine par tête de PR (empreinte + cooldown 20 min), plafond de
-  3 saisines par période, fork ignoré, labels `hold`/`hermes/intervention-humaine`
-  respectés, `vars.HERMES_AGENT_RESOLVE=0` coupe tout, tout échec d'agent se traduit par
-  un commentaire et jamais par une CI rouge.
-- Fichiers : `.github/hermes/conflict_agent.py` (nouveau, stdlib seule),
-  `.github/hermes/gate.py` (escalade unifiée `escalate()`), `.github/workflows/hermes-lite.yml`
-  (env), `docs/CI-QUEUE.md` (section « Conflit : l'agent hermes ouvre un chat ZeroClaw »).
-## 2026-10-24 — hermes : un conflit ouvre un chat ZeroClaw (InferHub)
-
-- **Le gate ne dit plus « intervention humaine » et s'arrête là.** Sur
-  `mergeable_state = dirty`, `gate.py` saisit l'agent `hermes` du daemon ZeroClaw
-  (provider `custom.inferhub_ci` → `https://api.inferhub.dev/v1`, modèle `combo/cheap`)
-  via A2A `POST /a2a/hermes` sur la machine du runner, **en processus détaché** pour
-  rester sous les 5 min de `ci-budget`.
-- L'agent rebase la branche de la PR, résout en gardant les deux intentions, valide
-  (`:core:test`, `:app:testDebugUnitTest`, `assembleDebug`), pousse en
-  `--force-with-lease` sur la branche de la PR et commente son compte rendu. Ni merge,
-  ni `master`, ni gardes. 3 tentatives puis `hermes/intervention-humaine`.
-- **Garde-fous** : une saisine par tête de PR (empreinte + cooldown 20 min), plafond de
-  3 saisines par période, fork ignoré, labels `hold`/`hermes/intervention-humaine`
-  respectés, `vars.HERMES_AGENT_RESOLVE=0` coupe tout, tout échec d'agent se traduit par
-  un commentaire et jamais par une CI rouge.
-- Fichiers : `.github/hermes/conflict_agent.py` (nouveau, stdlib seule),
-  `.github/hermes/gate.py` (escalade unifiée `escalate()`), `.github/workflows/hermes-lite.yml`
-  (env), `docs/CI-QUEUE.md` (section « Conflit : l'agent hermes ouvre un chat ZeroClaw »).
-## 2026-10-24 (voix)
-
-- **Voix ElevenLabs dans l'app** (`feat/jade-tts`) : la description d'analyse et les
-  réponses du chat se lisent à voix haute. Voix par défaut **Jade US**
-  (`TOXPlnYC7z5SQSV2Zgc5`, ID du compte vérifié en réel), modèle `eleven_v3`,
-  MP3 44,1 kHz. Nouveau `ElevenLabsTtsClient` (pur JVM), `SentenceChunker` (découpage en
-  phrases), `SpeechUseCase` + cache LRU 6 réponses, lecture `MediaPlayer` avec cache
-  disque, boutons « Lire / Stop » (Chat, Analyse), interrupteur « Haut-parleur »,
-  champs Réglages (clé, voix, modèle) et « Tester la voix ElevenLabs ». Migration douce :
-  l'ancien défaut Rachel (`21m00Tcm4TlvDq8ikWAM`, `eleven_turbo_v2`) et la première Jade
-  essayée (`g7LVvkPWALzPxOQbF6OE`, voice library) deviennent Jade US,
-  une voix choisie par l'utilisateur n'est pas touchée. 30 tests JVM ajoutés côté `:core`
-  (109 core + 7 app au total), `assembleDebug` vert, garde-fou limites OK. Détail :
-  `docs/ELEVENLABS-TTS.md`. Contrat HTTP vérifié en réel sur le compte du 24/10
-  (HTTP 200 `audio/mpeg` pour `TOXPlnYC7z5SQSV2Zgc5`) ; pas de recette émulateur depuis
-  ce serveur.
-
-## Merge `master` → `longpress-muse-dictation` (2026-10-24)
-
-Les deux lignes de features coexistent, sans doublon ni régression :
-- **Mode tap + annonces + purge horaire** (master) et **dictée par appui long + repli Scribe**
-  (branche) sont câblés dans le même `AppViewModel` : `Route.Tap` et le bandeau de dictée
-  partagent la racine `AppNav`, `LongPressRootLayout` reste la vue racine de `MainActivity`
-  (`onHoldStart`/`onHoldEnd`, permission micro au lancement, refus annoncé par `onMicDenied`).
-- **Une seule classe par moteur ElevenLabs** : `ElevenLabsTtsClient` sert à la fois au chat
-  (`speak` + `SpeechPlayer` version master, `play`/`playFile`) et aux bandeaux de dictée
-  (`VoiceAnnouncer`). La clé des réglages alimente la voix **et** le repli Scribe
-  (`FallbackSpeechClient`, `ApiError.AllProviders` quand les deux moteurs tombent).
-- **Réglages** : section Voix ElevenLabs (clé, voix, autoplay, « 🔊 Tester la voix ») **et**
-  section Dictée Meta (base URL, clé, modèle, « Tester la dictée Meta »). Les trois clés ASR
-  traversent désormais aussi le codec du fichier privé (`SettingsAsrTest`, 2 tests).
-- Découpage tenu : la dictée sort de `AppViewModel` dans `DictationFeature.kt` (163 l., ViewModel
-  395 l.), helpers `RouteContent`, `BackendFields`, `SettingsActions` ; `tools/check-kotlin-limits.py` OK.
-- Ce merge intègre aussi le correctif tap ci-dessous (envoi au relâchement) : la branche
-  contient maintenant toute la pointe de `master`.
-
-## Correctif tap court — envoi au relâchement (2026-10-24)
-
-Signal user : « quand je lâche, ça n'envoie pas ». Reproduit et corrigé.
-
-- **Le second tap était avalé** : `GestureDetector.onSingleTapConfirmed` attend le délai
-  double-tap (~370 ms) et ne se déclenche pas sur deux taps rapides (Journal logcat :
-  `onSingleTapUp` puis `onDoubleTap`, aucun `onSingleTapConfirmed`). L'action part désormais du
-  **relâchement** (`ACTION_UP` court, non glissé, non appui long) — seuils `ViewConfiguration`
-  par défaut conservés, appui long et glissement toujours sans effet.
-- **Deux taps à ~200 ms produisaient une vidéo nulle** : CameraX finalise en erreur 8 avec 0
-  octet sous ~300 ms. `MIN_RECORDING_MS = 350`, et un tap trop tôt est **remisé** puis exécuté
-  par le battement dès la durée exploitable (rien n'est ignoré, rien n'est perdu).
-- **Fichier lu trop tôt** : l'attente de `VideoRecordEvent.Finalize` (`stopAndAwait`, 4 s max)
-  a été réparée — le `CompletableDeferred` de la prise est désormais passé à son propre callback,
-  il n'était plus complété et l'envoi attendait le timeout puis déclarait « aucune vidéo à envoyer ».
-- Recette émulateur rejouée : double tap rapide → « Envoyé » ; tap, pause 2 s, tap → « Envoyé » ;
-  maintien 400 ms puis relâchement → enregistrement puis envoi ; appui long 900 ms, glissement et
-  tap dans la barre de navigation → **rien**. 28 tests JVM `:app` + 82 `:core` + 6 instrumentés verts.
-
-## Tap court vidéo + purge horaire (2026-10-24)
-
-- **Mode tap court** (`app/.../tap/`, `docs/MODE-TAP.md`) : un tap n'importe où lance
-  l'enregistrement caméra arrière (CameraX `VideoCapture`, `Quality.HD`, audio inclus), le
-  second l'arrête et l'envoie à **SAM 3.1** en `multipart` (`POST {endpoint}/video`). Geste =
-  `GestureDetector` aux seuils par défaut (tap court ≠ appui long ≠ glissement), barre de
-  navigation système jamais déclenchante, TalkBack servi par `performClick()`.
-- **Annonces ElevenLabs** : trois mots, rien d'autre — `Launched` / `Sent` / `Failed`
-  (`AnnouncementPlayer`, liste blanche `announcementAllowed`). Clips pré-générés dans
-  `filesDir/announcements/*.mp3` (vérifié sur émulateur) ; lecture locale sans focus audio,
-  donc jamais sur la piste vidéo. Réseau > 500 ms ⇒ mot tu une fois, cache rempli en tâche de fond.
-- **Purge horaire silencieuse** (`app/.../cleanup/`, `docs/NETTOYAGE.md`) :
-  `CaptureCleanupWorker` (WorkManager, 1 h, `KEEP`, aucune contrainte réseau) supprime les
-  images/vidéos du **seul** stockage privé de l'app (`CapturePaths`), plus les entrées
-  MediaStore **tracées dans Room** (`traced_captures`, sélection `_ID` + `OWNER_PACKAGE_NAME`,
-  jamais de plage de dates). Fichier en cours d'écriture (mtime < 60 s) reporté, dé-sync
-  MediaStore ignorée sans planter, bilan journalisé (`cleanup.log`). Config : `CleanupConfig.kt`.
-- **Captures recentrées dans le privé** : `newCacheFile` écrit désormais dans
-  `getExternalFilesDir(PICTURES)` (`CapturePaths`), le cache n'est plus un angle mort du nettoyage.
-- Dépendances ajoutées : `camera-video` 1.6.0, `work-runtime-ktx` 2.12.0, `room` 2.8.5 (+ KSP
-  2.2.21-2.0.5), `androidx.test` 1.7.0/1.3.0. Schéma Room exporté dans `app/schemas/`.
-- Tests : +8 client vidéo (`:core`, 82 au total), +16 JVM (`:app` tap/zones/scanner/machine, 26 au total), +6 instrumentés
-  (`CaptureCleanupTest`, dont les 3 preuves demandées) — tous verts. `assembleDebug` APK 18 Mo.
-
-## Voix ElevenLabs (2026-10-24)
-
-- **Réponses lues automatiquement** : une réponse du chat est synthétisée puis jouée dès son
-  arrivée (réglage `ttsAutoplay`, activé par défaut, interrupteur dans Réglages). Recette
-  émulateur jouée : question → « voix en cours… » → « lecture en cours… » → « voix OK ».
-- **Lecture à voix haute ElevenLabs (TTS)** : `core/net/ElevenLabsTtsClient.kt` (MP3 via
-  `executeBytes`, erreurs typées dont `ApiError.PaymentRequired` sur 402), bouton « 🔊 » sur
-  la description et les réponses du chat (`SpeakRow` partagé), section « Voix ElevenLabs »
-  dans les Réglages, lecture `MediaPlayer` sans dépendance ajoutée.
-  Réglages persistés (`tts_api_key`, `tts_voice_id`) avec rétro-compatibilité.
-  Tests : 7 client + 2 persistance côté `:core`, 5 logique voix côté `:app` — tous verts.
-  Voix par défaut **Sarah** (`EXAVITQu4vr4xnSDxMaL`), modèle `eleven_v4_turbo` : le TTS
-  fonctionne sur le compte free, seules les voix de bibliothèque (ex. Rachel) répondent 402.
-
-## 2026-10-24 — mémoire du direct : on peut interroger ce que la caméra a vu
-
-- **Le flux filmé laisse une trace.** Chaque frame analysée par `/live` est consignée dans
-  `core/.../live/LiveTimeline.kt` : anneau de 60 s (600 frames maximum), boîtes normalisées
-  0..1 et **identité stable** — un objet qui reste à la même place garde son numéro d'une
-  frame à l'autre (même label + centre à ±0,18 de largeur ; piste oubliée après 2,5 s sans
-  apparition, donc un objet qui revient est une nouvelle piste).
-- **Le journal devient le contexte du LLM.** `LiveTimeline.summary(from, to)` agrège une
-  fenêtre (première/dernière vue, position, nombre d'images) et `TimelineText` la met en
-  français avec des heures **relatives** : « « personne » (suivi n°1) : à gauche, vue la
-  dernière fois il y a 3 s, apparue il y a 9 s, présente sur 5 image(s) ». `LlmClient.ask`
-  et `AskUseCase.invoke` acceptent un `context` optionnel, envoyé en second message système
-  avec une consigne dédiée : la question porte sur l'image présente **et** sur ce qui précède.
-- **Écran Direct** : « Poser une question » ouvre le panneau mémoire (`LiveMemoryPanel.kt`) —
-  pastilles des objets suivis (« personne · il y a 3 s », horloge rafraîchie chaque seconde),
-  choix de l'instant (« maintenant », « il y a 5 s », « 15 s », « 30 s », fenêtre ±2,5 s),
-  champ de question, attente, réponse. « Analyser la frame » garde l'ancien Chat photo.
-- **Fenêtre envoyée au modèle** : 30 s de journal + la fenêtre demandée, plus la dernière
-  image analysée (celle qui a produit la détection courante, et non la frame en attente).
-- Tests : `LiveTimelineTest` 9, `TimelineTextTest` 7, `LiveMemoryFlowTest` 2,
-  `UseCasesTest` +2 (contexte transmis / absent), `LiveStateTest` +4 → **108 core + 12 app**
-  verts, `assembleDebug` OK, garde de taille OK.
-- **`gradle.properties`** : le chemin en dur du JDK 17 (déjà refusé par la CI « pas de
-  java.home codé en dur ») part — `JAVA_HOME` fait le travail, ici comme sur le worker.
-- Reste ouvert : écrire le journal sur disque (revoir une session après coup), et brancher
-  la mémoire sur le tracker (`TrackRunner`, ids serveur) quand l'endpoint `sam3-track` tourne.
-
-## 2026-10-24
-
-- **Voix 100 % ElevenLabs + repli de dictée** (`longpress-muse-dictation`) : le TTS système
-  est supprimé (`SystemSpeech` → `VoiceAnnouncer`, MP3 ElevenLabs lu par MediaPlayer).
-  La dictée essaie Meta puis, en cas d'échec, ElevenLabs Scribe (`ElevenLabsSttClient`,
-  `FallbackSpeechClient`) ; la clé ElevenLabs des réglages sert aux deux. Téléphone :
-  chaîne complète validée (Meta 402 → Scribe transcrit → voix).
-
-- **Dictée par appui long Muse Transcript** (`longpress-muse-dictation`) : appui long
-  ~300 ms n'importe où sur la surface de l'app (hors boutons et barre de navigation
-  système) = enregistrement sans limite de durée ; au relâchement, l'audio part
-  directement vers Meta `muse-voice-transcribe-1.0` et le texte s'affiche en gros
-  caractères + lu par le TTS système. Machine à états `LongPressTrigger` (10 tests JVM),
-  vue racine interceptante `LongPressRootLayout`, façade moteur `MuseTranscript`,
-  permission micro demandée au 1er lancement (refus annoncé à la voix).
-  Recette émulateur 7/8 points OK (le 8ᵉ, refus micro, à rejouer sur téléphone sans
-  moteur TTS) — voir `docs/TEST-LONGPRESS-DICTEE.md`.
-
-- **Dictée vocale Meta Muse dans le Chat** (`feat/muse-dictation`) : bouton « Dicter »,
-  micro 16 kHz mono (60 s max, PCM en mémoire seulement), client `MetaAsrClient`
-  (`POST https://api.meta.ai/v1/asr/transcribe`, multipart `request` + `audio`), texte inséré
-  dans le champ de question. Réglages : base URL / clé / modèle ASR + « Tester la dictée Meta ».
-  15 tests JVM ajoutés (79 core + 4 app), `assembleDebug` vert, recette émulateur jouée.
-  **Blocage externe** : le compte Meta n'a pas de moyen de paiement → `402
-  billing_not_configured` sur tout appel ; la trajectoire est validée jusqu'à cet code
-  (plus de `400 Malformed multipart` — OkHttp ajoutait un `Content-Length` par part).
-  Détail : `docs/META-ASR.md`.
-- **Capture : le bouton « Direct (vidéo) » ouvre l'écran Direct** — un tap sur l'aperçu
-  lançait le Direct dans la pile d'origine (`StartLiveOnTap`) ; master a depuis donné ce
-  geste au mode vidéo tap, gardé ici. Le Direct reste accessible par son bouton dédié, à
-  côté de « Vidéo (tap) » (`CaptureScreen.kt`).
-- **Correctif : le mode Direct pointait sur une app Modal disparue** — l'URL
-  `baptiste-faisy--sam3-live-sam3live-web.us-east.modal.run` répond `404 modal-http: invalid
-  function call` sur tous les chemins (app `sam3-live` non déployée). Le backend vivant est
-  l'app `sam3-eu-a100` (A100-40GB, eu-west) : `sam.base.url` corrigé, URL documentée dans le
-  README avec la commande `modal` qui la donne. Vérifié sur téléphone : `Direct · 1,2 ips ·
-  635 ms · 6 objets · NVIDIA A100-SXM4-40GB`.
-
-- **Direct : un tap relance la session quand le flux est arrêté ou en erreur** — zone
-  `RecoveryTap` sous les bandeaux de l'écran Direct, avec l'invite « Touche l'écran pour
-  relancer le direct ». Jamais active pendant que le flux tourne (pas de coupure
-  accidentelle) ; les concepts actifs sont conservés (`LiveViewModel.restartActive`).
-
-- **L'app Expo est remplacée par une app Android native Kotlin/Compose**
-  (`~/Bureau/sam-vision-kotlin`, modules `:core` pur-JVM testé + `:app` Compose/CameraX).
-  L'app Expo part en `legacy-expo-app/` dans l'ancien dépôt.
-- **Backend Modal fermé : 0 GPU, coût futur nul.** Plus de chez nous : le téléphone est
-  client unique. `modal container list` vide, 16 apps stopped (0,97 $ metered compensés
-  par crédits, facturé 0,00 $).
-- **LLM branché directement sur InferHub** (`https://api.inferhub.dev/v1`, compatible
-  OpenAI, `ali/qwen3.8-omni-flash`) : clés et facturation côté utilisateur, plus de proxy.
-- **La segmentation SAM 3.1 redevient optionnelle** : `samBaseUrl` (Réglages) vide ⇒
-  bandeau « Segmentation désactivée », la photo va au LLM sans masque. Coller l'URL de
-  l'endpoint Modal redéployé (`deploy_backend.sh --skip-smoke`) la réactive ; contrat
-  `/health` + `/segment` inchangé.
-- `:core` : 31 tests JVM verts (clients InferHub/SAM, masques, réglages chiffrés,
-  sanitizeur de texte, cas d'usage) via serveur HTTP maison, zéro réseau.
-- `:app` : `assembleDebug` vert, APK ~21 Mo installé et testé sur emulator-5554
-  (capture → description → chat).
-- Docs et garde-fous ajoutés : `README.md`, `docs/TESTING.md`,
-  `tools/check-kotlin-limits.py`, `scripts/build.sh`, `scripts/install-emulator.sh`.
-- Reste ouvert : dépassement signalé `AnalysisScreen()` 64 lignes ; endpoint SAM non
-  redéployé (défaut = désactivé) ; `security-crypto` API dépréciée (repli fichier privé).
+Les entrées du 24/10 et avant sont dans [`docs/CHANGELOG-2026-10.md`](docs/CHANGELOG-2026-10.md) (archive, texte inchangé).

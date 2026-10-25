@@ -1,146 +1,270 @@
-# Lunettes Ray-Ban Meta — activer SAM Vision
+# Lunettes Ray-Ban Meta — SAM Vision
 
-> Vérifié sur les docs Meta du 20/10/2026 et sur les AAR `com.meta.wearable:mwdat-*:1.0.1`
-> (décompilés pour relever les signatures exactes). Branche : `feat/meta-glasses`.
-> Revu le 25/10/2026 après la fusion de `master` (refonte iSee, mode Direct) : les chemins de
-> fichiers cités plus bas sont ceux du dépôt fusionné.
+Doc de référence de l'intégration. Relecture **25/10/2026** dans le worktree `sam-wt-docs-app`
+(base `origin/master`, HEAD `8f9876a`). Chaque affirmation non suivie de `fichier:ligne` est
+soit une donnée externe datée, soit marquée **non mesuré**. Rien ici n'a été construit ni lancé
+sur matériel : pas d'adb, pas de build, pas de Modal.
 
-## Ce que ça fait
+## 1. Ce qui est livré, et où
 
-Les lunettes ne font tourner aucun code : c'est **l'app Android qui reste le cerveau**.
-Le Device Access Toolkit (DAT) relie l'app au matériel via Bluetooth Classic.
+### Sur `master` (fusionné — donc « livré »)
 
-- Lunettes → **photo** (bouton capture) → app → SAM 3.1 → description lue par le TTS.
-- **Enregistrement** de l'app auprès de l'app Meta AI, géré par le SDK.
-- **Mode dégradé** : tout le reste de l'app fonctionne sans lunettes (voir plus bas).
+| Fait | Preuve |
+|---|---|
+| `app/…/glasses/` : 7 fichiers Kotlin (controller, caméra, inputs, frames, mock, section, état) | `ls app/src/main/java/dev/sam3vision/app/glasses/` ; entrés par le commit `f98595e` (25/10 15:38, +1154 lignes) |
+| Logique pure des appuis dans `:core` + son test JVM | `core/…/glasses/CaptureGesture.kt` (71 l.), `CaptureGestureTest.kt` (56 l.) |
+| Les 4 artefacts DAT en dépendance de l'app | `app/build.gradle.kts:128-131` (`mwdat-core`, `-camera`, `-inputs`, `-mockdevice`), version `mwdat = "1.0.1"` (`gradle/libs.versions.toml`) |
+| Manifeste DAT : Bluetooth, meta-data, deep-link | `app/src/main/AndroidManifest.xml:9-13`, `:32-37`, `:48-54` |
+| `minSdk` relevé à 29 pour `:app` | `app/build.gradle.kts:43` (spike 29, `:core` 26, `compileSdk` 36 partout) |
+| Bloc « Lunettes Ray-Ban Meta » dans les Réglages | `app/…/SettingsScreen.kt:97-99`, `app/…/glasses/GlassesSection.kt:37` |
+| La photo des lunettes rejoint l'app comme une photo téléphone | `app/…/AppNav.kt:89-100` (`GlassesBridge`) |
 
-Ce que ça ne fait **pas** (Ray-Ban Meta = pas d'écran) : aucun overlay de masques, rien
-d'affiché sur le verre, pas de mode Direct sur les lunettes (il existe dans l'app, sur le
-téléphone, mais n'y est pas porté), pas de publication publique (developer preview Meta).
+### Seulement sur `feat/meta-glasses` (donc **non** livré)
 
-## Où atterrit la photo dans l'app
+La branche porte 2 commits que `master` n'a pas, et est 95 commits derrière (`git merge-base
+--is-ancestor 21d6e34|0dca012 HEAD` → non ; `git rev-list --left-right --count
+origin/master...feat/meta-glasses` → `95 2`, mesuré ici) :
 
-Depuis la fusion de `master`, l'accueil n'est plus l'écran photo : c'est **iSee**, le chat
-plein écran avec une fenêtre caméra flottante. Les lunettes n'ont pas d'écran dédié ; leur
-photo suit donc **le même chemin que la capture téléphone** : `app/AppNav.kt` (`GlassesBridge`)
-appelle `AppViewModel.onPhoto`, puis ouvre l'analyse ou le chat selon le geste.
+- `21d6e34` « intégration Device Access Toolkit » : **le même travail**, rejoué et complété
+  depuis sur `master` par `f98595e` (mêmes 7 fichiers `app/…/glasses/`, même `CaptureGesture` ;
+  cette doc comptait 109 lignes sur la branche, elle a été réécrite depuis). Rien de neuf côté
+  lunettes sur la branche.
+- `0dca012` « Direct : deux concepts par défaut + `LivePrompts.Wide` » : **`LivePrompts.Wide`
+  n'existe pas sur `master`** (seuls `Default` et `normalize`, `core/…/live/LivePrompts.kt:7-20`).
+  Sans rapport avec les lunettes.
+- La branche ne contient **ni** `glasses-spike/`, **ni** `docs/glasses-dat-spike.md`, **ni**
+  `docs/MODE-TAP.md` / `MODE-US.md` (le diff `master → feat/meta-glasses` les supprime) : elle
+  est en retard, pas en avance.
 
-Le point d'entrée reste **Réglages → bloc « Lunettes Ray-Ban Meta »** (enregistrement, session,
-capture, lunettes simulées en build debug), accessible depuis l'accueil iSee.
+**À ne pas vendre comme livré** : le routage audio Bluetooth vers les lunettes (section 9) et
+l'audio dans le flux vidéo : ces codes n'existent que dans `glasses-spike/`.
 
-## Prérequis, une fois
+## 2. Contrat DAT réellement appelé
 
-| Élément | Minimum | Où le vérifier |
+Surface SDK effectivement touchée par `:app` (relue dans le code, pas dans la doc Meta) :
+
+| Appel | Où |
+|---|---|
+| `Wearables.initialize(context)` (une fois, au `onCreate`) | `GlassesController.kt:61-72`, appelé par `MainActivity.kt:57-60` |
+| `Wearables.isDevMode`, `registrationState`, `devices`, `devicesMetadata` | `GlassesController.kt:66`, `:74-108` |
+| `Wearables.startRegistration(activity)` / `startUnregistration(activity)` | `GlassesController.kt:111-120` |
+| `Wearables.handleIntent(intent) { it.continueRegistration(activity) }` | `GlassesController.kt:123-126`, `MainActivity.kt:74-77` |
+| `Wearables.createSession(AutoDeviceSelector())` puis `session.start()` | `GlassesController.kt:128-146` |
+| `session.state`, `session.errors` | `GlassesController.kt:143-144`, mapping UI `:248-254` |
+| `Wearables.checkPermissionStatus(Permission.CAMERA)` | `GlassesController.kt:166-174` |
+| `session.addCamera(StreamConfiguration(...))` / `removeCamera()` (extensions du module camera) | `GlassesCamera.kt:27`, `:73` |
+| `stream.start()`, `stream.state`, `stream.errorStream`, `stream.capturePhoto()`, `stream.stop()` | `GlassesCamera.kt:32`, `:52`, `:55`, `:62`, `:72` |
+| `session.addInputs(InputsConfiguration(sources = {CAPTURE_BUTTON}, consumeBack = false))` / `removeInputs()` | `GlassesInputs.kt:41-42`, `:81` |
+| `PhotoData.Bitmap` / `PhotoData.HEIC` → `Bitmap` | `GlassesFrames.kt:40-46` |
+
+Signatures exactes du SDK (types, valeurs par défaut, enums d'erreur) : relevées sur le bytecode
+des AAR le **20/10**, consignées dans `docs/glasses-dat-spike.md`. L'extraction `/tmp/datcheck`
+**n'existe plus ici** (mesuré : `ls /tmp/datcheck` → absent) : ces signatures sont donc
+**non revérifiées** ce 25/10. Les coordonnées d'appel ci-dessus, elles, sont relues dans le code.
+
+## 3. Le flux, bout en bout
+
+`Réglages → Lunettes → Enregistrer` (confirmation côté Meta AI) → `Démarrer la session` →
+`createSession` + `start()` → état `STARTED` → `attachCapabilities()` : caméra **puis** inputs
+(`GlassesController.kt:148-164`) → appui sur le bouton capture → `CaptureAction` → `capture()` →
+`stream.capturePhoto()` → JPEG écrit dans le cache (`GlassesFrames.kt:49-53`) →
+`GlassesEvent.PhotoTaken` → `AppViewModel.onPhoto` → écran d'analyse ou chat
+(`AppNav.kt:92-99`).
+
+La permission caméra vérifiée là est celle **de l'app Meta AI** (côté SDK), pas une permission
+Android : `ensureCameraPermission()` ne fait qu'un `checkPermissionStatus`
+(`GlassesController.kt:166-174`) et, si elle manque, dit exactement où cliquer
+(`:171`). Le flux caméra des lunettes n'a pas besoin de `android.permission.CAMERA` sur le
+téléphone (celle-ci n'est demandée que pour la capture du téléphone, `CaptureScreen.kt:99`, et
+pour le mode tap, `TapCaptureScreen.kt:94-102`).
+
+Depuis la fusion iSee, l'accueil n'est plus l'écran photo : c'est le chat plein écran avec une
+fenêtre caméra (`AppNav.kt:41-53`). Les lunettes n'ont pas d'écran dédié : leur photo suit le
+même chemin qu'une capture téléphone (ci-dessus), et le point d'entrée reste Réglages.
+
+## 4. Contraintes Bluetooth, 15 i/s
+
+- `StreamConfiguration(audioCodec = null, videoQuality = MEDIUM, frameRate = 15,
+  compressVideo = true)` — `GlassesCamera.kt:43-48` et `FRAME_RATE = 15` à la ligne 80. Le
+  commentaire du code pose la règle : « au-delà, le lien Bluetooth Classic casse l'image ».
+  Cette limite est un **constat matériel non remesuré ici** (aucun essai sur lunettes).
+- Dimensions annoncées par le SDK pour `MEDIUM` (504×896) : elles viennent du relevé bytecode du
+  20/10, donc **non revérifiées** ; et c'est un format de flux, pas une image optique.
+- `compressVideo = true` : le flux demandé est compressé, donc moins lourd sur le lien. Mais
+  **l'app ne consomme aucune trame vidéo** — aucun abonnement à `videoStream` (mesuré : zéro
+  occurrence dans `app/src`), et `VideoFrame.toBitmapOrNull()` (`GlassesFrames.kt:22-37`) n'est
+  appelé nulle part ; seul l'overload `PhotoData.toBitmapOrNull()` sert (`GlassesCamera.kt:63`).
+  Les trames compressées ne sont donc jamais décodées par l'app : c'est un choix de bande
+  passante, pas un chemin d'image.
+- ⚠️ Le **spike fait l'inverse** : `StreamConfiguration()` par défaut (`compressVideo = false`,
+  donc YUV décodé sur le téléphone) à 24 i/s, avec un convertisseur YUV écrit pour lui
+  (`glasses-spike/…/GlassesSession.kt:214-216`, `:337` ; `MockGlassesTest.kt:91` ;
+  `FrameTypes.kt:64`). Les deux chemins coexistent : **ne rien conclure sur l'app à partir du
+  spike**, et réciproquement.
+- Cadence réelle sur le lien, perte de trames, latence Bluetooth : **non mesuré**.
+
+## 5. Permissions, manifeste, plancher API
+
+Ce que déclare `app/src/main/AndroidManifest.xml` (relu intégralement) :
+
+| Ligne | Déclaration | Note |
 |---|---|---|
-| Téléphone | Android 10+ (API 29) | — |
-| App Meta AI | **v292** | Settings → App Info |
-| Firmware lunettes | **v128** | Devices → réglages → General → About → Version |
-| Developer Mode | activé | Settings → App Info → taper 5× sur le numéro de version → Enable |
+| 4-7 | `INTERNET`, `CAMERA`, `RECORD_AUDIO`, `VIBRATE` | fonctions téléphone |
+| 10-12 | `BLUETOOTH` avec `android:maxSdkVersion="30"` | ancienne API |
+| 13 | `BLUETOOTH_CONNECT` | runtime à partir de API 31 |
+| 15-20 | `uses-feature` caméra et Bluetooth `required="false"` | l'app reste installable sans |
+| 32-37 | meta-data `com.meta.wearable.mwdat.APPLICATION_ID` / `.CLIENT_TOKEN` = `${placeholder}` | **pas** des « 0 » en dur : placeholders injectés par Gradle, valeur `local.properties` (`mwdat.application.id` / `mwdat.client.token`), défaut `"0"` si absent (`app/build.gradle.kts:54-56`) — le mode Developer Mode est donc le comportement par défaut, pas une constante du manifeste |
+| 48-54 | `intent-filter` `VIEW` + `DEFAULT` + `BROWSABLE`, schéma `samvision` | retour d'enregistrement / invocation ; `onNewIntent` le relais (`MainActivity.kt:68-77`) |
 
-**Ce que ça change pour les téléphones** : `minSdk` passe de 26 à **29**, parce que les trois
-AAR `mwdat-*` déclarent `android:minSdkVersion="29"`. L'app exige donc **Android 10 ou plus** :
-un appareil en Android 8 ou 9 (API 26 à 28) ne peut plus installer l'APK
-(`INSTALL_FAILED_OLDER_SDK`). Ce plancher vient du SDK Meta, pas de la paire elle-même : même
-sans lunettes appairées, l'APK reste en API 29 minimum.
+**Point ouvert (non mesuré)** : `:app` ne demande jamais `BLUETOOTH_CONNECT` en runtime — les
+seules demandes runtime de l'app sont le micro (`MainActivity.kt:51`, `:113-117`), la caméra de
+l'écran de capture (`CaptureScreen.kt:99`) et le couple caméra + micro du mode tap
+(`TapCaptureScreen.kt:94-102`). Le lien Bluetooth pourrait donc être refusé au premier appairage
+sur API 31+. Le spike, lui, le demande (`glasses-spike/…/MainActivity.kt:185-193`). À vérifier sur
+matériel avant d'affirmer.
 
-**Piège v128** : après la mise à jour OTA en v128, la capture caméra ne fonctionne pas
-tant que les lunettes n'ont pas redémarré (bug connu Meta). Redémarre-les avant de conclure
-que quelque chose est cassé.
+`minSdk` 29 vient des AAR (ils déclarent `android:minSdkVersion="29"`, relevé 20/10) : l'app
+exige **Android 10+**, un téléphone en API 26-28 ne peut plus installer l'APK
+(`INSTALL_FAILED_OLDER_SDK`), lunettes appairées ou non. Ce que le SDK impose, pas la paire.
 
-Aucun compte partenaire, aucun projet Developer Center, aucune clé : le manifeste déclare
-`APPLICATION_ID = 0` et `CLIENT_TOKEN = 0`, ce qui est le mode prévu par Meta pour les
-builds en Developer Mode (l'attestation est désactivée).
+## 6. Prérequis, une fois (donnée externe, datée)
 
-## Activer, dans l'ordre
+Valeurs lues dans la doc Meta le **20/10/2026**, **non revérifiées** depuis (pas d'accès au
+compte ni aux lunettes ici) :
 
-1. Appairer les lunettes dans l'app Meta AI, et garder l'app Meta AI ouverte pendant
-   l'enregistrement.
-2. Dans SAM Vision : **Réglages → Lunettes Ray-Ban Meta → Enregistrer auprès de Meta AI**.
-3. Dans l'app Meta AI : accepter la demande. L'app apparaît dans
-   *Settings → App connections → Developer mode apps*.
-4. Toujours dans Meta AI : **autoriser la caméra en « Always allow »** pour SAM Vision
-   (sinon la permission est redemandée à chaque session).
-5. Revenir dans SAM Vision : **Démarrer la session**, puis **Prendre une photo**.
-
-En cas de doute, les lignes d'état affichent SDK, enregistrement, appareil (nom, batterie,
-port), session, permission caméra et flux.
-
-## Gestes
-
-| Geste | Effet | Remarque |
+| Élément | Minimum (constat 20/10) | Où le vérifier |
 |---|---|---|
-| **Appui court** sur le bouton capture | photo → analyse | segmentation SAM puis description, comme une photo prise à la main |
-| **Appui long** (`HOLD`) | photo → **chat** | même photo, mais la question se pose sur le téléphone |
-| **Double appui** | mode Direct | **pas porté sur les lunettes** : message d'explication, rien ne démarre |
-| Tap / tap-long sur le pavé | *rien* | **réservés par le système** : pause/reprise et arrêt de la session |
+| Téléphone | Android 10+ (API 29) | imposé par l'APK, voir section 5 |
+| App Meta AI | v292 | Settings → App Info |
+| Firmware lunettes | v128 | Devices → réglages → General → About → Version |
+| Developer Mode | activé | Settings → App Info → taper 5× le numéro de version → Enable |
 
-Le double appui n'est pas un trou : le mode Direct existe dans l'app (Réglages → Autres écrans →
-« Mode Direct (vidéo en continu) »), il tourne sur le téléphone. Sur les lunettes, `GlassesController.onGesture`
-affiche exactement : « Mode Direct : pas encore porté sur lunettes, il reste sur le téléphone. »
+Piège signalé par la doc Meta (constat 20/10) : après l'OTA v128, la capture ne fonctionne pas
+tant que les lunettes n'ont pas redémarré. Redémarrer avant de conclure à une régression.
 
-Le SDK beta émet `SHORT_PRESS` **puis** `DOUBLE_PRESS` pour un double appui. Le buffer
-`CaptureGestureBuffer` (dans `:core`, testé en JVM) retient donc un appui court pendant
-350 ms et le jette si un double appui arrive. C'est lui qui décide : `HOLD` → `ASK`,
-`DOUBLE` → `LIVE`, `SHORT` → `PHOTO` après le délai.
+Aucune clé, aucun compte partenaire, aucun projet Developer Center n'est nécessaire dans ce mode :
+l'attestation n'est pas utilisée en Developer Mode (placeholders à `"0"`).
 
-## La voix : trois voies, dans l'ordre du plus utile
+## 7. Activer, dans l'ordre
 
-1. **Bouton capture** — c'est ce qui est branché. Zéro configuration Meta, marche toujours.
-2. **Ton propre wake word** (non branché) — la `StreamConfiguration` accepte un
-   `audioCodec = AudioCodec.PCM(AudioSampleRate.RATE_16000, 1)` : le micro des lunettes
-   arrive **dans le même flux que la vidéo**, sans passer en HFP. Conséquence utile :
-   la sortie reste en **A2DP** (44,1/48 kHz stéréo), donc le TTS ElevenLabs garde sa
-   qualité. En HFP à la place, on gagne le beamforming sur la voix du porteur mais la
-   sortie tombe en mono 16 kHz (les deux profils sont exclusifs).
-   Attention : l'audio in-stream est une capacité **beta** (dev/beta channels seulement).
-3. **« Hey Meta, start SAM Vision »** — le système cold-launch l'app et pousse un
-   `VoiceInvocationsStream`. Ça exige un projet dans le **Wearables Developer Center** :
-   ajouter la config mobile (nom de package `dev.sam3vision.app`), donner un **nom d'app
-   = mot-clé vocal**, puis **créer une version** (c'est la version qui porte la permission
-   *Voice Invocation*). Gratuit et sans revue, mais un cran au-dessus du 0/0 actuel.
-   Si la phrase ne résout pas, le bouton capture reste le plan A.
+1. Appairer les lunettes dans l'app Meta AI, et la garder ouverte pendant l'enregistrement.
+2. SAM Vision : **Réglages → Lunettes Ray-Ban Meta → Enregistrer auprès de Meta AI**
+   (`GlassesSection.kt:41-46`, `GlassesController.kt:111-116`).
+3. Dans Meta AI : accepter. L'app apparaît dans *Settings → App connections → Developer mode apps*.
+4. Toujours dans Meta AI : caméra en **« Always allow »** pour SAM Vision (sinon la permission est
+   redemandée à chaque session).
+5. Revenir : **Démarrer la session** (bouton d'état réel : « Session en cours de démarrage… » puis
+   « Arrêter la session », `GlassesSection.kt:47-56`), puis **Prendre une photo**.
 
-## Sans lunettes, l'app reste complète
+Quatre lignes d'état, en français, lisibles sans logcat (`GlassesSection.kt:71-83`) : SDK (+
+mention « dev mode »), enregistrement, appareil / batterie / portées, session + caméra + flux.
 
-Le bloc Lunettes est une **option** : aucun écran ni aucune fonction du téléphone n'en dépend.
-Sans paire appairée, tout le reste marche (c'est le mode dégradé) :
+## 8. Gestes du bouton capture
+
+| Geste | Action | Preuve |
+|---|---|---|
+| Appui court | photo → analyse (masques SAM + description) | `CaptureGesture.kt:46-61` → `PHOTO` ; `GlassesController.kt:177-182` |
+| Appui long (`HOLD`) | photo → **chat** (la question se pose sur le téléphone) | `CaptureGesture.kt:38-41` → `ASK` ; `AppNav.kt:96` |
+| Double appui | rien de lancé : message d'explication | `CaptureGesture.kt:42-45` → `LIVE` ; texte exact `GlassesController.kt:180` : « Mode Direct : pas encore porté sur lunettes, il reste sur le téléphone. » |
+| Tap / tap-long du pavé | *jamais écoutés* | `InputsConfiguration(sources = {CAPTURE_BUTTON})` (`GlassesInputs.kt:42`) ; réservés par le système (pause / arrêt de session, commentaire `:25-26`) |
+
+Le SDK beta émet `SHORT_PRESS` **puis** `DOUBLE_PRESS` pour un double appui (known issue, doc Meta
+20/10). `CaptureGestureBuffer` (`:core`, logique pure testée en JVM) retient donc l'appui court
+350 ms (`DEFAULT_GRACE_MS`, `CaptureGesture.kt:70`) et le jette si un double arrive. Un tick à
+80 ms confirme l'appui survécu (`GlassesInputs.kt:68-76`, `TICK_MS = 80L` ligne 87).
+
+## 9. La voix : ce qui marche aujourd'hui
+
+- **Branché** : le TTS ElevenLabs de l'app lit la description, **sur la sortie du téléphone**
+  (`SpeechPlayer` = `MediaPlayer`, aucun routage). Le bouton capture est le seul déclencheur
+  branché : zéro configuration Meta.
+- **Non branché dans `:app`** : l'audio des lunettes dans le flux vidéo — `audioCodec = null`
+  (`GlassesCamera.kt:44`) ; `getAudioStream()` n'est appelé nulle part dans l'app.
+- **Non branché dans `:app`** : le routage Bluetooth de la réponse. Le routage SCO
+  (`setCommunicationDevice`, `MODE_IN_COMMUNICATION`) n'existe **que dans le spike**
+  (`glasses-spike/…/GlassesVoice.kt:197-204`), avec son avertissement : sans
+  `MODIFY_AUDIO_SETTINGS` il retombe silencieusement sur le haut-parleur. Le manifeste de `:app`
+  ne déclare pas cette permission.
+- **Piste non réalisée** : le micro des lunettes comme source d'audio (`AudioCodec.PCM(RATE_16000, 1)`,
+  capacité beta du SDK, relevé 20/10 — **non revérifiée**), qui garderait la sortie en A2DP ; en
+  contrepartie le profil HFP tombe la sortie en mono 16 kHz (les deux profils sont exclusifs).
+- **Piste non réalisée** : « Hey Meta, start SAM Vision ». **Aucune** occurrence de
+  `VoiceInvocation` dans `app/`, `core/`, `glasses-spike/` (mesuré ce 25/10) : le cold-launch
+  vocal demande un projet dans le Wearables Developer Center, une config mobile
+  (`dev.sam3vision.app`), un nom d'app = mot-clé vocal et **une version** portant la permission
+  *Voice Invocation* — donc un cran au-dessus du Developer Mode `0/0`.
+
+## 10. Sans lunettes, l'app reste complète
+
+Le bloc Lunettes est une option : aucune fonction du téléphone n'en dépend.
 
 | Fonction | Où | Doc |
 |---|---|---|
-| Direct : flux vidéo → LLM/SAM, masques, distances, narration continue | Réglages → Autres écrans → « Mode Direct (vidéo en continu) » | `docs/DISTANCES.md` |
-| Voix ElevenLabs (annonces de position, lecture des réponses) | Réglages → section Voix | `docs/ELEVENLABS-TTS.md` |
-| Dictée Meta (Muse), appui long 300 ms n'importe où | chat / n'importe quel écran | `docs/META-ASR.md` |
-| Nettoyage des captures (Room + WorkManager) | silencieux, en arrière-plan | `docs/NETTOYAGE.md` |
+| iSee (accueil : chat + fenêtre caméra, photo du double tap, distances) | accueil par défaut | `README.md`, `docs/TESTING.md` |
+| Direct : flux vidéo → LLM/SAM, masques, distances, narration | Réglages → Autres écrans → « Mode Direct (vidéo en continu) » (`SettingsScreen.kt:152`) | `docs/DISTANCES.md` |
+| Voix ElevenLabs (positions, lecture des réponses) | Réglages → Voix | `docs/ELEVENLABS-TTS.md` |
+| Dictée Meta (Muse) par appui long | partout sur l'accueil iSee | `docs/META-ASR.md` |
+| Mode tap (vidéo → SAM 3.1, trois mots) | Accueil classique (`SettingsScreen.kt:153`) | `docs/MODE-TAP.md` |
+| Nettoyage des captures (Room + WorkManager) | silencieux | `docs/NETTOYAGE.md` |
 
-## Démo sans matériel
+## 11. Démo sans matériel (mock)
 
-En build **debug**, le bloc Lunettes propose **Simuler des lunettes** : Mock Device Kit
-appaire une paire simulée (`GlassesModel.RAYBAN_META`), alimente le flux avec une scène
-synthétique (`mock-scene.jpg`, formes franches) et accepte un appui injecté
-(`services.input.capture(SHORT_PRESS)`). Le chemin de code est le même qu'avec du vrai
-matériel : c'est le filet de sécurité du jour J.
+- Les commandes de simulation n'apparaissent **qu'en debug** :
+  `GlassesSection(debugBuild = BuildConfig.DEBUG)` (`SettingsScreen.kt:97-99`) et
+  `if (debugBuild) { MockControls(...) }` (`GlassesSection.kt:63-65`) — « Simuler des lunettes »,
+  « Simuler un appui sur le bouton capture », « Retirer les lunettes simulées ».
+- `GlassesMock.start()` : `MockDeviceKitConfig(initiallyRegistered = true,
+  initialPermissionsGranted = true)`, `permissions.set(Permission.CAMERA, Granted)`,
+  `pairGlasses(GlassesModel.RAYBAN_META)`, puis une scène synthétique
+  `mock-scene.jpg` en **640×480** posée à la fois comme flux et comme photo
+  (`GlassesMock.kt:30-62`, `WIDTH/HEIGHT` lignes 88-89). Un appui s'injecte par
+  `services.input.capture(type)` (`GlassesMock.kt:44-48`).
+- ⚠️ Nuance qui compte avant un build public : `mwdat-mockdevice` est en `implementation` dans
+  `:app` (`app/build.gradle.kts:131`) — il est donc **embarqué aussi dans l'APK de release**, seul
+  l'affichage des boutons est gated en debug. Le `TODO(spike)` qui l'interdit n'existe que dans le
+  spike (`glasses-spike/build.gradle.kts`, section dépendances). À trancher avant publication.
 
-## Fichiers
+Ce que le mock ne prouve pas (latence Bluetooth, optique, permissions réelles de l'app Meta AI,
+thermique/autonomie, routage audio) : détaillé dans `docs/glasses-dat-spike.md`, §5.
+
+## 12. Ce qui bloque, et ce qui reste noir
+
+| Blocage | État |
+|---|---|
+| Paire physique + app Meta AI + Developer Mode + firmware ≥ v128 | requis, **non testé** ici (aucun téléphone, aucune lunettes dans ce worktree) |
+| Enregistrement : une seule app tierce à la fois en Developer Mode | règle doc Meta 20/10, non revérifiée |
+| Artefacts Maven Central | **non bloqueurs** : `com.meta.wearable:mwdat-*:1.0.1` mesurés disponibles le 25/10 (10,64 Mo pour les 3 du spike, détail dans `docs/glasses-spike-ci.md`) ; `RepositoriesMode.FAIL_ON_PROJECT_REPOS` et `mavenCentral()` sont dans `settings.gradle.kts` |
+| Permission runtime `BLUETOOTH_CONNECT` jamais demandée par `:app` | ouvert, voir section 5 |
+| `mockdevice` dans l'APK de release | ouvert, voir section 11 |
+| Qualité d'image à 15 i/s vs 24 i/s sur le lien réel | **non mesuré** ; seul le choix du code est établi |
+| Durées de build / de session | **aucun build relancé ici** ; les chiffres de la CI restent des constats du 24/10 consignés dans `ci.yml` et repris dans `docs/glasses-spike-ci.md` |
+
+## 13. Fichiers
 
 | Fichier | Rôle |
 |---|---|
-| `core/src/main/java/dev/sam3vision/core/glasses/CaptureGesture.kt` | buffer d'appuis, logique pure + tests JVM |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesController.kt` | enregistrement, session, permissions, état, routage des gestes |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesCamera.kt` | flux caméra (15 fps, MEDIUM) et `capture()` → `stream.capturePhoto()` |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesInputs.kt` | bouton capture → actions (seul `CAPTURE_BUTTON` est écouté) |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesFrames.kt` | frame/photo → Bitmap → JPEG du cache (`writeJpegToCache`) |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesState.kt` | `GlassesUiState` / `GlassesEvent` affichés |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesMock.kt` | Mock Device Kit + scène synthétique |
-| `app/src/main/java/dev/sam3vision/app/glasses/GlassesSection.kt` | bloc « Lunettes » des Réglages |
-| `app/src/main/java/dev/sam3vision/app/AppNav.kt` | `GlassesBridge` : photo des lunettes → `onPhoto`, puis analyse ou chat |
+| `core/…/glasses/CaptureGesture.kt` (71 l.) | lissage des appuis, logique pure + test JVM |
+| `app/…/glasses/GlassesController.kt` (253 l.) | enregistrement, session, permissions, état, routage des gestes |
+| `app/…/glasses/GlassesCamera.kt` (81 l.) | flux 15 i/s MEDIUM `compressVideo = true`, `capture()` |
+| `app/…/glasses/GlassesInputs.kt` (95 l.) | bouton capture → actions, tick 80 ms |
+| `app/…/glasses/GlassesFrames.kt` (52 l.) | frame/photo → Bitmap → JPEG du cache |
+| `app/…/glasses/GlassesState.kt` (38 l.) | `GlassesUiState` / `GlassesEvent` |
+| `app/…/glasses/GlassesMock.kt` (90 l.) | Mock Device Kit + scène 640×480 |
+| `app/…/glasses/GlassesSection.kt` (99 l.) | bloc « Lunettes » des Réglages |
+| `app/…/AppNav.kt:89-100` | `GlassesBridge` : photo → `onPhoto` → analyse ou chat |
+| `docs/glasses-dat-spike.md` | relevé d'API du SDK (bytecode 20/10) et écarts du spike |
+| `docs/glasses-spike-ci.md` | le module `:glasses-spike` dans la CI, budget 5 min |
 
-## Passer en production plus tard
+`glasses-spike/` est un **module séparé** (`include(":glasses-spike")` dans
+`settings.gradle.kts`, package `dev.sam3vision.glasses`) : il dépend de `project(":core")`,
+`:app` ne dépend pas de lui. Ce que fait le spike ne préjuge pas de ce que fait l'app.
 
-1. Créer le projet dans le Wearables Developer Center, récupérer *Application ID* et
-   *Client Token*, justifier l'accès caméra/micro (revue interne Meta).
-2. Les mettre dans `local.properties` (`mwdat.application.id`, `mwdat.client.token`) —
-   jamais commités : le manifeste les lit via `manifestPlaceholders`.
-3. Créer une version, l'assigner au canal privé **Beta**, inviter les testeurs par e-mail
-   (ils doivent avoir un compte Meta, un Managed Meta Account n'est pas accepté).
-4. À savoir : une seule app tierce enregistrée à la fois en Developer Mode, et
-   l'attestation n'est pas utilisée dans ce mode.
+## 14. Passer en production plus tard
+
+1. Projet dans le Wearables Developer Center : récupérer *Application ID* et *Client Token*,
+   justifier l'accès caméra/micro (revue interne Meta).
+2. Les mettre dans `local.properties` (`mwdat.application.id`, `mwdat.client.token`) — jamais
+   commités : le manifeste les lit via `manifestPlaceholders` (`app/build.gradle.kts:54-56`).
+3. Créer une **version**, l'assigner au canal privé Beta, inviter les testeurs par e-mail (un
+   Managed Meta Account n'est pas accepté). C'est aussi la condition de l'invocation vocale (§9).
+4. Sortir `mockdevice` de l'APK public (§11).
