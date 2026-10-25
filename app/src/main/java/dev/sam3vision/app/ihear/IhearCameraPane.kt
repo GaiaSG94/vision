@@ -8,6 +8,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import dev.sam3vision.app.lensSpecOf
+import dev.sam3vision.core.distance.LensSpec
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -34,6 +36,8 @@ class IhearCameraHost(private val context: Context) {
     val actions: IhearCameraActions = object : IhearCameraActions {
         override val ready: Boolean get() = videoCapture != null
 
+        override val lensSpec: LensSpec? get() = lensSpecOf(boundCamera)
+
         override fun startRecording(file: File): Boolean = startVideo(file)
 
         override suspend fun stopRecording(): File? = stopVideo()
@@ -43,6 +47,9 @@ class IhearCameraHost(private val context: Context) {
     }
 
     private var boundPreview: PreviewView? = null
+
+    /** Caméra liée : sa caractéristique optique sert de calibrage aux distances. */
+    private var boundCamera: androidx.camera.core.Camera? = null
 
     /** Fabrique la `PreviewView` de la fenêtre (une seule fois, conservée côté host). */
     fun newPreviewView(context: Context): PreviewView {
@@ -67,7 +74,13 @@ class IhearCameraHost(private val context: Context) {
         )
         return runCatching {
             provider.unbindAll()
-            provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, image, video)
+            boundCamera = provider.bindToLifecycle(
+                owner,
+                CameraSelector.DEFAULT_BACK_CAMERA,
+                preview,
+                image,
+                video,
+            )
             imageCapture = image
             videoCapture = video
             null

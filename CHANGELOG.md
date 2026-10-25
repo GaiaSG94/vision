@@ -1,5 +1,24 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (9) — iHear : une pastille de distance par objet sur la photo
+
+- **Le manque** : les distances n'existaient que sur l'écran Direct ; l'accueil iHear
+  (chat + fenêtre caméra) n'en affichait aucune — le module `ihear/` ne touchait même
+  pas au calcul. Or c'est l'écran par défaut de l'app.
+- **Double tap = photo mesurée** : la photo part au `/segment` de SAM, les boîtes
+  reviennent en pixels, et le sténopé sur les hauteurs connues (`DistanceMeter`) en
+  tire une pastille par objet — **préfixée du concept** (« personne ≈ 3,9 m »), les
+  masques n'existant pas dans cette fenêtre. Photo maintenue 6 s au lieu de 2,6 s
+  quand des pastilles arrivent (`PHOTO_MEASURED_MS`), effacées avec elle.
+- **Nouveau** `ihear/IhearPhotoDistances.kt` (69 l) : segmentation + mesure, calibrage
+  réglage utilisateur → capteur lié (`IhearCameraActions.lensSpec`, lu par
+  `lensSpecOf` au bind) → grand-angle de repli. Silencieux si la bascule « Distances »
+  est coupée, si SAM est injoignable ou si aucun concept n'a de hauteur connue.
+- **Réemploi** : `LiveDistanceLayer` accepte `topInset` (0 dp dans la fenêtre) et
+  `withLabel` ; `screenLabels`/`labelText` restent purs et testés en JVM.
+- **Tests** : `IhearDistancesTest` (5) + `DistanceLayoutTest` (+1) — 746 tests, 0 échec ;
+  `assembleDebug` vert.
+
 ## 2026-10-25 (8) — lunettes Ray-Ban Meta (DAT) + fusion de `master`
 
 - **Device Access Toolkit** `com.meta.wearable:mwdat-{core,camera,inputs,mockdevice}:1.0.1` :

@@ -1,5 +1,7 @@
 package dev.sam3vision.app.ihear
 
+import dev.sam3vision.app.DistanceLayer
+import dev.sam3vision.core.distance.LensSpec
 import java.io.File
 
 /** Le seul écran iHear : le chat plein écran, la caméra vit dans une fenêtre flottante. */
@@ -28,6 +30,9 @@ data class IhearUiState(
 
     /** Dernière photo du double tap, affichée dans la fenêtre flottante avant d'évaporer. */
     val photoPath: String? = null,
+
+    /** Pastilles de distance posées sur cette photo ; `null` = rien de mesurable. */
+    val distanceLayer: DistanceLayer? = null,
 
     val selected: Int = -1,
     val firstSwipeDownDone: Boolean = false,
@@ -87,6 +92,9 @@ fun hasBubbleChoice(entriesSize: Int): Boolean = entriesSize > 1
 /** Les actions que seule la caméra de la fenêtre flottante peut exécuter. */
 interface IhearCameraActions {
     val ready: Boolean
+
+    /** Calibrage optique du capteur lié (focale + taille physique), `null` si illisible. */
+    val lensSpec: LensSpec? get() = null
     fun startRecording(file: File): Boolean
     suspend fun stopRecording(): File?
 

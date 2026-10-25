@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import dev.sam3vision.app.LiveDistanceLayer
 import dev.sam3vision.app.decodeScaledExact
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -147,7 +148,11 @@ private fun CameraWindowBody(
                 Text("iHear needs the camera.", color = Color.White, fontSize = 12.sp)
             }
         }
-        state.photoPath?.let { PhotoFlash(it) }
+        state.photoPath?.let {
+            PhotoFlash(it)
+            // Une pastille par objet mesuré, posée sur la photo le temps qu'elle reste.
+            LiveDistanceLayer(state.distanceLayer, topInset = 0.dp, withLabel = true)
+        }
         failure?.let {
             Text(
                 it,

@@ -1,5 +1,6 @@
 package dev.sam3vision.app
 
+import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.DistanceText
 
 /**
@@ -77,15 +78,34 @@ fun pillTranslationY(anchorY: Float, topInset: Float): Float =
 /**
  * Étiquettes des objets mesurés de [layer], dans l'ordre des objets de la frame
  * (la couleur suit donc le masque). Une boîte illisible est ignorée.
+ *
+ * [withLabel] préfixe la pastille du concept (« personne ≈ 3,9 m ») : les hôtes
+ * sans masques — la fenêtre iHear — n'ont que ce texte pour savoir de quel objet
+ * elle parle.
  */
-fun screenLabels(layer: DistanceLayer, transform: CropTransform): List<ScreenLabel> =
+fun screenLabels(
+    layer: DistanceLayer,
+    transform: CropTransform,
+    withLabel: Boolean = false,
+): List<ScreenLabel> =
     layer.readings.mapIndexedNotNull { index, reading ->
         if (reading.box.size < 4) return@mapIndexedNotNull null
         val centerX = (reading.box[0] + reading.box[2]) / 2f
         ScreenLabel(
-            text = DistanceText.approximate(reading.meters),
+            text = labelText(reading, withLabel),
             x = transform.screenX(centerX).coerceIn(0f, transform.boxWidth),
             y = transform.screenY(reading.box[1]),
             colorIndex = index,
         )
     }
+
+/** Texte d'une pastille : la distance seule, ou le concept borné puis la distance. */
+fun labelText(reading: DistanceReading, withLabel: Boolean): String {
+    val distance = DistanceText.approximate(reading.meters)
+    if (!withLabel) return distance
+    val concept = reading.label.trim().take(MAX_CONCEPT_CHARS).ifEmpty { "objet" }
+    return "$concept $distance"
+}
+
+/** Longueur maximale du concept dans une pastille : au-delà, la pastille déborde. */
+private const val MAX_CONCEPT_CHARS = 14

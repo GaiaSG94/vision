@@ -62,6 +62,21 @@ le cadre** (`pillTranslationX`) et **hors du bandeau du haut** (`pillTranslation
 collé au bord droit sortait à moitié de l'écran et un objet dans le haut de l'image
 voyait sa distance cachée derrière les boutons (constaté le 25/10, corrigé).
 
+## iHear : les pastilles sur la photo du double tap
+
+L'accueil iHear (chat + fenêtre caméra) ne suit aucun flux `/live` : ni masques, ni
+pistes, donc aucun objet à étiqueter en continu. Le **double tap** prend une photo,
+l'affiche dans la fenêtre flottante et l'envoie au `/segment` de SAM ; chaque objet
+dont le concept a une hauteur connue reçoit sa pastille **avec son nom**
+(« personne ≈ 3,9 m ») — sans masque, c'est le seul moyen de savoir de quel objet
+parle la pastille. Une photo ne bouge pas : pas de lissage, une mesure brute.
+
+La photo reste 2,6 s ; dès que des pastilles arrivent, elle est **maintenue 6 s**
+(`PHOTO_MEASURED_MS`) le temps de lire. Calibrage : champ de vision réglé à la
+main, puis celui lu sur le capteur lié, puis le grand-angle de repli. Rien de
+mesurable (concept inconnu, SAM injoignable, bascule « Distances » coupée) : la
+photo s'évapore comme avant, sans pastille.
+
 ## À voix haute
 
 La voix du direct (ElevenLabs, bascule « Annoncer les objets et leur distance »)
@@ -99,9 +114,12 @@ met les mètres en mots français (« 85 centimètres », « 1,4 mètre », « 1
   proche, une distance par étiquette.
 - `core.live.LiveTimelineTest` (+1) : `record` rend l'identité **dans l'ordre des
   détections** (`null` pour une détection inexploitable).
-- `app.DistanceLayoutTest` (9) : transformation `Crop` identique à l'aperçu,
+- `app.DistanceLayoutTest` (10) : transformation `Crop` identique à l'aperçu,
   étiquette **centrée sur la boîte** et ramenée dans le cadre, boîte illisible,
-  saisie du champ (± bornes), pastilles du bas.
+  saisie du champ (± bornes), pastilles du bas, pastille préfixée du concept.
+- `app.ihear.IhearDistancesTest` (5) : pastilles d'une photo segmentée — personne
+  haute mesurée (≈ 3,9 m), un pastille par objet, concept inconnu ignoré, photo
+  vide ou de taille nulle, boîte coupée par le bord bas non mesurée.
 - Recette sur téléphone réel (`2c6852ac`, 1220×2712, 25/10) : ligne d'état
   « Direct · 1,5 ips · 635 ms · 4 objets · plus proche 2,0 m · NVIDIA A100 »,
   pastilles « ≈ 2,0 m / ≈ 2,1 m / ≈ 2,3 m » superposées aux masques, section

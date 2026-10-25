@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,7 +29,12 @@ import kotlin.math.sqrt
  * testés en JVM, seule la mise en forme vit ici. Rien à afficher : rien de composé.
  */
 @Composable
-fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
+fun LiveDistanceLayer(
+    layer: DistanceLayer?,
+    topInset: Dp = TOP_SAFE_INSET,
+    withLabel: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     if (layer == null || layer.empty) return
     BoxWithConstraints(modifier.fillMaxSize()) {
         val transform = cropTransform(
@@ -38,10 +44,10 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
             boxHeight = constraints.maxHeight.toFloat(),
         )
         val lift = with(LocalDensity.current) { LABEL_LIFT.toPx() }
-        val topInset = with(LocalDensity.current) { TOP_SAFE_INSET.toPx() }
+        val topInsetPx = with(LocalDensity.current) { topInset.toPx() }
         val boxWidth = constraints.maxWidth.toFloat()
         val fontSize = (BASE_FONT_SP * sqrt(transform.scale)).coerceIn(MIN_FONT_SP, MAX_FONT_SP).sp
-        screenLabels(layer, transform).forEach { label ->
+        screenLabels(layer, transform, withLabel).forEach { label ->
             val anchorX = label.x.roundToInt().toFloat()
             val anchorY = (label.y - lift).roundToInt().coerceAtLeast(0).toFloat()
             Text(
@@ -54,7 +60,7 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
                     .offset { IntOffset(anchorX.toInt(), anchorY.toInt()) }
                     .graphicsLayer {
                         translationX = pillTranslationX(anchorX, size.width.toFloat(), boxWidth)
-                        translationY = pillTranslationY(anchorY, topInset)
+                        translationY = pillTranslationY(anchorY, topInsetPx)
                     }
                     .background(maskColorAt(label.colorIndex).copy(alpha = 0.92f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -66,7 +72,8 @@ fun LiveDistanceLayer(layer: DistanceLayer?, modifier: Modifier = Modifier) {
 /** Hauteur de pastille laissée libre au-dessus de la boîte (le texte ne masque pas l'objet). */
 private val LABEL_LIFT = 30.dp
 
-/** Bandeau du haut (boutons + état + concepts) : aucune pastille ne s'y cache. */
+/** Bandeau du haut (boutons + état + concepts) : aucune pastille ne s'y cache.
+ *  Les autres hôtes (fenêtre iHear) passent leur propre marge. */
 private val TOP_SAFE_INSET = 230.dp
 
 /** Corps de la police : adapté à la résolution de l'aperçu, borné pour rester lisible. */

@@ -52,6 +52,9 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private val media = MediaCacheStore(app, dao)
     private val cleaner = CacheCleanerManager(dao, media.dir())
     private val haptics = IhearHaptics(app)
+
+    /** Distances de la photo du double tap : une pastille par objet mesuré. */
+    private val photoDistances = IhearPhotoDistances()
     private val mic = HoldTranscript()
 
     private val player = SpeechPlayer(
@@ -97,6 +100,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     fun attachCamera(actions: IhearCameraActions) {
         camera = actions
+        photoDistances.setLens(actions.lensSpec)
     }
 
     fun detachCamera() {
@@ -237,13 +241,30 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private fun onPhotoSaved(target: File, saved: Boolean) {
         if (!saved) return
         photoContext = target
+        _state.update { it.copy(photoPath = target.path, distanceLayer = null, status = null) }
+        armEvaporation(target, PHOTO_SHOW_MS)
+        measurePhoto(target)
+    }
+
+    /** Minuteur d'évaporation de la photo ; remplacé à chaque photo d'une rafale. */
+    private fun armEvaporation(target: File, showMs: Long) {
         photoEvaporation?.cancel()
-        _state.update { it.copy(photoPath = target.path, status = null) }
         photoEvaporation = viewModelScope.launch {
-            delay(PHOTO_SHOW_MS)
+            delay(showMs)
             if (_state.value.photoPath == target.path) {
-                _state.update { it.copy(photoPath = null) }
+                _state.update { it.copy(photoPath = null, distanceLayer = null) }
             }
+        }
+    }
+
+    /** Distances de la photo : la pastille de chaque objet arrive après coup, sans bloquer
+     *  l'affichage ; les mesures gagnent du temps d'écran (photo maintenue plus longtemps). */
+    private fun measurePhoto(target: File) {
+        viewModelScope.launch {
+            val layer = photoDistances.measure(target, settings) ?: return@launch
+            if (_state.value.photoPath != target.path) return@launch
+            _state.update { it.copy(distanceLayer = layer) }
+            armEvaporation(target, PHOTO_MEASURED_MS)
         }
     }
 
@@ -462,5 +483,8 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Une photo du double tap reste à l'écran avant de s'évaporer. */
         const val PHOTO_SHOW_MS = 2_600L
+
+        /** Photo portant des pastilles de distance : laissée plus longtemps, le temps de lire. */
+        const val PHOTO_MEASURED_MS = 6_000L
     }
 }

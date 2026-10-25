@@ -112,4 +112,12 @@ class DistanceLayoutTest {
         val without = formatLiveStatus(true, 1.5f, 620, "A100", 3)
         assertTrue(!without.contains("proche"))
     }
+
+    @Test
+    fun `pastille prefixee du concept pour les hotes sans masque`() {
+        val lecture = reading("personne", 3.2f, listOf(100f, 100f, 160f, 300f))
+        assertEquals("≈ 3,2 m", labelText(lecture, withLabel = false))
+        assertEquals("personne ≈ 3,2 m", labelText(lecture, withLabel = true))
+        assertEquals("objet ≈ 3,2 m", labelText(lecture.copy(label = "   "), withLabel = true))
+    }
 }
