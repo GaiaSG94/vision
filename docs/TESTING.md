@@ -139,7 +139,7 @@ Modal est actuellement fermé (0 GPU) : cette recette attend un redéploiement d
 ```bash
 EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # fait tout ci-dessous
 # ou à la main :
-adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk   # émulateur seulement
 adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.CAMERA
 adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.RECORD_AUDIO
 adb -s emulator-5554 shell am start -n dev.sam3vision.app/.MainActivity
@@ -244,3 +244,6 @@ photo et vidéo dans `files/Pictures` et `files/Movies` avec `.nomedia`, `assemb
   parameters à lambda) signale au 24/10 : `AnalysisScreen()` 64 lignes — non corrigé ici,
   fichier réservé à l'agent UI.
 - `install -r` échoue si un build antérieur a changé de signature : désinstaller d'abord.
+- **Téléphone réel : jamais `adb install`** — `scripts/install-phone.sh` (voir
+  `docs/PHONE-INSTALL.md`). Le `versionCode` étant la date du commit, une build plus
+  ancienne est refusée par Android (`INSTALL_FAILED_VERSION_DOWNGRADE`).
