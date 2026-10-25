@@ -58,4 +58,16 @@ class SwipeStepTest {
     fun `deux bulles ou plus, le choix existe`() {
         assertEquals(true, hasBubbleChoice(2))
     }
+
+    @Test
+    fun `l'intro compte comme bulle (texte toujours premier)`() {
+        assertEquals(1, bubbleCount(0, true))
+        assertEquals(3, bubbleCount(2, true))
+    }
+
+    @Test
+    fun `sans intro, seules les bulles comptent`() {
+        assertEquals(0, bubbleCount(0, false))
+        assertEquals(2, bubbleCount(2, false))
+    }
 }

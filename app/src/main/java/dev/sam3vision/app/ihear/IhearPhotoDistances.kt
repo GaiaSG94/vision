@@ -34,16 +34,19 @@ class IhearPhotoDistances {
     }
 
     /**
-     * Mesure [photo] ; `null` si rien n'est mesurable — distances coupées dans les
-     * Réglages, pas d'endpoint SAM, échec réseau, ou aucun concept à hauteur connue.
+     * Mesure [photo] en expliquant l'échec : le chat affiche le motif au lieu
+     * de rester muet (endpoint absent, réseau, image illisible, rien de mesurable).
      */
-    suspend fun measure(photo: File, settings: Settings): DistanceLayer? {
-        if (!settings.distanceOverlayEnabled || !settings.samConfigured()) return null
+    suspend fun measureOutcome(photo: File, settings: Settings): PhotoMeasure {
+        if (!settings.distanceOverlayEnabled) return PhotoMeasure.OverlayOff
+        if (!settings.samConfigured()) return PhotoMeasure.NoEndpoint
         val jpeg = withContext(Dispatchers.IO) { decodeScaledExact(photo)?.let(::bitmapToJpegBase64) }
-        if (jpeg.isNullOrBlank()) return null
+        if (jpeg.isNullOrBlank()) return PhotoMeasure.Unreadable
         val segmented = runCatching { HttpSamClient(settings.samEndpoint()).segment(jpeg, null) }
-            .getOrNull()?.getOrNull() ?: return null
-        return layerOf(segmented, chosenLens(settings))
+            .getOrNull()?.getOrNull()
+            ?: return PhotoMeasure.Failed("SAM unreachable")
+        val layer = layerOf(segmented, chosenLens(settings))
+        return if (layer == null) PhotoMeasure.NoObjects else PhotoMeasure.Measured(layer)
     }
 
     /** Réglage utilisateur, puis capteur, puis [LensSpec.Default] — comme le direct. */
@@ -51,6 +54,18 @@ class IhearPhotoDistances {
         if (settings.cameraFovDeg > 0f) return LensSpec.fromHorizontalFov(settings.cameraFovDeg)
         return sensorLens ?: LensSpec.Default
     }
+}
+
+/**
+ * Sort d'une analyse photo : mesurée, ou motif exact de l'absence de pastilles.
+ */
+sealed interface PhotoMeasure {
+    data object OverlayOff : PhotoMeasure
+    data object NoEndpoint : PhotoMeasure
+    data object Unreadable : PhotoMeasure
+    data class Failed(val reason: String) : PhotoMeasure
+    data object NoObjects : PhotoMeasure
+    data class Measured(val layer: DistanceLayer) : PhotoMeasure
 }
 
 /**

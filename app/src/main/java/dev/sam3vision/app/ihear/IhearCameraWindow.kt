@@ -57,20 +57,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * La fenêtre caméra flottante d'iHear : posée en haut à droite du chat, angles
- * arrondis, un peu moins d'un demi-écran en largeur comme en hauteur, jamais collée
- * aux bords. L'aperçu y vit pendant l'enregistrement du tap ; la photo du double tap
- * y apparaît avec un flash, se montre quelques secondes (remplacée à chaque photo
- * d'une rafale) puis s'évapore en fondu. Le composable reste posé en permanence et
- * invisible hors usage, si bien que la caméra reste liée prête au premier geste.
+ * La caméra d'iHear dans une bulle du chat : angles arrondis, un peu moins d'un
+ * demi-écran en largeur comme en hauteur. L'aperçu y vit pendant l'enregistrement
+ * du tap ; la photo du double tap y apparaît avec un flash, se montre quelques
+ * secondes (remplacée à chaque photo d'une rafale, pastilles SAM par-dessus) puis
+ * s'évapore en fondu. La liaison est composée en permanence par le chat ; seule
+ * cette vue n'existe que dans la bulle média, en bas du fil.
  */
 @Composable
-fun IhearCameraWindow(
+internal fun IhearCameraWindow(
     state: IhearUiState,
+    glue: CameraGlue,
     viewModel: IhearViewModel,
     modifier: Modifier = Modifier,
 ) {
-    val glue = rememberCameraGlue(viewModel)
     val probe by viewModel.probe.state.collectAsState()
     // Une seule PreviewView pour toute la vie de la fenêtre : `bind()` la réclame déjà créée.
     val context = LocalContext.current
@@ -91,7 +91,7 @@ fun IhearCameraWindow(
     val heightDp = configuration.screenHeightDp * CAM_WINDOW_HEIGHT_SHARE
     Box(
         modifier
-            .padding(start = 8.dp, top = CAM_WINDOW_TOP_GAP.dp, end = CAM_WINDOW_GAP.dp, bottom = 8.dp)
+            .padding(2.dp)
             .width(widthDp.dp)
             .height(heightDp.dp)
             .alpha(windowAlpha),
@@ -115,11 +115,13 @@ fun IhearCameraWindow(
     }
 }
 
-/** Permission + liaison caméra de la fenêtre : un seul bloc, rappelé par le visuel. */
-private data class CameraGlue(val host: IhearCameraHost, val granted: Boolean, val failure: String?)
+/** Permission + liaison caméra : un seul bloc, rappelé par le visuel. Composée en
+ * permanence par le chat (caméra prête au premier geste), la vue ne vit que dans
+ * la bulle média. */
+internal data class CameraGlue(val host: IhearCameraHost, val granted: Boolean, val failure: String?)
 
 @Composable
-private fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
+internal fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
     val context = LocalContext.current
     var granted by remember { mutableStateOf(cameraGranted(context)) }
     var failure by remember { mutableStateOf<String?>(null) }
@@ -249,8 +251,6 @@ private val WindowTopInset: Dp = 0.dp
 private const val CAM_WINDOW_WIDTH_SHARE = 0.44f
 private const val CAM_WINDOW_HEIGHT_SHARE = 0.44f
 private const val CAM_WINDOW_CORNER = 26
-private const val CAM_WINDOW_GAP = 14
-private const val CAM_WINDOW_TOP_GAP = 92
 private const val PHOTO_FLASH_MS = 340
 /** Diamètre du point d'enregistrement (dp). */
 private const val RECORDING_DOT_DP = 14

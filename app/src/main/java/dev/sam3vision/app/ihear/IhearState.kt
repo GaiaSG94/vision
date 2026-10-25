@@ -89,6 +89,13 @@ fun swipeStep(
  */
 fun hasBubbleChoice(entriesSize: Int): Boolean = entriesSize > 1
 
+/**
+ * Bulles à l'écran : l'historique plus l'intro, toujours première et jamais
+ * retirée (seul son audio se coupe par la voix).
+ */
+fun bubbleCount(entriesSize: Int, introShown: Boolean): Int =
+    entriesSize + if (introShown) 1 else 0
+
 /** Les actions que seule la caméra de la fenêtre flottante peut exécuter. */
 interface IhearCameraActions {
     val ready: Boolean

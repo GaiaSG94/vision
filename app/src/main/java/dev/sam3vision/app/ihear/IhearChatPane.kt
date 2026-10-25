@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +47,9 @@ object IhearPalette {
     val aiBubble = Color.White
     /** Bulle sélectionnée : noire à contour blanc (le texte reste lisible). */
     val selectedBubble = Color.Black
+    /** Cadre de la bulle média (caméra) : sombre, liséré discret. */
+    val mediaFrame = Color(0xFF14161B)
+    val mediaBorder = Color(0x33FFFFFF)
     val selectionBorder = Color.White
     /** Fond d'avatar discret (gris clair façon icône de profil). */
     val avatar = Color(0xFFE5E7EB)
@@ -62,12 +66,15 @@ object IhearPalette {
  * en premier message pendant la lecture (puis pour toute l'ouverture en cours).
  */
 @Composable
-fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
+fun IhearChatPane(state: IhearUiState, viewModel: IhearViewModel, modifier: Modifier = Modifier) {
+    // Liaison caméra vivante en permanence (prête au premier geste) ; sa vue ne
+    // vit que dans la bulle média, en bas du fil.
+    val glue = rememberCameraGlue(viewModel)
     val listState = rememberLazyListState()
-    // La bulle d'intro décale d'une ligne : le bas du fil reste l'item le plus récent.
-    val bottomIndex = state.entries.lastIndex + if (state.introVisible) 1 else 0
-    LaunchedEffect(bottomIndex) {
-        if (bottomIndex >= 0) listState.scrollToItem(bottomIndex)
+    val mediaActive = state.recordingVideo || state.photoPath != null
+    val totalItems = 1 + state.entries.size + (if (mediaActive) 1 else 0) + (if (state.thinking) 1 else 0)
+    LaunchedEffect(totalItems, mediaActive, state.thinking) {
+        listState.scrollToItem(totalItems - 1)
     }
     Column(
         modifier
@@ -82,22 +89,23 @@ fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-        if (state.introVisible) {
             item {
+                // L'intro écrite est toujours le premier message ; seule à l'écran,
+                // elle porte la sélection et son icône.
                 ChatBubble(
                     entry = ChatEntry.IntroBubble(INTRO_BUBBLE_ID, IHEAR_INTRO_TEXT),
-                    selected = false,
+                    selected = state.entries.isEmpty(),
                     speaking = state.speakingEntryId == INTRO_BUBBLE_ID,
                 )
             }
-        }
-        itemsIndexed(state.entries) { index, entry ->
-            ChatBubble(
-                entry,
-                selected = index == state.selected,
-                speaking = state.speakingEntryId == entry.id,
-            )
-        }
+            itemsIndexed(state.entries) { index, entry ->
+                ChatBubble(
+                    entry,
+                    selected = index == state.selected,
+                    speaking = state.speakingEntryId == entry.id,
+                )
+            }
+            if (mediaActive) item { MediaBubble(state, glue, viewModel) }
             if (state.thinking) item { ThinkingBubble() }
         }
         HoldBar(state, Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
@@ -143,6 +151,23 @@ private fun HoldBar(state: IhearUiState, modifier: Modifier = Modifier) {
                 .background(IhearPalette.userBubble, RoundedCornerShape(14.dp))
                 .padding(horizontal = 14.dp, vertical = 8.dp),
         )
+    }
+}
+
+/** La caméra dans une bulle du chat : aperçu pendant la vidéo du tap, photo +
+ * pastilles SAM après le double tap. Le cadre bulle la rattache au fil. */
+@Composable
+private fun MediaBubble(state: IhearUiState, glue: CameraGlue, viewModel: IhearViewModel) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+        Box(
+            Modifier
+                .shadow(2.dp, BubbleShape)
+                .background(IhearPalette.mediaFrame, BubbleShape)
+                .border(1.dp, IhearPalette.mediaBorder, BubbleShape)
+                .padding(6.dp),
+        ) {
+            IhearCameraWindow(state = state, glue = glue, viewModel = viewModel, modifier = Modifier)
+        }
     }
 }
 

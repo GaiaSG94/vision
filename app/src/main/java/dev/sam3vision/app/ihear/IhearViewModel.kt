@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.sam3vision.app.IhearHaptics
-import dev.sam3vision.app.IntroAudio
 import dev.sam3vision.app.SpeechPlayer
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.decodeScaledExact
@@ -25,14 +24,12 @@ import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
 import java.io.File
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Toute la mécanique iHear : un seul écran — le chat — avec la caméra reléguée dans
@@ -73,6 +70,9 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Voix de proximité : dit les objets et leur distance une fois par scène. */
     private val proximity = ProximityVoice(player) { settings }
 
+    /** Voix de l'intro (le texte écrit, lui, ne part jamais). */
+    private val intro = IhearIntro(getApplication(), player, { settings }, { settings = it }, prefs, { fn -> _state.update(fn) })
+
     /** Vrai quand l'écran iHear est à l'écran : les gestes ne touchent que lui. */
     @Volatile
     var active: Boolean = false
@@ -89,11 +89,13 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private var settings: Settings = Settings.Default
 
     init {
+        // Le texte d'intro est le premier message une fois pour toutes.
+        _state.update { it.copy(introVisible = true) }
         viewModelScope.launch {
             settings = seededFromBuild(prefs.load())
             syncProbe()
             refreshHistory()
-            playIntroIfPending()
+            intro.playIfPending()
         }
         probe.observeSpoken(viewModelScope, proximity) { playerIdle() }
     }
@@ -140,35 +142,6 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ————— Intro vocale (chaque ouverture complète) : le premier message du chat —————
-
-    /** Intro attendue ? MP3 embarqué (anglais) dit et posé en tête du chat à chaque
-     * ouverture complète de l'app, tant que le user ne l'a pas coupée par la voix. */
-    private suspend fun playIntroIfPending() {
-        if (!settings.introPending) return
-        // Aucun marqueur persisté : chaque ouverture complète rejoue l'intro ; une simple
-        // mise en arrière-plan puis retour ne recrée pas ce ViewModel, donc ne rejoue pas.
-        val file = withContext(Dispatchers.IO) { IntroAudio.ensure(getApplication()) }
-        _state.update {
-            it.copy(introVisible = true, speakingEntryId = INTRO_BUBBLE_ID, status = null)
-        }
-        player.playFile(file).onFailure { cause ->
-            _state.update { st ->
-                st.copy(speakingEntryId = if (st.speakingEntryId == INTRO_BUBBLE_ID) null else st.speakingEntryId)
-            }
-            _state.update { it.copy(status = "Intro: $cause") }
-        }
-    }
-
-    /** La dictée coupe l'intro : bascule persistée ouverte, bulle déposée sur le champ. */
-    private suspend fun disableIntro() {
-        if (!settings.introEnabled) return
-        settings = settings.copy(introEnabled = false)
-        prefs.save(settings)
-        player.stop()
-        _state.update { it.copy(introVisible = false, speakingEntryId = null, status = "Intro disabled") }
-    }
-
     // ————— Gestes —————
 
     /** Appui long maintenu : le micro s'ouvre (dictée Muse), salve haptique dédiée. */
@@ -191,10 +164,11 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Balayage vertical commencé : vibration tant que le doigt glisse — sauf à
-     * bulle unique, où il n'y a rien à changer : pas de vibration, juste la lecture. */
+     * bulle unique (intro seule comprise), où il n'y a rien à changer. */
     fun onVerticalDragStart() {
         if (!active) return
-        if (!hasBubbleChoice(_state.value.entries.size)) return
+        val state = _state.value
+        if (!hasBubbleChoice(bubbleCount(state.entries.size, state.introVisible))) return
         haptics.verticalSwipeStart()
     }
 
@@ -203,10 +177,15 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
      * peut pas être perdue en route. Un geste = une bulle. */
     fun onVerticalDragMove(downward: Boolean) {
         if (!active) return
-        val snapshot = _state.value
-        if (snapshot.recordingVideo || snapshot.entries.isEmpty()) return
+        if (_state.value.recordingVideo) return
         viewModelScope.launch {
             val state = _state.value
+            val total = bubbleCount(state.entries.size, state.introVisible)
+            if (state.entries.isEmpty()) {
+                // Seule l'intro : pas de vibration, juste sa relecture.
+                if (state.introVisible) intro.replay()
+                return@launch
+            }
             when (val step = swipeStep(state.entries.size, state.selected, state.firstSwipeDownDone, downward)) {
                 is SwipeStep.Move -> {
                     _state.update { it.copy(selected = step.selected) }
@@ -219,7 +198,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
                 // Pas de bulle voisine (dont bulle unique) : pas de vibration,
                 // juste la relecture de la bulle courante.
                 SwipeStep.NoMove -> {
-                    if (!hasBubbleChoice(state.entries.size)) playSelected()
+                    if (!hasBubbleChoice(total)) playSelected()
                 }
             }
         }
@@ -267,13 +246,34 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Distances de la photo : la pastille de chaque objet arrive après coup, sans bloquer
-     *  l'affichage ; les mesures gagnent du temps d'écran (photo maintenue plus longtemps). */
+     *  l'affichage ; les mesures gagnent du temps d'écran (photo maintenue plus longtemps).
+     *  Chaque échec est dit dans le chat au lieu de rester muet. */
     private fun measurePhoto(target: File) {
         viewModelScope.launch {
-            val layer = photoDistances.measure(target, settings) ?: return@launch
-            if (_state.value.photoPath != target.path) return@launch
-            _state.update { it.copy(distanceLayer = layer) }
-            armEvaporation(target, PHOTO_MEASURED_MS)
+            when (val outcome = photoDistances.measureOutcome(target, settings)) {
+                is PhotoMeasure.Measured -> {
+                    if (_state.value.photoPath != target.path) return@launch
+                    _state.update { it.copy(distanceLayer = outcome.layer) }
+                    armEvaporation(target, PHOTO_MEASURED_MS)
+                }
+                PhotoMeasure.OverlayOff ->
+                    photoStatus(target, "Photo: distance overlay off (Settings)")
+                PhotoMeasure.NoEndpoint ->
+                    photoStatus(target, "Photo: SAM endpoint missing (Settings → Region)")
+                PhotoMeasure.Unreadable ->
+                    photoStatus(target, "Photo: image unreadable")
+                is PhotoMeasure.Failed ->
+                    photoStatus(target, "Photo analysis failed: ${outcome.reason}")
+                PhotoMeasure.NoObjects ->
+                    photoStatus(target, "Photo: no measurable objects")
+            }
+        }
+    }
+
+    /** Motif posé en état seulement si la photo est encore à l'écran. */
+    private fun photoStatus(target: File, message: String) {
+        if (_state.value.photoPath == target.path) {
+            _state.update { it.copy(status = message) }
         }
     }
 
@@ -281,7 +281,13 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Fin de la tenue : transcription, coupe d'intro éventuelle, puis réponse IA. */
     private suspend fun transcribeAndAnswer() {
-        if (!playerIdle()) return
+        if (!playerIdle()) {
+            // Tenue pendant une lecture : on jette la capture pour ne jamais bloquer
+            // le micro des tenues suivantes, et on l'explique au lieu de rester muet.
+            mic.abort()
+            _state.update { it.copy(status = "Busy speaking — try again") }
+            return
+        }
         _state.update { it.copy(transcribing = true) }
         val client = speechClient(settings)
         val outcome = when {
@@ -299,7 +305,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         )
         if (isIntroDisablePhrase(text)) {
             mic.abort()
-            disableIntro()
+            intro.disable()
             return
         }
         handleDictated(text, pcm)
