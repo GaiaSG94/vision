@@ -7,9 +7,9 @@ import org.junit.Test
 class LivePromptsTest {
 
     @Test
-    fun `les prompts par defaut sont person car dog chair`() {
-        assertEquals(8, LivePrompts.Default.size)
-        assertTrue(LivePrompts.Default.containsAll(listOf("person", "table", "laptop", "door")))
+    fun `les prompts par defaut sont deux concepts de guidage`() {
+        assertEquals(2, LivePrompts.Default.size)
+        assertTrue(LivePrompts.Default.containsAll(listOf("person", "door")))
         assertEquals(8, LivePrompts.MAX)
     }
 
