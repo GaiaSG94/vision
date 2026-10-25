@@ -181,28 +181,28 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun restart(prompts: List<String>) = viewModelScope.launch { start(store.load(), prompts) }
 
-    /** Le conteneur Modal (A100 40 Go) se réveille en 30-50 s : on retente sans afficher d'erreur. */
+    /**
+     * Le conteneur Modal (A100 40 Go) se réveille : **un seul appel** à `/health`.
+     *
+     * Le client `/health` a un délai long (180 s) : il attend le démarrage du
+     * conteneur. Réessayer en boucle (3 × 4 s) ne servait qu'à garder la carte allumée
+     * et à remplir les journaux ; le réveil suivant se fait sur la première frame.
+     */
     private suspend fun wakeGpu() {
         val http = client ?: return
-        for (attempt in 1..WAKE_TRIES) {
-            http.health().fold(
-                onSuccess = { info ->
-                    warm = true
-                    _state.update { it.copy(gpu = shortGpu(info.gpu).take(28), starting = false, error = null) }
-                    return
-                },
-                onFailure = { error ->
-                    val reason = error.message ?: "GPU injoignable"
-                    _state.update {
-                        it.copy(
-                            starting = attempt < WAKE_TRIES,
-                            error = if (attempt < WAKE_TRIES) null else samUnreachableLine(reason),
-                        )
-                    }
-                    if (attempt < WAKE_TRIES) delay(WAKE_DELAY_MS)
-                },
-            )
-        }
+        val outcome = http.health()
+        outcome.fold(
+            onSuccess = { info ->
+                warm = true
+                _state.update { it.copy(gpu = shortGpu(info.gpu).take(28), starting = false, error = null) }
+            },
+            onFailure = { error ->
+                val reason = error.message ?: "GPU injoignable"
+                _state.update {
+                    it.copy(starting = false, error = samUnreachableLine(reason))
+                }
+            },
+        )
     }
 
     /**
@@ -456,8 +456,6 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         /** Réveil : une requête patiente couvre le démarrage, ces essais couvrent le reste. */
-        const val WAKE_TRIES = 3
-        const val WAKE_DELAY_MS = 4_000L
 
         /** Fenêtre du journal envoyée au LLM : 30 s suffisent pour « il y a 5 s ». */
         const val MEMORY_WINDOW_MS = 30_000L

@@ -384,10 +384,13 @@ class LiveProbe(private val scope: CoroutineScope) {
     }
 
     /**
-     * Réveil du conteneur Modal en tâche de fond : un `/live` abandonne au bout de 10 s
-     * (cadence du direct), or un conteneur endormi met 30-50 s à démarrer. Sans ce
-     * réveil, l'utilisateur filme dans le vide et ne voit ni masque ni explication.
-     * `/health` a un délai long (180 s) et rapporte aussi le nom du GPU.
+     * Réveil du conteneur Modal : **un seul appel** à `/health`.
+     *
+     * Avant, on réessayait 6 fois toutes les 10 s : c'est ce qui remplissait les
+     * journaux de `/health` et, surtout, qui **gardait la carte A100 allumée en boucle**
+     * (une carte qui répond reste un conteneur actif, facturé). Un seul appel suffit :
+     * le client `/health` a un délai long (il attend le démarrage du conteneur), et si le
+     * réveil échoue, la première frame `/live` réessaiera d'elle-même.
      */
     private fun wake() {
         val base = _state.value.endpoint
@@ -395,23 +398,16 @@ class LiveProbe(private val scope: CoroutineScope) {
         warming = true
         _state.update { it.copy(warming = true) }
         scope.launch {
-            val http = liveClient(base)
-            var lastError: String? = null
-            for (attempt in 1..WAKE_TRIES) {
-                val outcome = http.health()
-                val info = outcome.getOrNull()
-                if (info != null) {
-                    warming = false
-                    _state.update {
-                        it.copy(gpu = info.gpu.take(28), warming = false, error = null)
-                    }
-                    return@launch
-                }
-                lastError = outcome.exceptionOrNull()?.message
-                if (attempt < WAKE_TRIES) kotlinx.coroutines.delay(WAKE_DELAY_MS)
-            }
+            val outcome = liveClient(base).health()
             warming = false
-            _state.update { it.copy(warming = false, error = lastError ?: "GPU injoignable") }
+            outcome.fold(
+                onSuccess = { info ->
+                    _state.update { it.copy(gpu = info.gpu.take(28), warming = false, error = null) }
+                },
+                onFailure = { error ->
+                    _state.update { it.copy(warming = false, error = error.message ?: "GPU injoignable") }
+                },
+            )
         }
     }
 
@@ -425,8 +421,5 @@ class LiveProbe(private val scope: CoroutineScope) {
         /** Délai du premier appel : couvre le démarrage d'un conteneur Modal (30-50 s). */
         const val COLD_TIMEOUT_SECONDS = 60L
 
-        /** Essais de réveil : 6 × 10 s couvrent un démarrage de conteneur Modal. */
-        const val WAKE_TRIES = 6
-        const val WAKE_DELAY_MS = 10_000L
     }
 }
