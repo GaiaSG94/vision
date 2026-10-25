@@ -1,5 +1,10 @@
 # Fiche de référence — DAT (Meta Wearables Device Access Toolkit) pour le spike lunettes
 
+> **Doc de référence pour l'intégration : [`META-GLASSES.md`](META-GLASSES.md).** Cette fiche
+> reste le relevé d'API du spike ; ses « écarts » (§6) décrivent le scaffold `glasses-spike/`,
+> pas l'app : le manifeste de `:app` (intent-filter `VIEW`/`BROWSABLE`, `BLUETOOTH_CONNECT`) et
+> son `minSdk = 29` sont désormais conformes. En cas de divergence, `META-GLASSES.md` fait foi.
+
 Sources : AAR réels `com.meta.wearable:mwdat-{core,camera,mockdevice}:1.0.1` (classes extraites dans
 `/tmp/datcheck/*/classes.jar`), `javap` sur ces binaires, plus la doc DAT
 (`wearables.developer.meta.com/docs/develop/dat/getting-started-toolkit/` et

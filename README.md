@@ -9,6 +9,9 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 
 ## Ce que voit l'utilisateur (captures décrites, 1080×2400)
 
+- **Accueil iHear** : chat plein écran + fenêtre caméra flottante. **Lunettes Ray-Ban Meta** :
+  bloc « Lunettes Ray-Ban Meta » des Réglages — appui court sur le bouton capture → photo
+  analysée, appui long → photo + chat (`docs/META-GLASSES.md`).
 - **Capture** : plein écran sombre, titre « SAM Vision », zone d'aperçu caméra, trois
   boutons : « Photographier » (large, centre bas), « Galerie » (à gauche), « Réglages » (à droite).
   **Un tap n'importe où sur l'aperçu (hors boutons) lance le Direct (vidéo).**
@@ -89,7 +92,8 @@ sam-vision-kotlin/
 - **JDK Temurin 17** : `~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2` (le JRE système 21
   n'a pas de `javac` ; `gradle.properties` épingle déjà `org.gradle.java.home`).
 - **Android SDK** : `~/Android/Sdk` (platforms 34→36, build-tools jusqu'à 37).
-- **Gradle 8.14.1** via wrapper, **AGP 8.11.1, Kotlin 2.2.21**, compileSdk 36, minSdk 26.
+- **Gradle 8.14.1** via wrapper, **AGP 8.11.1, Kotlin 2.2.21**, compileSdk 36, **minSdk 29**
+  (Android 10+, exigé par le SDK des lunettes Ray-Ban Meta).
 - Tout est déjà en cache local : les commandes passent `--offline`, sans Android Studio.
 
 ## Build, test, install

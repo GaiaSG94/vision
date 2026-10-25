@@ -31,9 +31,11 @@ Pas de step `actions/cache` : le cache Gradle est **persistant sur la machine**.
 suivants sont à chaud. Au 24/10 : 01 et 02 chauds, 03 et 04 froids. Rien à précharger.
 
 ## Pourquoi un module séparé
-`com.meta.wearable:mwdat-*` impose **minSdk 29** ; `:app` et `:core` sont en **26** et ne
-seront pas relevés pour un SDK encore en developer preview. `:app` ne dépend pas de
-`glasses-spike` : seul `settings.gradle.kts` enregistre le module.
+`com.meta.wearable:mwdat-*` impose **minSdk 29**. À l'époque du spike, `:app` et `:core`
+étaient en **26** et ne devaient pas être relevés pour un SDK encore en developer preview.
+Depuis, **`:app` est passé en 29** avec l'intégration DAT dans l'app elle-même (voir
+`docs/META-GLASSES.md`) ; `:core` reste en 26. `:app` ne dépend pas de `glasses-spike` :
+seul `settings.gradle.kts` enregistre le module.
 
 ## Gardes de taille
 `tools/check-kotlin-limits.py` parcourt la racine récursivement : `glasses-spike/` est déjà

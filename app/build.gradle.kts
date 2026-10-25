@@ -40,7 +40,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.sam3vision.app"
-        minSdk = 26
+        minSdk = 29
         targetSdk = 36
         // versionCode = date du commit HEAD : Android REFUSE d'installer une build plus
         // ancienne (INSTALL_FAILED_VERSION_DOWNGRADE), donc un APK périmé ne peut plus
@@ -48,6 +48,12 @@ android {
         // rejetée : rebâtir sur origin/master (règle user du 2026-10-25).
         versionCode = gitCommitSeconds
         versionName = "1.0.$gitCommitCount-$gitShortSha"
+
+        // Device Access Toolkit Meta : « 0 »/« 0 » = Developer Mode, sans attestation.
+        // Hors Developer Mode, mettre l'Application ID et le Client Token du Wearables
+        // Developer Center dans local.properties (mwdat.application.id / mwdat.client.token).
+        manifestPlaceholders["mwdat_application_id"] = localProp("mwdat.application.id").ifBlank { "0" }
+        manifestPlaceholders["mwdat_client_token"] = localProp("mwdat.client.token").ifBlank { "0" }
 
         // Valeurs lues depuis local.properties (jamais commité) ; vides si absent.
         buildConfigField("String", "LLM_BASE_URL", "\"${localProp("llm.base.url")}\"")
@@ -116,8 +122,14 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation("com.google.guava:guava:33.3.1-android")
-    // Encodage MP3 pur Java (port LAME) : la voix du micro est archivée en cache.
+// Encodage MP3 pur Java (port LAME) : la voix du micro est archivée en cache.
     implementation(libs.jump3r)
+    // Lunettes Ray-Ban Meta : Device Access Toolkit (developer preview, Maven Central).
+    implementation(libs.mwdat.core)
+    implementation(libs.mwdat.camera)
+    implementation(libs.mwdat.inputs)
+    implementation(libs.mwdat.mockdevice)
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

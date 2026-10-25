@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,9 +12,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.sam3vision.app.glasses.GlassesController
+import dev.sam3vision.app.glasses.GlassesEvent
 import dev.sam3vision.app.ihear.IhearHome
 import dev.sam3vision.app.ihear.IhearViewModel
 import dev.sam3vision.app.tap.TapCaptureScreen
+import dev.sam3vision.core.glasses.CaptureAction
 
 /** Routes de l'app (navigation par état, sans dépendance navigation-compose). */
 sealed interface Route {
@@ -39,7 +43,12 @@ sealed interface Route {
  * caméra et le chat via [IhearViewModel] quand iHear est à l'écran.
  */
 @Composable
-fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveViewModel = viewModel()) {
+fun AppNav(
+    viewModel: AppViewModel,
+    ihear: IhearViewModel,
+    glasses: GlassesController,
+    liveViewModel: LiveViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsState()
     var stack by remember { mutableStateOf(listOf<Route>(Route.Ihear)) }
     val route = stack.first()
@@ -48,6 +57,9 @@ fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveVi
     BackHandler(enabled = stack.size > 1) { pop() }
 
     Box(Modifier.fillMaxSize()) {
+        // Les lunettes poussent leurs photos directement dans la navigation.
+        GlassesBridge(glasses = glasses, viewModel = viewModel, push = push)
+
         when (route) {
             Route.Ihear -> IhearHome(
                 viewModel = ihear,
@@ -61,6 +73,7 @@ fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveVi
             Route.Settings -> SettingsRoute(
                 viewModel = viewModel,
                 state = state,
+                glasses = glasses,
                 pop = pop,
                 onOpenLive = { push(Route.Live) },
                 onOpenClassic = { push(Route.Capture) },
@@ -69,6 +82,19 @@ fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveVi
 
         state.dictation.overlay?.let { overlay ->
             DictationOverlay(overlay = overlay, onDismiss = viewModel::dismissOverlay)
+        }
+    }
+}
+
+/** Une photo prise sur les lunettes s'analyse comme une photo prise à la main. */
+@Composable
+private fun GlassesBridge(glasses: GlassesController, viewModel: AppViewModel, push: (Route) -> Unit) {
+    LaunchedEffect(glasses) {
+        glasses.events.collect { event ->
+            if (event is GlassesEvent.PhotoTaken) {
+                viewModel.onPhoto(event.file)
+                push(if (event.action == CaptureAction.ASK) Route.Chat else Route.Analysis)
+            }
         }
     }
 }
@@ -147,6 +173,7 @@ private fun ChatRoute(state: UiState, viewModel: AppViewModel, pop: () -> Unit) 
 private fun SettingsRoute(
     viewModel: AppViewModel,
     state: UiState,
+    glasses: GlassesController,
     pop: () -> Unit,
     onOpenLive: () -> Unit,
     onOpenClassic: () -> Unit,
@@ -155,6 +182,7 @@ private fun SettingsRoute(
         settings = state.settings,
         statusLine = state.statusLine,
         llmConfigured = state.settings.llmConfigured,
+        glasses = glasses,
         speaking = state.speak,
         onSave = { viewModel.saveSettings(it); pop() },
         onTestLlm = viewModel::testLlm,

@@ -3,8 +3,9 @@ import java.util.Properties
 
 // SPIKE — module jetable qui prouve la chaîne « lunettes Meta → SAM → voix ».
 // Isolé de :app pour deux raisons :
-//   1. mwdat-* déclare minSdk 29 ; :app est en 26 et ne doit pas être relevé
-//      pour un SDK encore en developer preview.
+//   1. mwdat-* déclare minSdk 29 ; à l'époque du spike, :app était en 26 et ne
+//      devait pas être relevé pour un SDK encore en developer preview (depuis,
+//      :app est passé en 29 avec l'intégration DAT — voir docs/META-GLASSES.md).
 //   2. un SDK en preview n'a rien à faire dans l'APK de production.
 val localProps = Properties().apply {
     val file = rootProject.file("local.properties")

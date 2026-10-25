@@ -1,5 +1,24 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (8) — lunettes Ray-Ban Meta (DAT) + fusion de `master`
+
+- **Device Access Toolkit** `com.meta.wearable:mwdat-{core,camera,inputs,mockdevice}:1.0.1` :
+  enregistrement auprès de l'app Meta AI, session Bluetooth, flux caméra 15 fps (MEDIUM), photo
+  poussée dans l'app par le même chemin qu'une capture téléphone (`AppNav.GlassesBridge`).
+  Mode dégradé complet : aucune fonction du téléphone ne dépend des lunettes.
+- **Bouton capture, trois gestes** : appui court → photo + analyse (masques SAM), appui long →
+  photo + chat (la question se pose sur le téléphone), double appui → message d'explication
+  (le mode Direct existe dans l'app mais n'est pas porté sur les lunettes). Lissage des appuis
+  dans `CaptureGestureBuffer` (`:core`, 350 ms de grâce, tests JVM).
+- **minSdk 26 → 29** (exigence des AAR Meta) : **Android 10+ requis**, un appareil en Android 8
+  ou 9 ne peut plus installer l'APK. Rien d'autre ne bouge pour le téléphone.
+- **Fusion de `origin/master`** dans la branche (elle ne portait qu'un commit, master ~77 de
+  plus) : accueil iHear (chat + fenêtre caméra), mode Direct avec narration LLM continue, voix
+  ElevenLabs, dictée Meta (ASR), prédiction locale des boîtes, objets à l'écran réglables,
+  nettoyage des captures (Room), `versionCode` = date du commit.
+- **Doc** : `docs/META-GLASSES.md` mis à jour (accueil iHear, gestes réels, minSdk 29, fonctions
+  du téléphone sans lunettes) ; `docs/glasses-dat-spike.md` renvoie désormais à cette doc.
+
 ## 2026-10-25 — Réglages : mode US (GPU SAM 3.1 aux États-Unis)
 
 - **Nouveau réglage `samRegion`** (`core/settings/SamRegion.kt`) : deux régions, **EU**

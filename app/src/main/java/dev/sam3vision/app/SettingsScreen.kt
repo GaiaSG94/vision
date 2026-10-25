@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.sam3vision.app.glasses.GlassesController
+import dev.sam3vision.app.glasses.GlassesSection
 import dev.sam3vision.core.settings.Settings
 
 /**
@@ -30,13 +33,16 @@ import dev.sam3vision.core.settings.Settings
  * (mode Europe / **mode US**) + section
  * « Distances » (overlay du direct, champ de vision) + section « Voix ElevenLabs »
  * (clé, voix, lecture automatique, test) + section « Dictée Meta » (base URL, clé,
- * modèle ASR, test). Chaque moteur a son bouton de test.
+ * modèle ASR, test) + bloc « Lunettes Ray-Ban Meta » (enregistrement auprès de
+ * Meta AI, session, capture photo, lunettes simulées en build debug).
+ * Chaque moteur a son bouton de test.
  */
 @Composable
 fun SettingsScreen(
     settings: Settings,
     statusLine: String?,
     llmConfigured: Boolean,
+    glasses: GlassesController,
     speaking: SpeakState,
     onSave: (Settings) -> Unit,
     onTestLlm: () -> Unit,
@@ -49,16 +55,14 @@ fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     var draft by remember { mutableStateOf(settings) }
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(AppColors.background)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState()),
-    ) {
+    val scroll = Modifier
+        .fillMaxSize()
+        .background(AppColors.background)
+        .statusBarsPadding()
+        .navigationBarsPadding()
+        .imePadding()
+        .verticalScroll(rememberScrollState())
+    Column(scroll) {
         ScreenHeader("Réglages du backend", "Aucune clé n'est écrite dans le code.", onBack, null)
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -79,8 +83,26 @@ fun SettingsScreen(
             SettingsActions(draft, llmConfigured, onSave, onTestLlm, onTestSam, onTestAsr)
             ClassicScreens(onOpenLive, onOpenClassic)
             statusLine?.let { StatusBanner(it, AppColors.surfaceHigh) }
+            GlassesBlock(glasses)
         }
     }
+}
+
+/** Bloc « Lunettes Ray-Ban Meta » : lit l'état du contrôleur et délègue ses actions. */
+@Composable
+private fun GlassesBlock(glasses: GlassesController) {
+    val glassesState by glasses.state.collectAsState()
+    GlassesSection(
+        state = glassesState,
+        debugBuild = BuildConfig.DEBUG,
+        onRegister = glasses::register,
+        onConnect = glasses::connect,
+        onCapture = { glasses.capture() },
+        onDisconnect = glasses::disconnect,
+        onStartMock = glasses::startMockDevice,
+        onMockPress = { glasses.mockPress() },
+        onStopMock = glasses::stopMockDevice,
+    )
 }
 
 /** Section « Backend » : LLM (base URL, clé, modèle) et endpoint SAM 3.1 optionnel. */

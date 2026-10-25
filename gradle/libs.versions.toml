@@ -52,6 +52,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
 mwdat-core = { module = "com.meta.wearable:mwdat-core", version.ref = "mwdat" }
 mwdat-camera = { module = "com.meta.wearable:mwdat-camera", version.ref = "mwdat" }
+mwdat-inputs = { module = "com.meta.wearable:mwdat-inputs", version.ref = "mwdat" }
 mwdat-mockdevice = { module = "com.meta.wearable:mwdat-mockdevice", version.ref = "mwdat" }
 
 [plugins]
