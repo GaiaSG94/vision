@@ -20,7 +20,7 @@ class SamLifecycleTest {
             }
         }
         try {
-            assertTrue(releaseSam(server.baseUrl).getOrThrow())
+            assertTrue(releaseSam(server.baseUrl).getOrThrow().released)
             val sent = server.requests.single()
             assertEquals("POST", sent.method)
             assertEquals("/release", sent.path)
@@ -33,7 +33,7 @@ class SamLifecycleTest {
     fun `un refus du serveur donne false sans lever`() = runBlocking {
         val server = TestHttpServer { TestHttpServer.Response(400, """{"detail":"refusé"}""") }
         try {
-            assertFalse(releaseSam(server.baseUrl).getOrThrow())
+            assertFalse(releaseSam(server.baseUrl).getOrThrow().released)
         } finally {
             server.close()
         }
@@ -41,6 +41,18 @@ class SamLifecycleTest {
 
     @Test
     fun `une base vide ne fait aucun appel`() = runBlocking {
-        assertFalse(releaseSam("").getOrThrow())
+        assertFalse(releaseSam("").getOrThrow().released)
+    }
+
+    @Test
+    fun `le refus du serveur expose le code et le corps`() = runBlocking {
+        val server = TestHttpServer { TestHttpServer.Response(400, """{"detail":"en-tête manquant"}""") }
+        try {
+            val outcome = releaseSam(server.baseUrl).getOrThrow()
+            assertEquals(400, outcome.code)
+            assertTrue(outcome.body.contains("en-tête"))
+        } finally {
+            server.close()
+        }
     }
 }

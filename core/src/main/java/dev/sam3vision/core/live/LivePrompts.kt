@@ -17,10 +17,15 @@ object LivePrompts {
      * 2 concepts = 118 ms médian, 8 concepts = 118 ms médian**. Huit concepts sont
      * gratuits : autant tout suivre.
      */
-    val Default: List<String> = listOf("person", "chair", "table", "laptop", "bottle", "cup", "bag", "door")
+    val Default: List<String> = listOf("person", "door")
 
-    /** Nombre maximal de prompts envoyés par frame. */
-    const val MAX = 8
+    /**
+     * Nombre maximal de concepts : **2**, décision user du 25/10 (« 2 concepts maximum,
+     * jamais plus »). Le backend tronque déjà à `PROMPT_LIMIT = 2` côté tracker ; le
+     * client ne doit donc pas en envoyer davantage — sinon l'app affiche des concepts
+     * qui ne sont jamais détectés.
+     */
+    const val MAX = 2
 
     /** Longueur maximale d'un prompt : au-delà, ce n'est plus un concept. */
     const val MAX_LENGTH = 32

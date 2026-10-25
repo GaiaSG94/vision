@@ -291,35 +291,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             .resolveSamEndpoint(BuildConfig.SAM_BASE_URL, BuildConfig.SAM_US_BASE_URL)
         if (endpoint.isBlank()) return
         releaseScope.launch {
-            releaseSam(endpoint)
+            val outcome = releaseSam(endpoint)
+            android.util.Log.i(
+                "sam3vision",
+                "extinction GPU (fermeture) -> $endpoint : " +
+                    (outcome.getOrNull()?.let { "code=${it.code} ok=${it.released} corps=${it.body}" }
+                        ?: "échec ${outcome.exceptionOrNull()?.message}"),
+            )
         }
     }
 
-    /** Scope d'extinction : indépendant du cycle de vie de l'écran (voir [releaseGpu]). */
+    /** Scope d'extinction : indépendant du cycle de vie (à `onStop`, le ViewModel vit encore,
+     *  mais l'app peut être gelée juste après — l'appel doit partir quand même). */
     private val releaseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    /**
-     * L'app passe derrière : on n'éteint pas tout de suite (un changement d'app de 5 s ne
-     * doit pas coûter une restauration), mais on coupe après [BACKGROUND_RELEASE_MS] sans
-     * retour. Annulé par [cancelBackgroundRelease] au retour au premier plan.
-     */
-    fun scheduleBackgroundRelease() {
-        backgroundRelease?.cancel()
-        backgroundRelease = releaseScope.launch {
-            kotlinx.coroutines.delay(BACKGROUND_RELEASE_MS)
-            releaseSam(endpointOrBlank()). onFailure {
-                android.util.Log.w("sam3vision", "extinction GPU après fond : ${it.message}")
-            }
-        }
-    }
-
-    /** L'app revient : le réveil se fera tout seul au premier appel, on annule la coupure. */
-    fun cancelBackgroundRelease() {
-        backgroundRelease?.cancel()
-        backgroundRelease = null
-    }
-
-    private var backgroundRelease: Job? = null
 
     /** Endpoint résolu (saisie manuelle > région > build), vide si rien à interroger. */
     private fun endpointOrBlank(): String = _state.value.settings
@@ -455,8 +439,5 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Fenêtre anti-rallumage : deux réveils rapprochés ne servent à rien. */
         const val PREWARM_WINDOW_MS = 120_000L
-
-        /** Delai sans retour avant de couper le GPU quand l'app est en arriere-plan. */
-        const val BACKGROUND_RELEASE_MS = 60_000L
     }
 }

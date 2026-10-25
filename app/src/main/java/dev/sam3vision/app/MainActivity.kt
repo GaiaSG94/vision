@@ -119,15 +119,16 @@ class MainActivity : ComponentActivity() {
     /** Option C : minuteur d'inactivité démarré / annulé autour de l'arrière-plan. */
     override fun onPause() {
         root.cancelGesture()
-        // Fond : le GPU sera coupé si l'app ne revient pas (voir BACKGROUND_RELEASE_MS).
-        viewModel.scheduleBackgroundRelease()
+        // L'app n'est plus visible (bouton home, changement d'app, écran éteint) : on coupe
+        // le GPU ici et pas à onStop — sur ce téléphone, home ne déclenche pas toujours onStop
+        // et un minuteur ne servirait à rien, Android gèle le processus en arrière-plan.
+        if (!isChangingConfigurations) viewModel.releaseGpu()
         ihear.onBackground()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        viewModel.cancelBackgroundRelease()
         viewModel.prewarmGpu()
         ihear.onForeground()
     }
