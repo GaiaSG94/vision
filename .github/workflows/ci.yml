@@ -126,6 +126,17 @@ jobs:
           :app:assembleDebug :app:assembleRelease :app:lintDebug
           :glasses-spike:assembleDebug :glasses-spike:testDebugUnitTest
 
+      # L'APK du téléphone, publié à chaque push sur master : `phone-live-build` le
+      # télécharge et l'installe. Jamais sur les PR (76 Mo par course, sans usage).
+      - name: APK debug sur master
+        if: github.ref == 'refs/heads/master' && steps.perimetre.outputs.code == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 2
+          if-no-files-found: error
+
       - name: Rapport de tests
         if: always()
         uses: actions/upload-artifact@v4
