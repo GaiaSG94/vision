@@ -40,6 +40,7 @@ fun LiveTopBar(
             Chip("Arrêter", AppColors.danger, onBack)
             Chip("Réglages", AppColors.surfaceHigh, onOpenSettings)
             SamModeChip(state.samEnabled, onToggleSam)
+            TransportChip(state.transport)
         }
         Text(
             state.statusLine,
@@ -66,6 +67,17 @@ fun LiveTopBar(
         PromptRow(draft, onDraftChange, onApply)
         (failure ?: state.error)?.let { StatusBanner(it, AppColors.danger) }
     }
+}
+
+/**
+ * Pastille du transport : « WebSocket » (rapide) ou « HTTP » (repli après un échec).
+ * Vide = le direct n'a pas encore de transport.
+ */
+@Composable
+fun TransportChip(transport: String) {
+    if (transport.isBlank()) return
+    val color = if (transport == TRANSPORT_WS) AppColors.success else AppColors.surfaceHigh
+    Chip(transport, color, null)
 }
 
 /**

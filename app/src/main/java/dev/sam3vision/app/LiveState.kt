@@ -47,6 +47,8 @@ data class LiveUiState(
     val narrationError: String? = null,
     /** Voix du direct : on parle pour poser sa question sur le flux en cours. */
     val voice: LiveVoiceState = LiveVoiceState(),
+    /** Transport du direct : « WebSocket » (rapide) ou « HTTP » (repli). Vide = inconnu. */
+    val transport: String = "",
 ) {
     val statusLine: String
         get() = if (running && starting) {

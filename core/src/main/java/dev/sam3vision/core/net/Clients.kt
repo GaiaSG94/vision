@@ -53,6 +53,9 @@ interface LiveClient {
     ): Result<LiveFrame>
 
     suspend fun health(): Result<LiveHealth>
+
+    /** Libère les ressources (socket, connexions) : sans effet pour un client HTTP. */
+    fun close() {}
 }
 
 /**

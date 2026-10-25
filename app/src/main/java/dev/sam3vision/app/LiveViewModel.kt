@@ -23,11 +23,13 @@ import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.TimelineSummary
 import dev.sam3vision.core.model.toDetections
+import dev.sam3vision.core.net.AutoLiveClient
 import dev.sam3vision.core.net.HttpLiveClient
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LiveClient
 import dev.sam3vision.core.net.LiveLlmClient
 import dev.sam3vision.core.net.LlmClient
+import dev.sam3vision.core.net.WsLiveClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
@@ -117,9 +119,22 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val http = HttpLiveClient(base)
-        client = http
-        session = LiveSession(http, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
-        _state.update { it.copy(running = true, starting = true, error = null, memory = LiveMemoryState(), spoken = null) }
+        val live = AutoLiveClient(
+            WsLiveClient(base, http = http),
+            http,
+        ) { reason -> _state.update { it.copy(transport = TRANSPORT_HTTP) } }
+        client = live
+        session = LiveSession(live, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
+        _state.update {
+            it.copy(
+                running = true,
+                starting = true,
+                error = null,
+                memory = LiveMemoryState(),
+                spoken = null,
+                transport = TRANSPORT_WS,
+            )
+        }
         viewModelScope.launch { wakeGpu() }
     }
 
@@ -418,6 +433,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() {
         narrator = null
         liveVoice.cancel()
+        client?.close()
         session = null
         client = null
         distances.reset()
@@ -428,6 +444,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        client?.close()
         voice.release()
         super.onCleared()
     }
@@ -454,6 +471,12 @@ const val SAM_ABSENT_LINE = "Détecteur SAM non configuré — questions sur l'i
 /** Direct sans détecteur joignable : même repli, avec la raison exacte. */
 fun samUnreachableLine(reason: String): String =
     "Détecteur SAM injoignable ($reason) — questions sur l'image seule"
+
+/** Direct en WebSocket : une frame par message, sans le surcoût HTTP d'un POST. */
+const val TRANSPORT_WS: String = "WebSocket"
+
+/** Repli HTTP : le WebSocket a échoué, le direct continue en POST /live. */
+const val TRANSPORT_HTTP: String = "HTTP"
 
 /** Aucune clé LLM : rien ne peut fonctionner, ni la vision ni les questions. */
 const val LLM_ABSENT_LINE = "Clé LLM absente — renseigne-la dans Réglages"

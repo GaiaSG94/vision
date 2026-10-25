@@ -2,7 +2,6 @@ package dev.sam3vision.core.net
 
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.LiveHealth
-import dev.sam3vision.core.model.SegObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -52,7 +51,7 @@ class HttpLiveClient(
             .build()
         return client.execute(request)
             .then { outcome -> outcome.requireSuccess() }
-            .then { raw -> catchingResult { parseLive(raw) } }
+            .then { raw -> catchingResult { parseLiveFrame(raw) } }
     }
 
     override suspend fun health(): Result<LiveHealth> {
@@ -65,25 +64,6 @@ class HttpLiveClient(
             .then { outcome -> outcome.requireSuccess() }
             .then { raw -> catchingResult { parseHealth(raw) } }
     }
-}
-
-private fun parseLive(raw: String): LiveFrame {
-    val json = parse(raw) ?: throw ApiError.BadResponse("/live : JSON illisible")
-    val objects = json.objects("objects").map { obj ->
-        val fields = obj.maskedFields()
-        SegObject(
-            label = fields.label,
-            score = fields.score,
-            box = fields.box,
-            maskPngB64 = fields.maskB64,
-        )
-    }
-    return LiveFrame(
-        width = json.intOr("width"),
-        height = json.intOr("height"),
-        elapsedMs = json.intOr("elapsed_ms").toLong(),
-        objects = objects,
-    )
 }
 
 private fun parseHealth(raw: String): LiveHealth {

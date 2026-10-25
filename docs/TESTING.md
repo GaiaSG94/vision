@@ -121,6 +121,16 @@ vide » + annonce `Failed`. Clips `launched/sent/failed.mp3` présents dans
 Aucun test ne touche le GPU : `/live` est simulé par `TestHttpServer`
 (`net.LiveClientTest` 9) et la mémoire est testée sans réseau.
 
+### Direct : WebSocket d'abord, HTTP en repli
+
+Le direct parle à `/live/ws` (un message JSON par frame, ~31 ms gagnées par frame :
+50,3 ms en WebSocket contre 81,4 ms en POST, même région) et retombe **tout seul** sur
+`POST /live` au premier échec structurel du socket (connexion refusée, délai dépassé,
+socket fermé) — puis y reste pour la session. Tests JVM sans réseau : `net.WsLiveClientTest`
+9 et `net.AutoLiveClientTest` 9 (transport factice). Pour **forcer le repli HTTP** dans un
+test manuel : pointer `sam.base.url` vers un serveur sans `/live/ws` (ex. `python3
+/tmp/mock_sam.py 8099`) ou construire `AutoLiveClient(ws, http, forceHttp = true)`.
+
 ### Recette manuelle du direct (nécessite l'endpoint Modal réveillé)
 
 1. Bouton « Direct (vidéo) » sur l'accueil → écran Direct ; attendre « Réveil du GPU A100… »

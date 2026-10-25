@@ -1,5 +1,7 @@
 package dev.sam3vision.core.net
 
+import dev.sam3vision.core.model.LiveFrame
+import dev.sam3vision.core.model.SegObject
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -130,3 +132,27 @@ internal fun jsonArrayOf(values: List<String>): JSONArray = JSONArray().apply { 
 
 /** Label d'un objet sans nom dans la réponse du backend. */
 internal const val DEFAULT_LABEL = "objet"
+
+/**
+ * Une frame du direct : `POST /live` et le message WebSocket de `/live/ws` ont
+ * **exactement la même forme**, donc un seul parsing pour les deux transports.
+ * Lève [ApiError.BadResponse] si le JSON est illisible (l'appelant enveloppe).
+ */
+internal fun parseLiveFrame(raw: String): LiveFrame {
+    val json = parse(raw) ?: throw ApiError.BadResponse("/live : JSON illisible")
+    val objects = json.objects("objects").map { obj ->
+        val fields = obj.maskedFields()
+        SegObject(
+            label = fields.label,
+            score = fields.score,
+            box = fields.box,
+            maskPngB64 = fields.maskB64,
+        )
+    }
+    return LiveFrame(
+        width = json.intOr("width"),
+        height = json.intOr("height"),
+        elapsedMs = json.intOr("elapsed_ms").toLong(),
+        objects = objects,
+    )
+}
