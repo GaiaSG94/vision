@@ -2,6 +2,7 @@ package dev.sam3vision.core.live
 
 import dev.sam3vision.core.model.Detection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -96,6 +97,31 @@ class LiveTimelineTest {
         timeline.record(1_000L, listOf(Detection("personne", 0.9f, listOf(1f, 1f, 2f, 2f), 0, 0)))
 
         assertTrue(timeline.recent(1_000L, 10_000L).tracks.isEmpty())
+    }
+
+    @Test
+    fun `record rend l'identite de chaque detection dans son ordre`() {
+        val timeline = LiveTimeline()
+        val first = timeline.record(1_000L, listOf(detection("personne", 0.1f), detection("chien", 0.1f)))
+        assertEquals(2, first.size)
+        val personId = first[0]!!.id
+        val dogId = first[1]!!.id
+        assertEquals("personne", first[0]!!.label)
+        assertEquals("chien", first[1]!!.label)
+
+        // même place, même label : même identité ; une détection inexploitable = null
+        val second = timeline.record(
+            1_500L,
+            listOf(
+                detection("personne", 0.1f),
+                Detection("chien", 0.9f, listOf(1f, 1f, 2f, 2f), 0, 0),
+                detection("chien", 0.1f),
+            ),
+        )
+        assertEquals(3, second.size)
+        assertEquals(personId, second[0]!!.id)
+        assertNull(second[1])
+        assertEquals(dogId, second[2]!!.id)
     }
 
     @Test

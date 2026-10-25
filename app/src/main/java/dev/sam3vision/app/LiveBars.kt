@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.sam3vision.core.distance.DistanceText
 
 /** Bandeau du haut : retour, réglages, ligne d'état du direct, erreurs. */
 @Composable
@@ -70,7 +71,7 @@ fun LiveBottomBar(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val labels = state.frame?.objects?.map { it.label }?.distinct()?.take(5).orEmpty()
+        val labels = objectChips(state)
         if (labels.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 labels.forEach { Chip(it, AppColors.primary, null) }
@@ -86,6 +87,19 @@ fun LiveBottomBar(
             Chip("Analyser la frame", AppColors.surfaceHigh, onOpenChat)
         }
     }
+}
+
+/**
+ * Pastilles du bas : une par concept suivi, avec sa distance la plus courte
+ * (« personne 2,1 m ») quand elle est mesurée, sinon le concept seul.
+ */
+fun objectChips(state: LiveUiState, max: Int = 5): List<String> {
+    val readings = state.distanceLayer?.readings.orEmpty()
+    val measured = DistanceText.perLabel(readings)
+    if (measured.isNotEmpty()) {
+        return measured.take(max).map { (label, meters) -> "$label ${DistanceText.format(meters)}" }
+    }
+    return state.frame?.objects?.map { it.label }?.distinct()?.take(max).orEmpty()
 }
 
 /** Pastille : cliquable si [onClick] fourni, sinon simple étiquette. */

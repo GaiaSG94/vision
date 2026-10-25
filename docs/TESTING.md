@@ -1,6 +1,6 @@
 # TESTING — sam-vision-kotlin
 
-## Tests JVM (230 = 185 `:core` + 45 `:app`, réseau simulé)
+## Tests JVM (265 = 213 `:core` + 52 `:app`, réseau simulé)
 
 ```bash
 export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$HOME/Android/Sdk
@@ -96,6 +96,15 @@ vide » + annonce `Failed`. Clips `launched/sent/failed.mp3` présents dans
 - `live.LiveTimelineTest` 9 : identité stable d'une frame à l'autre (même label + centre
   proche), nouvel identifiant quand l'objet se déplace ou revient après 2,5 s, rétention des
   frames et plafond de frames, fenêtre de résumé, détection inexploitable ignorée, `clear`.
+- `distance.LensSpecTest` 6 : focale en pixels depuis le champ de vision (paysage 386,8 px
+  pour 512 px de large à 67°), portrait qui retombe sur l'axe vertical du capteur, bornes.
+- `distance.KnownSizesTest` 5 : **tous** les concepts par défaut du direct sont calibrés,
+  synonymes FR/EN, accents et pluriel, concept inconnu ⇒ pas de distance.
+- `distance.DistanceMeterTest` 10 : sténopé (personne 1,70 m, 200 px, 386 px de focale ⇒
+  3,29 m), bornes de plausibilité, lissage doux vs bond, oubli après 2 s de silence.
+- `distance.DistanceTextTest` 6 : « 85 cm », « 3,3 m », « 12 m », plus proche, par étiquette.
+- `app.DistanceLayoutTest` 7 : cadrage `Crop` identique à l'aperçu, ancrage des pastilles,
+  saisie du champ de vision (virgule, bornes), pastilles du bas avec distance.
 - `live.TimelineTextTest` 7 : heures relatives (« il y a 3 s », « il y a 1 min 05 s »),
   positions (gauche/centre/droite, haut/bas), ligne de journal, fenêtre vide, contexte global
   + point focal, étiquette de pastille.

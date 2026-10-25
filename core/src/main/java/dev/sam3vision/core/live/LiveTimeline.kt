@@ -42,12 +42,18 @@ class LiveTimeline(
     /** Nombre de frames conservées. */
     val size: Int get() = synchronized(this) { frames.size }
 
-    /** Enregistre une frame observée : identité des objets, puis purge de l'ancien. */
-    fun record(atMs: Long, detections: List<Detection>) {
+    /**
+     * Enregistre une frame observée : identité des objets, puis purge de l'ancien.
+     * Renvoie l'identité attribuée **dans l'ordre des détections** (`null` pour une
+     * détection inexploitable) : les couches qui annotent la frame, comme les
+     * distances, rapprochent ainsi une boîte de sa piste.
+     */
+    fun record(atMs: Long, detections: List<Detection>): List<SeenObject?> {
         synchronized(this) {
-            val objects = detections.mapNotNull { identify(it, atMs) }
-            frames.addLast(SeenFrame(atMs, objects))
+            val identified = detections.map { identify(it, atMs) }
+            frames.addLast(SeenFrame(atMs, identified.filterNotNull()))
             trim(atMs)
+            return identified
         }
     }
 

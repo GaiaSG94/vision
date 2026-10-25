@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.sam3vision.core.distance.DistanceMeter
+import dev.sam3vision.core.distance.LensSpec
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.live.LiveTimeline
@@ -47,6 +49,10 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Journal du direct : 60 s d'objets suivis, identités stables. */
     private val timeline = LiveTimeline()
+
+    /** Distances caméra→objets : sténopé + hauteurs connues, lissées par piste. */
+    private val distances = DistanceMeter()
+    private var sensorLens: LensSpec? = null
     private var settings: Settings = Settings.Default
     private var history: List<ChatTurn> = emptyList()
 
@@ -68,6 +74,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         session = LiveSession(http, prompts = chosen)
         timeline.clear()
         history = emptyList()
+        distances.enabled = settings.distanceOverlayEnabled
+        distances.reset()
+        distances.setLens(chosenLens())
         _state.update { it.copy(prompts = chosen) }
         healthAttempts = 0
         nextTickAt = 0L
@@ -136,7 +145,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             lastKnownWidth = width
             lastKnownHeight = height
         }
-        timeline.record(now, frame.objects.toDetections(width, height))
+        val detections = frame.objects.toDetections(width, height)
+        val seen = timeline.record(now, detections)
+        val readings = distances.measure(width, height, detections, seen.map { it?.id })
         val overlays = overlaysFor(frame)
         val gap = if (lastFrameAt == 0L) 0L else now - lastFrameAt
         lastFrameAt = now
@@ -151,6 +162,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
                 lastJpegB64 = jpegB64,
                 error = null,
                 memory = current.memory.copy(tracks = recent.tracks),
+                distanceLayer = if (readings.isEmpty()) null else DistanceLayer(width, height, readings),
             )
         }
         if (_state.value.gpu.isBlank() && healthAttempts < HEALTH_TRIES) refreshHealth()
@@ -161,6 +173,22 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         frame.objects.mapIndexedNotNull { index, obj ->
             decodeMaskPng(obj.maskPngB64)?.let { gray -> colorizeMask(gray, maskColorAt(index).toArgb(), MASK_ALPHA) }
         }
+    }
+
+    /**
+     * Calibrage des distances dès que la caméra est liée : le champ de vision réglé
+     * à la main prime, sinon celui lu sur le capteur, sinon le grand-angle de repli.
+     */
+    fun applyLens(spec: LensSpec?) {
+        if (spec != null && spec.usable) sensorLens = spec
+        distances.setLens(chosenLens())
+    }
+
+    /** Calibrage retenu : réglage utilisateur, puis capteur, puis [LensSpec.Default]. */
+    private fun chosenLens(): LensSpec {
+        val forced = settings.cameraFovDeg
+        if (forced > 0f) return LensSpec.fromHorizontalFov(forced)
+        return sensorLens ?: LensSpec.Default
     }
 
     /** Instant demandé dans l'UI : « il y a N s » (0 = maintenant). */
@@ -219,6 +247,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() {
         session = null
         client = null
+        distances.reset()
         _state.update { LiveUiState() }
     }
 

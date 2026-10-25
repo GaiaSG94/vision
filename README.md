@@ -12,10 +12,13 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 - **Capture** : plein écran sombre, titre « SAM Vision », zone d'aperçu caméra, trois
   boutons : « Photographier » (large, centre bas), « Galerie » (à gauche), « Réglages » (à droite).
   **Un tap n'importe où sur l'aperçu (hors boutons) lance le Direct (vidéo).**
-- **Direct** : aperçu + masques SAM en superposition, barre d'état (`Direct · 1,4 ips · 780 ms ·
-  8 objets · A100`), concepts éditables à chaud, questions pendant le flux. Flux arrêté ou en
-  erreur : un tap relance la session (concepts conservés), sans risque de coupure accidentelle
-  pendant que ça tourne.
+- **Direct** : aperçu + masques SAM en superposition, **distance estimée sur chaque objet**
+  (« ≈ 3,2 m » au-dessus de sa boîte, plus proche dans la ligne d'état), barre d'état
+  (`Direct · 1,4 ips · 780 ms · 8 objets · plus proche 1,4 m · A100`), concepts éditables à
+  chaud, questions pendant le flux. Flux arrêté ou en erreur : un tap relance la session
+  (concepts conservés), sans risque de coupure accidentelle pendant que ça tourne.
+  Distances calculées sur le téléphone (sténopé + hauteurs connues, ±15-20 %, 0 GPU) :
+  `docs/DISTANCES.md`.
 - **Analyse** : photo traitée (JPEG bord max 1024, q85), bandeau « Segmentation désactivée —
   renseigne un endpoint SAM dans Réglages. » quand `samBaseUrl` est vide (sinon : overlays de
   masques togglables + liste label/score), tags en petits caractères sous le titre, puis bloc
@@ -35,7 +38,8 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   écran, lui même lu à voix haute. Contrat, pièges et facturation : `docs/META-ASR.md`.
 - **Direct (vidéo)** : aperçu plein écran, frames 512 px/q65 poussées à `/live` une à la fois
   (cadence adaptative 350–900 ms), masques SAM superposés, ligne d'état
-  « Direct · 1,4 ips · 780 ms · 8 objets · A100 », concepts éditables à chaud (« Suivre »).
+  « Direct · 1,4 ips · 780 ms · 8 objets · plus proche 1,4 m · A100 », concepts éditables à
+  chaud (« Suivre »), distances par objet (`docs/DISTANCES.md`).
 - **Mémoire du direct** : bouton « Poser une question » dans l'écran Direct → panneau qui garde
   les **60 dernières secondes** de flux avec un identifiant stable par objet. Pastilles
   « personne · il y a 3 s », choix de l'instant (« maintenant », « il y a 5 s », « 15 s »,
@@ -60,14 +64,14 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 ```
 sam-vision-kotlin/
 ├── core/                    # module :core — domaine + réseau, pur JVM (185 tests)
-│   └── src/{main,test}/java/dev/sam3vision/core/{model,net,mask,settings,text,usecase}/
+│   └── src/{main,test}/java/dev/sam3vision/core/{model,net,mask,distance,settings,text,usecase}/
 ├── app/                     # module :app — Compose + CameraX (écrans, ViewModel, navigation)
 │   └── src/main/java/dev/sam3vision/app/   # Capture/Analysis/Chat/Settings/AppNav/AppViewModel…
 ├── app/src/main/java/dev/sam3vision/app/tap/       # mode tap : tap court → vidéo → SAM 3.1
 ├── app/src/main/java/dev/sam3vision/app/cleanup/    # purge horaire silencieuse (Room + WorkManager)
 ├── tools/check-kotlin-limits.py   # garde-fou < 500 lignes/fichier, < 50 lignes/fonction
 ├── scripts/build.sh · install-emulator.sh
-├── docs/TESTING.md · MODE-TAP.md · NETTOYAGE.md · META-ASR.md · TEST-LONGPRESS-DICTEE.md
+├── docs/TESTING.md · MODE-TAP.md · DISTANCES.md · NETTOYAGE.md · META-ASR.md · TEST-LONGPRESS-DICTEE.md
 ├── app/schemas/             # schéma Room exporté (traced_captures, v1)
 ├── gradle/libs.versions.toml · settings.gradle.kts · local.properties (gitignoré)
 ```

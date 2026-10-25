@@ -21,6 +21,13 @@ data class Settings(
     val introEnabled: Boolean = true,
     /** Intro déjà entendue : l'écran de garde ne se represente plus. */
     val introPlayed: Boolean = false,
+    /** Distances affichées sur le direct (hauteurs connues + sténopé, sans GPU). */
+    val distanceOverlayEnabled: Boolean = true,
+    /**
+     * Champ de vision horizontal imposé à la caméra, en degrés : 0 = lu sur le
+     * capteur. Sert quand le driver ne répond pas, ou pour affiner l'étalonnage.
+     */
+    val cameraFovDeg: Float = 0f,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
@@ -57,6 +64,8 @@ data class Settings(
             asrModel = DEFAULT_ASR_MODEL,
             introEnabled = true,
             introPlayed = false,
+            distanceOverlayEnabled = true,
+            cameraFovDeg = 0f,
         )
     }
 
@@ -83,6 +92,9 @@ data class Settings(
 
     /** Vrai si la dictée a un moteur : Meta, à défaut le repli ElevenLabs (clé TTS). */
     val sttConfigured: Boolean get() = asrConfigured || ttsApiKey.isNotBlank()
+
+    /** Vrai si un champ de vision de repli a été saisi (sinon : lecture capteur). */
+    val cameraFovForced: Boolean get() = cameraFovDeg > 0f
 }
 
 interface SettingsStore {

@@ -51,6 +51,8 @@ internal object SettingsCodec {
     private const val K_ASR_MODEL = "asrModel"
     private const val K_INTRO_ENABLED = "introEnabled"
     private const val K_INTRO_PLAYED = "introPlayed"
+    private const val K_DISTANCE_OVERLAY = "distanceOverlayEnabled"
+    private const val K_CAMERA_FOV = "cameraFovDeg"
 
     fun encode(s: Settings): String = buildString {
         appendLine("$K_LLM_BASE_URL=${s.llmBaseUrl}")
@@ -65,6 +67,8 @@ internal object SettingsCodec {
         appendLine("$K_ASR_MODEL=${s.asrModel}")
         appendLine("$K_INTRO_ENABLED=${s.introEnabled}")
         appendLine("$K_INTRO_PLAYED=${s.introPlayed}")
+        appendLine("$K_DISTANCE_OVERLAY=${s.distanceOverlayEnabled}")
+        appendLine("$K_CAMERA_FOV=${s.cameraFovDeg}")
     }
 
     /** Tolérant : une clé absente (ancien fichier) reprend sa valeur par défaut. */
@@ -86,6 +90,10 @@ internal object SettingsCodec {
             asrModel = values[K_ASR_MODEL].orEmpty().ifBlank { default.asrModel },
             introEnabled = values[K_INTRO_ENABLED]?.toBooleanStrictOrNull() ?: default.introEnabled,
             introPlayed = values[K_INTRO_PLAYED]?.toBooleanStrictOrNull() ?: default.introPlayed,
+            distanceOverlayEnabled = values[K_DISTANCE_OVERLAY]?.toBooleanStrictOrNull()
+                ?: default.distanceOverlayEnabled,
+            cameraFovDeg = values[K_CAMERA_FOV]?.toFloatOrNull()?.takeIf { it > 0f }
+                ?: default.cameraFovDeg,
         )
     }
 }

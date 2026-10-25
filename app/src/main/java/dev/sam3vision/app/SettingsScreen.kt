@@ -27,8 +27,9 @@ import dev.sam3vision.core.settings.Settings
 
 /**
  * Réglages : LLM (base URL, clé, modèle) + endpoint SAM optionnel + section
- * « Voix ElevenLabs » (clé, voix, lecture automatique, test) + section « Dictée
- * Meta » (base URL, clé, modèle ASR, test). Chaque section a son bouton de test.
+ * « Distances » (overlay du direct, champ de vision) + section « Voix ElevenLabs »
+ * (clé, voix, lecture automatique, test) + section « Dictée Meta » (base URL, clé,
+ * modèle ASR, test). Chaque moteur a son bouton de test.
  */
 @Composable
 fun SettingsScreen(
@@ -61,6 +62,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             BackendFields(draft) { draft = it }
+            DistanceSettings(draft) { draft = it }
             TtsSettings(
                 draft = draft,
                 speaking = speaking,

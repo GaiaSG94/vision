@@ -1,5 +1,7 @@
 package dev.sam3vision.app
 
+import dev.sam3vision.core.distance.DistanceReading
+import dev.sam3vision.core.distance.DistanceText
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.model.SeenTrack
 import dev.sam3vision.core.settings.Settings
@@ -34,19 +36,46 @@ data class LiveUiState(
     val lastJpegB64: String = "",
     val prompts: List<String> = emptyList(),
     val memory: LiveMemoryState = LiveMemoryState(),
+    val distanceLayer: DistanceLayer? = null,
 ) {
-    val statusLine: String get() = formatLiveStatus(running, fps, latencyMs, gpu, objectsCount)
+    val statusLine: String
+        get() = formatLiveStatus(running, fps, latencyMs, gpu, objectsCount, nearestMeters)
+
+    /** Distance de l'objet le plus proche de la frame, `null` si rien n'est mesuré. */
+    val nearestMeters: Float?
+        get() = distanceLayer?.readings?.let { DistanceText.nearest(it)?.meters }
+}
+
+/**
+ * Distances de la frame courante : taille de l'image analysée (le repère des
+ * boîtes, en pixels) et une lecture par objet mesuré. Vide = rien à afficher.
+ */
+data class DistanceLayer(
+    val width: Int = 0,
+    val height: Int = 0,
+    val readings: List<DistanceReading> = emptyList(),
+) {
+    /** Vrai si l'overlay n'a rien à poser (pas d'objet calibré, taille inconnue). */
+    val empty: Boolean get() = width <= 0 || height <= 0 || readings.isEmpty()
 }
 
 /**
  * Barre d'état du direct : « Direct · 1,4 ips · 780 ms · 8 objets · A100-SXM4-40GB ».
  * Fonction pure, testée en JVM.
  */
-fun formatLiveStatus(running: Boolean, fps: Float, latencyMs: Long, gpu: String, objects: Int): String {
+fun formatLiveStatus(
+    running: Boolean,
+    fps: Float,
+    latencyMs: Long,
+    gpu: String,
+    objects: Int,
+    nearestMeters: Float? = null,
+): String {
     if (!running) return "Direct arrêté"
     val rate = if (fps <= 0f) "…" else String.format("%.1f ips", fps)
     val latency = if (latencyMs <= 0) "…" else "$latencyMs ms"
-    return "Direct · $rate · $latency · $objects objets · ${gpu.ifBlank { "GPU ?" }}"
+    val nearest = nearestMeters?.let { " · plus proche ${DistanceText.format(it)}" }.orEmpty()
+    return "Direct · $rate · $latency · $objects objets$nearest · ${gpu.ifBlank { "GPU ?" }}"
 }
 
 /** Cadence du prochain tick, bornée par les constantes de [LiveSession]. */

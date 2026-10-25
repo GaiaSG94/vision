@@ -1,5 +1,27 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — distances caméra→objets sur le direct (sténopé, sans GPU)
+
+- **Pastille « ≈ 3,2 m » sur chaque objet suivi** du Direct, dans la couleur de son
+  masque, posée au-dessus de sa boîte ; distance de l'objet le plus proche dans la ligne
+  d'état (« Direct · 1,5 ips · 620 ms · 3 objets · plus proche 1,4 m · A100 ») et une
+  pastille par concept en bas (« personne 2,1 m »).
+- **Aucun GPU, aucune requête** : `core/distance` calcule tout sur le téléphone.
+  `Pinhole` applique `d = H réelle × focale(px) / hauteur(px)` ; la hauteur réelle vient de
+  `KnownSizes` (table label → mètres, casse/accents/pluriel neutralisés, **aucune distance
+  pour un concept inconnu**), la focale de `LensSpec` (champ de vision lu sur le capteur à la
+  liaison par l'interop Camera2, sinon le champ saisi en Réglages, sinon 67°).
+- **Lissage par piste** (`DistanceSmoother`) : EMA à deux vitesses pour rester lisible à
+  1-2 ips, bond > 50 % pris presque tel quel, piste muette 2 s oubliée. `LiveTimeline.record`
+  rend désormais l'identité de chaque détection **dans son ordre** (les distances s'appuient
+  dessus, les autres appelants ignorent le retour).
+- **Réglages** : bascule « Distances sur le direct » (active par défaut) et « Champ de vision
+  caméra (°, 0 = lecture du capteur) ». Précision annoncée ±15-20 % (étiquette « ≈ »,
+  format cm sous 1 m, décimètre jusqu'à 10 m) : détail dans `docs/DISTANCES.md`.
+- Tests : 265 JVM verts (+28 `core` : `LensSpecTest`, `KnownSizesTest`, `DistanceMeterTest`,
+  `DistanceTextTest`, un cas de plus dans `LiveTimelineTest` ; +7 `app` : `DistanceLayoutTest`),
+  `assembleDebug` vert, `check-kotlin-limits` vert.
+
 ## 2026-10-24 — un tap lance la vidéo, un appui long parle (les deux ensemble)
 
 - **Tap sur l'aperçu de Capture = mode vidéo, enregistrement lancé d'office.** Le bouton

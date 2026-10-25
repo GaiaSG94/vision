@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import dev.sam3vision.core.distance.LensSpec
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +63,6 @@ fun LiveScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
-    val executor = remember { Executors.newSingleThreadExecutor() }
     var attached by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf("") }
@@ -70,18 +70,7 @@ fun LiveScreen(
     val previewView = rememberLivePreview(context) { attached = it }
 
     LaunchedEffect(Unit) { viewModel.startFromSettings() }
-    LaunchedEffect(attached) {
-        if (!attached) return@LaunchedEffect
-        runCatching { bindLiveCamera(context, previewView, executor) { proxy -> pushFrame(proxy, viewModel) } }
-            .onFailure { failure = "Caméra indisponible : ${it.message}" }
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            viewModel.stop()
-            runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
-            executor.shutdown()
-        }
-    }
+    LiveCameraHost(viewModel, previewView, attached) { failure = it }
 
     LiveStage(
         state = state,
@@ -114,6 +103,49 @@ private fun rememberLivePreview(context: Context, onAttached: (Boolean) -> Unit)
         }
     }
 
+/**
+ * Cycle de vie de la caméra d'analyse : liée quand l'aperçu est à l'écran, déliée
+ * à la sortie. Le calibrage optique lu au liaison part droit au ViewModel (distances).
+ */
+@Composable
+private fun LiveCameraHost(
+    viewModel: LiveViewModel,
+    previewView: PreviewView,
+    attached: Boolean,
+    onFailure: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    LaunchedEffect(attached) {
+        if (!attached) return@LaunchedEffect
+        runCatching {
+            bindLiveCamera(context, previewView, executor, viewModel::applyLens) { proxy ->
+                pushFrame(proxy, viewModel)
+            }
+        }.onFailure { onFailure("Caméra indisponible : ${it.message}") }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stop()
+            runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
+            executor.shutdown()
+        }
+    }
+}
+
+/** Masques colorés de la frame, superposés à l'aperçu au cadrage identique (`Crop`). */
+@Composable
+private fun LiveMaskLayer(overlays: List<Bitmap>) {
+    overlays.forEach { overlay ->
+        Image(
+            bitmap = overlay.asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
 /** Scène : aperçu, masques superposés, barre haute (état + concepts) et barre basse (question). */
 @Composable
 private fun LiveStage(
@@ -134,14 +166,8 @@ private fun LiveStage(
 ) {
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-        state.overlays.forEach { overlay ->
-            Image(
-                bitmap = overlay.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        LiveMaskLayer(state.overlays)
+        LiveDistanceLayer(state.distanceLayer)
         // Direct arrêté ou en erreur : un tap relance. Jamais pendant que le flux tourne.
         if (!state.running || state.error != null) RecoveryTap(onRecover)
         LiveTopBar(
@@ -211,11 +237,16 @@ private fun RecoveryTap(onRestart: () -> Unit) {
     }
 }
 
-/** Preview + analyseur « une frame à la fois », résolution capteur réduite. */
+/**
+ * Preview + analyseur « une frame à la fois », résolution capteur réduite.
+ * [onLens] reçoit le champ de vision réel du capteur dès la liaison (les distances
+ * en ont besoin ; `null` si le driver est muet).
+ */
 private suspend fun bindLiveCamera(
     context: Context,
     previewView: PreviewView,
     executor: ExecutorService,
+    onLens: (LensSpec?) -> Unit,
     onImage: (ImageProxy) -> Unit,
 ) {
     val owner = previewView.findViewTreeLifecycleOwner() ?: error("Cycle de vie indisponible")
@@ -233,7 +264,8 @@ private suspend fun bindLiveCamera(
         .build()
         .also { it.setAnalyzer(executor) { proxy -> onImage(proxy) } }
     provider.unbindAll()
-    provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+    val camera = provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+    onLens(lensSpecOf(camera.cameraInfo))
 }
 
 /** ImageProxy → bitmap redressé → JPEG base64. Les frames s'accumulent jamais : gate côté ViewModel. */

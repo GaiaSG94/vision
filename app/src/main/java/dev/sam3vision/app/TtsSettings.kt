@@ -74,9 +74,9 @@ private fun IntroSetting(draft: Settings, onChange: (Boolean) -> Unit) {
     )
 }
 
-/** Ligne « libellé + interrupteur » : une seule implémentation pour les bascules de voix. */
+/** Ligne « libellé + interrupteur » : une seule implémentation pour toutes les bascules. */
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
