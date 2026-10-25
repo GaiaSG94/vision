@@ -9,8 +9,11 @@ package dev.sam3vision.core.model
  * Réglages ; elle est bornée à [[MIN_ON_SCREEN], [MAX_ON_SCREEN]] avant usage.
  */
 object ObjectLimits {
-    /** Valeur par défaut : 4 objets à l'écran. */
-    const val DEFAULT_ON_SCREEN = 4
+    /**
+     * Valeur par défaut : **8 objets** à l'écran (demande user du 25/10, confirmée le
+     * 25/10 soir : « j'avais dit 8 »). Réglable de 1 à 12 dans Réglages.
+     */
+    const val DEFAULT_ON_SCREEN = 8
     const val MIN_ON_SCREEN = 1
     const val MAX_ON_SCREEN = 12
 

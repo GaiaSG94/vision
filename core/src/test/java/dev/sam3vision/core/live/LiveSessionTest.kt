@@ -135,11 +135,11 @@ class LiveSessionTest {
     }
 
     @Test
-    fun `le direct plafonne a 4 objets par defaut`() = runBlocking {
+    fun `le direct plafonne a 8 objets par defaut`() = runBlocking {
         val client = FakeLiveClient()
         LiveSession(client).runFrame("QQ==")
         assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, client.lastMaxObjects)
-        assertEquals(4, client.lastMaxObjects)
+        assertEquals(8, client.lastMaxObjects)
     }
 
     @Test

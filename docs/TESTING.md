@@ -17,7 +17,7 @@ résumé tronqué à 600) ;
 `net.SamClientTest` 6 (parse `/segment`, User-Agent sans clé, 400 typé, `/health` ok/ko, timeout) ;
 `text.TextSanitizerTest` 4 ; `usecase.UseCasesTest` 10 (fusion objets+labels, sans SAM, échec SAM
 toléré, erreur LLM propagée, plafond d'objets par défaut et réglé) ; `model.ObjectLimitsTest` 3
-(`clamp`/`step` aux bornes 1..12, défaut 4). Détail : `core/build/test-results/testDebugUnitTest/*.xml`.
+(`clamp`/`step` aux bornes 1..12, défaut 8). Détail : `core/build/test-results/testDebugUnitTest/*.xml`.
 
 Voix ElevenLabs (§ « Voix » plus bas) : `net.ElevenLabsTtsClientTest` 7 (audio 200 renvoyé
 tel quel + requête `text-to-speech/{voice}` conforme et voice ID échappé, 402 sans crédits →
@@ -25,7 +25,7 @@ tel quel + requête `text-to-speech/{voice}` conforme et voice ID échappé, 402
 clé absente = zéro appel réseau, voix absente refusée localement, 200 sans audio = erreur
 lisible) ; `settings.SettingsTtsTest` 3 (le codec conserve clé + voix + autoplay, un ancien
 fichier sans clés TTS reprend les défauts) ; `settings.SettingsCodecTest` 4 (le plafond
-d'objets survit à l'aller-retour, absent = défaut 4, valeur aberrante bornée) ; `app.TtsLogicTest` 6 (`speakRefusal`, une seule
+d'objets survit à l'aller-retour, absent = défaut 8, valeur aberrante bornée) ; `app.TtsLogicTest` 6 (`speakRefusal`, une seule
 phrase active, libellés des boutons Écouter, `ttsAutoRead`, `withTtsDefaults`).
 
 Dictée Meta (`docs/META-ASR.md`) : `audio.WavTest` 3 (champs RIFF, assemblage en-tête+PCM,

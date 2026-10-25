@@ -20,9 +20,10 @@ class SettingsCodecTest {
 
     @Test
     fun `un plafond aberrant est borne a la lecture`() {
-        val broken = SettingsCodec.encode(Settings.Default).replace("maxObjects=4", "maxObjects=999")
+        val defaultLine = "maxObjects=${ObjectLimits.DEFAULT_ON_SCREEN}"
+        val broken = SettingsCodec.encode(Settings.Default).replace(defaultLine, "maxObjects=999")
         assertEquals(ObjectLimits.MAX_ON_SCREEN, SettingsCodec.decode(broken).maxObjects)
-        val text = SettingsCodec.encode(Settings.Default).replace("maxObjects=4", "maxObjects=abc")
+        val text = SettingsCodec.encode(Settings.Default).replace(defaultLine, "maxObjects=abc")
         assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, SettingsCodec.decode(text).maxObjects)
     }
 
@@ -40,6 +41,6 @@ class SettingsCodecTest {
     @Test
     fun `l'acces objectsOnScreen borne toujours le reglage`() {
         assertEquals(ObjectLimits.MAX_ON_SCREEN, Settings.Default.copy(maxObjects = 50).objectsOnScreen)
-        assertEquals(4, Settings.Default.objectsOnScreen)
+        assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, Settings.Default.objectsOnScreen)
     }
 }

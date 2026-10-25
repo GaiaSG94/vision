@@ -6,8 +6,8 @@ import org.junit.Test
 class ObjectLimitsTest {
 
     @Test
-    fun `le defaut est de 4 objets`() {
-        assertEquals(4, ObjectLimits.DEFAULT_ON_SCREEN)
+    fun `le defaut est de 8 objets`() {
+        assertEquals(8, ObjectLimits.DEFAULT_ON_SCREEN)
         assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, ObjectLimits.clamp(ObjectLimits.DEFAULT_ON_SCREEN))
     }
 

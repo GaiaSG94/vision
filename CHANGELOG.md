@@ -1,5 +1,16 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (11) — retour à 8 objets à l'écran par défaut
+
+- `ObjectLimits.DEFAULT_ON_SCREEN` : **4 → 8** (demande user du 25/10, déjà consignée
+  alors que #106 avait fixé 4). Bornes 1..12 inchangées, réglage − / + toujours dans Réglages.
+- Conséquence côté direct : `max_objects` envoyé à `/live` / `/live/ws` vaut 8 par défaut ;
+  côté photo : `AnalyzeUseCase` garde 8 objets.
+- Côté appareil : la valeur est **persistée** dans les réglages chiffrés — un téléphone
+  déjà réglé à 4 le reste jusqu'à appui sur + ou Enregistrer (défaut = valeur absente).
+- Tests mis à jour : `ObjectLimitsTest`, `LiveSessionTest`, `UseCasesTest` (12 objets entrés,
+  8 conservés).
+
 ## 2026-10-25 (10) — tout dans une seule app : masques, distances et voix dans la fenêtre caméra
 
 - **Fusion** de `origin/master` (lunettes Ray-Ban Meta, mode US, narration, chat iHear) avec la
