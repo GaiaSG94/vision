@@ -21,7 +21,7 @@ import androidx.camera.view.PreviewView
  * toutes à la taille de la frame) ; ils sont fusionnés en une seule image affichée en
  * `CENTER_CROP`, exactement le cadrage de la `PreviewView` (`FILL_CENTER`).
  */
-class CameraSurface(context: Context, preview: PreviewView) : FrameLayout(context) {
+class CameraSurface(context: Context, private val preview: PreviewView) : FrameLayout(context) {
 
     private val maskView = ImageView(context).apply {
         scaleType = ImageView.ScaleType.CENTER_CROP
@@ -30,14 +30,33 @@ class CameraSurface(context: Context, preview: PreviewView) : FrameLayout(contex
     private var shown: List<Bitmap> = emptyList()
 
     init {
-        // La PreviewView est créée une seule fois pour toute l'activité (le `bind()` de
-        // CameraX en dépend) et chaque bulle média fabrique une nouvelle surface : il
-        // faut donc la détacher de l'ancienne avant de l'ajouter ici, sinon Android
-        // lève « The specified child already has a parent » et l'app se ferme au
-        // deuxième passage (mesuré sur le téléphone : photo après vidéo → crash).
-        (preview.parent as? ViewGroup)?.removeView(preview)
-        addView(preview, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // Les masques d'abord ; l'aperçu vient **dessous**, posé à l'attachement.
         addView(maskView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
+
+    /**
+     * L'aperçu est attaché **un tour de boucle plus tard**, jamais dans le constructeur :
+     * Compose insère la nouvelle surface **avant** de retirer l'ancienne dans la même
+     * frame, si bien qu'au moment du constructeur la `PreviewView` est encore parentée —
+     * et `addView` lève « The specified child already has a parent » (crash mesuré sur
+     * le téléphone : photo après vidéo, puis vidéo après photo).
+     */
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        post(::attachPreview)
+    }
+
+    /** La surface quitte l'écran : on rend l'aperçu à qui voudra (Live, Capture). */
+    override fun onDetachedFromWindow() {
+        if (preview.parent === this) removeView(preview)
+        super.onDetachedFromWindow()
+    }
+
+    /** Détache l'aperçu de son ancienne surface puis le pose sous les masques. */
+    private fun attachPreview() {
+        if (!isAttachedToWindow || preview.parent === this) return
+        (preview.parent as? ViewGroup)?.removeView(preview)
+        addView(preview, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     /** Remplace les masques affichés ; sans changement de liste, rien n'est redessiné. */
