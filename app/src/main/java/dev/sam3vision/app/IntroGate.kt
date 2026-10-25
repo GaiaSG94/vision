@@ -22,6 +22,10 @@ import androidx.compose.ui.unit.sp
  * sur l'écran (geste explicite, jamais un audio qui part tout seul). N'occupe
  * l'affichage que tant que [introGateVisible] est vrai, c'est-à-dire tant que
  * l'intro n'a pas été entendue une fois.
+ *
+ * Le contenu : bloc explicatif animé ([IntroGestureRow]) qui montre les trois gestes
+ * dispo en haut de l'écran, tap vidéo / double-tap photo / appui long = dicter,
+ * suivi de la phrase d'attente « Tap the screen to hear the intro. ».
  */
 @Composable
 fun IntroGate(onTap: () -> Unit, modifier: Modifier = Modifier) {
@@ -34,21 +38,23 @@ fun IntroGate(onTap: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(horizontal = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 22.dp),
         ) {
-            Text("SAM Vision", color = AppColors.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Welcome to iHear", color = AppColors.text, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Touchez l'écran pour commencer",
+                "Anywhere on the screen:",
                 color = AppColors.primary,
                 fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .background(AppColors.surfaceHigh.copy(alpha = 0.9f), RoundedCornerShape(14.dp))
                     .padding(horizontal = 18.dp, vertical = 10.dp),
             )
+            IntroGestureRow()
             Text(
-                "La voix d'accueil ne se joue qu'à la première ouverture.",
+                "Tap the screen to hear the intro.",
                 color = AppColors.textMuted,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center,
