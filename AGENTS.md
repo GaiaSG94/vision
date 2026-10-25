@@ -66,8 +66,8 @@ Tout est en cache Gradle (`--offline`). Pas d'Android Studio. Tests JVM uniqueme
    plateforme (Bitmap, MediaPlayer, Compose) restent fins, dans `:app`.
 8. **Ne jamais contourner un garde-fou** (CI, `check-kotlin-limits.py`, gate Hermes) pour
    faire passer un build : corriger la cause. Pas de push direct sur `master`, pas de merge
-   sans demande explicite de l'utilisateur, pas de `push --force` sur une PR partagée
-   (`--force-with-lease` uniquement si nécessaire).
+   sans demande explicite de l'utilisateur, pas de réécriture de branche partagée ; la
+   seule tolérance devrait rester `--force-with-lease`, après échec d'un push normal.
 
 ## 4. Git & merge
 
