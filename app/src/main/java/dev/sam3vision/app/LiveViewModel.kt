@@ -2,6 +2,7 @@ package dev.sam3vision.app
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.os.SystemClock
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,8 +16,8 @@ import dev.sam3vision.core.live.LiveTimeline
 import dev.sam3vision.core.live.PlacedLabel
 import dev.sam3vision.core.live.PositionAnnouncer
 import dev.sam3vision.core.live.PositionText
-import dev.sam3vision.core.mask.colorizeMask
-import dev.sam3vision.core.mask.decodeMaskPng
+import dev.sam3vision.core.live.ScreenTimings
+import dev.sam3vision.core.mask.colorizedMaskBitmap
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
@@ -48,7 +49,11 @@ import kotlinx.coroutines.withContext
 class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = SettingsStoreFactory.create(app)
-    private val _state = MutableStateFlow(LiveUiState())
+
+    /** Dernière frame JPEG : hors du state (voir [LatestFrame]), lue par les questions. */
+    internal val latestFrame = LatestFrame()
+
+    internal val _state = MutableStateFlow(LiveUiState(latestFrame = latestFrame))
     val state: StateFlow<LiveUiState> = _state
     private var session: LiveSession? = null
     private var client: LiveClient? = null
@@ -57,6 +62,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Dernière frame gardée pour les questions (indépendant de SAM). */
     private var lastKeepAt = 0L
+
+    /** Chronologie de la frame courante (ns monotones, même base que `imageInfo.timestamp`). */
+    internal val chronology = ScreenTimings { SystemClock.elapsedRealtimeNanos() }
 
     /** Le conteneur a répondu une fois : la GPU A100 est chaude, les frames peuvent partir. */
     private var warm = false
@@ -118,7 +126,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         }
         // WebSocket uniquement : plus aucun POST /live pour les frames. Le client HTTP
         // ne sert plus qu'au /health (une requête GET, une fois par session).
-        val live = liveClient(base)
+        val live = liveClient(base, marks = chronology)
         client = live
         session = LiveSession(live, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
         _state.update {
@@ -211,7 +219,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
      * donc même quand SAM est injoignable. Sinon elle part au GPU, sauf si une requête est
      * en vol ou si la cadence adaptative n'est pas écoulée (le lien montant sature sinon).
      */
-    fun onFrame(jpegB64: String) {
+    fun onFrame(jpegB64: String, captureAtNs: Long = 0L) {
         if (jpegB64.isBlank()) return
         narrate(jpegB64)
         val active = session
@@ -222,12 +230,23 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val now = System.currentTimeMillis()
         if (active.inFlight || now < nextTickAt) return
         nextTickAt = now + active.intervalMsAdaptive()
+        // Nouvelle frame : le JPEG vient d'être produit, la chronologie repart de là.
+        chronology.beginFrame(captureAtNs)
         keepFrame(jpegB64)
-        viewModelScope.launch {
-            val result = active.runFrame(jpegB64) ?: return@launch
+        // Dispatchers.Default : `viewModelScope` est Main.immediate, et le corps de la
+        // requête (normalisation des concepts, JSON, base64 de 28 Ko) partirait sur la
+        // boucle de composition. Ce travail n'a rien à y faire.
+        viewModelScope.launch(Dispatchers.Default) {
+            val result = active.runFrame(jpegB64)
+            chronology.markReceived()
+            if (result == null) {
+                publishStages(null)
+                return@launch
+            }
             result.fold(
-                onSuccess = { frame -> publish(frame, jpegB64) },
+                onSuccess = { frame -> publish(frame) },
                 onFailure = { error ->
+                    publishStages(null)
                     _state.update { it.copy(error = error.message, objectsCount = 0, transport = transportLabel()) }
                 },
             )
@@ -269,11 +288,14 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val now = System.currentTimeMillis()
         if (!shouldKeepFrame(now, lastKeepAt)) return
         lastKeepAt = now
-        _state.update { it.copy(lastJpegB64 = jpegB64) }
+        latestFrame.set(jpegB64)
+        // Une seule émission d'état porte le porteur : ensuite « Analyser la frame » se
+        // contente de lire `hasFrame`, sans recopier 28 Ko à chaque frame.
+        if (!_state.value.hasFrame) _state.update { it.copy(latestFrame = latestFrame) }
     }
 
     /** Publie la frame analysée : masques, statistiques et journal des objets vus. */
-    private suspend fun publish(frame: LiveFrame, jpegB64: String) {
+    private suspend fun publish(frame: LiveFrame) {
         val now = System.currentTimeMillis()
         val width = frame.width.takeIf { it > 0 } ?: lastKnownWidth
         val height = frame.height.takeIf { it > 0 } ?: lastKnownHeight
@@ -289,6 +311,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val gap = if (lastFrameAt == 0L) 0L else now - lastFrameAt
         lastFrameAt = now
         val recent = timeline.recent(now, MEMORY_WINDOW_MS)
+        publishStages(frame)
         _state.update { current ->
             current.copy(
                 frame = frame,
@@ -296,7 +319,6 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
                 objectsCount = frame.objects.size,
                 latencyMs = session?.stats?.averageMs ?: 0L,
                 fps = if (gap in 1..20_000) 1000f / gap else current.fps,
-                lastJpegB64 = jpegB64,
                 error = null,
                 memory = current.memory.copy(tracks = recent.tracks),
                 distanceLayer = if (readings.isEmpty()) null else DistanceLayer(width, height, readings),
@@ -307,10 +329,18 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Masques colorisés de la frame (calcul hors thread principal). */
     private suspend fun overlaysFor(frame: LiveFrame): List<Bitmap> = withContext(Dispatchers.Default) {
-        frame.objects.mapIndexedNotNull { index, obj ->
-            decodeMaskPng(obj.maskPngB64)?.let { gray -> colorizeMask(gray, maskColorAt(index).toArgb(), MASK_ALPHA) }
+        // Une seule voie pour les masques : décodage selon `frame.maskEncoding` (`bits` =
+        // 1 bit + zlib, sinon PNG gris), puis coloriage par table de 256 niveaux.
+        val overlays = frame.objects.mapIndexedNotNull { index, obj ->
+            colorizedMaskBitmap(obj.maskPngB64, frame.maskEncoding, maskColorAt(index).toArgb(), MASK_ALPHA)
         }
+        chronology.markOverlays()
+        overlays
     }
+
+    /** Instantané de la chronologie dans l'état : l'UI ne lit jamais les marques. */
+    internal fun publishStages(frame: LiveFrame?) =
+        _state.update { it.copy(timings = chronology.snapshot(frame)) }
 
     /**
      * Calibrage des distances dès que la caméra est liée : le champ de vision réglé
@@ -379,7 +409,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     fun askMemory(question: String) {
         val text = question.trim()
         if (text.isEmpty() || _state.value.memory.asking) return
-        val jpeg = _state.value.lastJpegB64
+        val jpeg = latestFrame.jpegB64
         if (jpeg.isBlank()) {
             _state.update { it.copy(memory = it.memory.copy(error = NO_FRAME_LINE)) }
             return
@@ -438,7 +468,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         warm = false
         announcer.reset()
         voice.stop()
-        _state.update { LiveUiState() }
+        latestFrame.clear()
+        chronology.reset()
+        _state.update { LiveUiState(latestFrame = latestFrame) }
     }
 
     override fun onCleared() {

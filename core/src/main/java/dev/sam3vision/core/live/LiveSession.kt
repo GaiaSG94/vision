@@ -71,6 +71,13 @@ class LiveSession(
     /** Créneaux d'envoi : 1 par défaut, [Cadence.concurrency] pour la cadence rapide. */
     private val gate: FrameGate = gate ?: FrameGate(cadence.concurrency)
 
+    /**
+     * Concepts normalisés **une fois** : [prompts] est figé à la construction, or la
+     * normalisation (découpe, minuscules, dédup) tournait à chaque frame — du CPU payé
+     * deux fois par seconde pour une liste qui ne change jamais en séance.
+     */
+    private val normalizedPrompts: List<String> by lazy { LivePrompts.normalize(prompts) }
+
     /** Une frame est-elle en train d'être traitée ? */
     val inFlight: Boolean get() = gate.inFlight
 
@@ -113,7 +120,7 @@ class LiveSession(
         if (!gate.tryStart()) return null
         val startedAt = clock()
         try {
-            val result = client.live(jpegB64, LivePrompts.normalize(prompts), workEdge, maxObjects)
+            val result = client.live(jpegB64, normalizedPrompts, workEdge, maxObjects)
             result.getOrNull()?.let { frame -> serverStats.record(frame.elapsedMs) }
             stats.record(clock() - startedAt)
             regulate()

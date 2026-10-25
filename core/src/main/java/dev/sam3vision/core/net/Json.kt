@@ -1,6 +1,8 @@
 package dev.sam3vision.core.net
 
 import dev.sam3vision.core.model.LiveFrame
+import dev.sam3vision.core.model.MASK_ENCODING_BITS
+import dev.sam3vision.core.model.MASK_ENCODING_PNG
 import dev.sam3vision.core.model.SegObject
 import org.json.JSONArray
 import org.json.JSONObject
@@ -134,12 +136,48 @@ internal fun jsonArrayOf(values: List<String>): JSONArray = JSONArray().apply { 
 internal const val DEFAULT_LABEL = "objet"
 
 /**
+ * Parse un corps **déjà lu en octets**, sans passer par `ResponseBody.string()` : évite
+ * une String intermédiaire (2 octets par caractère en UTF-16) sur les réponses du direct,
+ * qui portent les masques. `null` si le JSON est illisible (jamais d'exception).
+ */
+internal fun parseBytes(bytes: ByteArray): JSONObject? =
+    runCatching { JSONObject(bytes.toString(Charsets.UTF_8)) }.getOrNull()
+
+/**
  * Une frame du direct : `POST /live` et le message WebSocket de `/live/ws` ont
  * **exactement la même forme**, donc un seul parsing pour les deux transports.
  * Lève [ApiError.BadResponse] si le JSON est illisible (l'appelant enveloppe).
  */
-internal fun parseLiveFrame(raw: String): LiveFrame {
-    val json = parse(raw) ?: throw ApiError.BadResponse("/live : JSON illisible")
+internal fun parseLiveFrame(raw: String): LiveFrame =
+    liveFrameOf(parse(raw) ?: throw ApiError.BadResponse("/live : JSON illisible"))
+
+/** Même frame, lue depuis les octets de la réponse (aucune `String` intermédiaire). */
+internal fun parseLiveFrameBytes(bytes: ByteArray): LiveFrame =
+    liveFrameOf(parseBytes(bytes) ?: throw ApiError.BadResponse("/live : JSON illisible"))
+
+/**
+ * Construction du message de frame, identique pour les deux transports : `null` pour
+ * [id] = corps de `POST /live`, un `id` pour la trame WebSocket. Les masques sont
+ * **demandés** au format `bits` : un backend qui ignore le champ sert son défaut `png`,
+ * et la réponse dit ce qu'il a réellement envoyé.
+ */
+internal fun liveFrameJson(
+    jpegB64: String,
+    prompts: List<String>?,
+    workEdge: Int,
+    maxObjects: Int,
+    id: Int? = null,
+): String = JSONObject()
+    .apply { if (id != null) put("id", id) }
+    .put("image_b64", jpegB64)
+    .put("prompts", if (prompts == null) JSONObject.NULL else jsonArrayOf(prompts))
+    .put("work_edge", workEdge)
+    .put("max_objects", maxObjects)
+    .put("mask_encoding", MASK_ENCODING_BITS)
+    .toString()
+
+/** Assemblage d'une frame depuis un objet JSON déjà parsé : la seule voie de lecture. */
+private fun liveFrameOf(json: JSONObject): LiveFrame {
     val objects = json.objects("objects").map { obj ->
         val fields = obj.maskedFields()
         SegObject(
@@ -154,5 +192,23 @@ internal fun parseLiveFrame(raw: String): LiveFrame {
         height = json.intOr("height"),
         elapsedMs = json.intOr("elapsed_ms").toLong(),
         objects = objects,
+        // Champ absent (backend déployé actuel) ⇒ "png" : l'ancien décodeur reste valable.
+        maskEncoding = json.str("mask_encoding", MASK_ENCODING_PNG).lowercase(),
+        timingsMs = timingsMsOf(json),
     )
 }
+
+/**
+ * Postes serveur `"timings_ms"` (millisecondes, flottantes). Absent ou illisible ⇒ carte
+ * vide : un backend sans `FAST_TIMING` garde exactement le comportement d'avant.
+ */
+private fun timingsMsOf(json: JSONObject): Map<String, Double> {
+    val node = json.optJSONObject("timings_ms") ?: return emptyMap()
+    return node.keys().asSequence()
+        .mapNotNull { key ->
+            val value = node.optDouble(key, Double.NaN)
+            if (value.isFinite()) key to value else null
+        }
+        .toMap()
+}
+

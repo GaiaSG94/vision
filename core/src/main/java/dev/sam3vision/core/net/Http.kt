@@ -7,9 +7,13 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okio.BufferedSink
 
 /** User-Agent identifiable côté backend. */
 internal const val USER_AGENT = "sam3-vision-android/1.0"
@@ -29,24 +33,106 @@ fun defaultHttpClient(timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS): OkHttpCli
         .retryOnConnectionFailure(true)
         .build()
 
+/**
+ * Client **partagé** du direct : un seul `OkHttpClient` pour toute l'app, donc un seul
+ * `ConnectionPool` et un seul cache TLS. Un client neuf coûte 71,3 ms mesurés (DNS 3,4 +
+ * TCP 32,4 + TLS 35,5) et chaque `start()` / `restartWith()` en fabriquait un, alors que la
+ * caméra tourne déjà et que la 1re frame part aussitôt.
+ *
+ * Délais réglés sur la réalité du direct :
+ * - connect 3 s (un lien chaud qui ne répond pas en 3 s est mort) ;
+ * - write 5 s (27 Ko de frame JPEG s'écrivent en quelques ms) ;
+ * - read 60 s : le **réveil** du conteneur Modal est mesuré à 20-27 s ;
+ * - callTimeout 0 : aucun plafond global. L'ancien plafond de 10 s tuait la 1re frame après
+ *   sommeil du conteneur (26,8 s mesurés) tout en facturant l'inférence quand même.
+ *
+ * `retryOnConnectionFailure(false)` : une frame n'est jamais renvoyée (voir [OneShotJsonBody]) ;
+ * un keep-alive mort échoue franchement au lieu de rejouer 28 Ko et une 2e inférence GPU.
+ */
+private val liveSharedClient: OkHttpClient by lazy {
+    OkHttpClient.Builder()
+        .connectTimeout(LIVE_CONNECT_SECONDS, TimeUnit.SECONDS)
+        .writeTimeout(LIVE_WRITE_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(LIVE_READ_SECONDS, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(false)
+        // 8 connexions idle / 5 min : marge pour 1 frame en vol + `/health`, et tunnel chaud
+        // entre deux sessions rapprochées (défaut OkHttp : 5 idle).
+        .connectionPool(ConnectionPool(8, 5, TimeUnit.MINUTES))
+        .build()
+}
+
+/** Le client HTTP du direct : **toujours le même** (pool, DNS, TLS partagés). */
+fun liveHttpClient(): OkHttpClient = liveSharedClient
+
+/**
+ * Client du **WebSocket** du direct : `newBuilder()` ne refait pas un client à neuf — il
+ * **partage le pool de connexions et le dispatcher** de [liveHttpClient], donc le handshake
+ * `wss://` bénéficie du DNS/TCP/TLS déjà payés par `/health` et les frames HTTP.
+ *
+ * Seul le délai de lecture est ajusté : le handshake d'un conteneur endormi attend le
+ * démarrage, il ne doit pas être coupé à 10 s. Le budget de la **frame** reste celui de
+ * [WsLiveClient] (`withTimeoutOrNull`) — le socket, lui, vit toute la session.
+ */
+fun liveWsClient(timeoutSeconds: Long = LIVE_TIMEOUT_SECONDS): OkHttpClient =
+    liveSharedClient.newBuilder()
+        .readTimeout(maxOf(timeoutSeconds, LIVE_READ_SECONDS), TimeUnit.SECONDS)
+        .build()
+
+private const val LIVE_CONNECT_SECONDS = 3L
+private const val LIVE_WRITE_SECONDS = 5L
+private const val LIVE_READ_SECONDS = 60L
+
 /** Réponse HTTP brute. */
 internal data class HttpOutcome(val code: Int, val body: String)
+
+/**
+ * Corps JSON **non rejouable** : OkHttp ne relance jamais un POST dont le corps est déjà
+ * parti. Sans ça, une connexion keep-alive morte fait re-POSTer la frame (28 Ko + une 2e
+ * inférence GPU facturée). Les octets sont encodés une fois, à la construction.
+ */
+internal class OneShotJsonBody(json: String) : RequestBody() {
+
+    private val bytes: ByteArray = json.toByteArray(Charsets.UTF_8)
+
+    override fun contentType(): MediaType = JSON_MEDIA
+
+    override fun contentLength(): Long = bytes.size.toLong()
+
+    override fun writeTo(sink: BufferedSink) {
+        sink.write(bytes)
+    }
+
+    /** Un corps one-shot n'est jamais rejoué par OkHttp. */
+    override fun isOneShot(): Boolean = true
+}
 
 internal fun joinUrl(baseUrl: String, path: String): String =
     baseUrl.trim().trimEnd('/') + path
 
-/** Exécute une requête hors du thread principal et normalise toutes les erreurs. */
-internal suspend fun OkHttpClient.execute(request: Request): Result<HttpOutcome> =
+/** Exécute un appel bloquant sur `Dispatchers.IO` et normalise toutes les erreurs. */
+private suspend fun <T> ioResult(block: () -> T): Result<T> =
     withContext(Dispatchers.IO) {
         try {
-            val response = newCall(request).execute()
-            response.use { Result.success(HttpOutcome(it.code, it.body?.string().orEmpty())) }
+            Result.success(block())
         } catch (c: CancellationException) {
             throw c
         } catch (e: Exception) {
             Result.failure(e.toApiError())
         }
     }
+
+/**
+ * Exécute une requête **construite dans** `Dispatchers.IO` : le corps JSON du direct
+ * (~28 Ko de base64) est assemblé hors du thread principal, qui doit rester libre pour
+ * la capture et le rendu.
+ */
+internal suspend fun OkHttpClient.executeBuilt(build: () -> Request): Result<HttpOutcome> =
+    ioResult { newCall(build()).execute().use { HttpOutcome(it.code, it.body?.string().orEmpty()) } }
+
+/** Exécute une requête déjà construite hors du thread principal. */
+internal suspend fun OkHttpClient.execute(request: Request): Result<HttpOutcome> =
+    executeBuilt { request }
 
 internal fun Throwable.toApiError(): ApiError = when (this) {
     is ApiError -> this
@@ -73,26 +159,33 @@ internal fun httpError(code: Int, body: String): ApiError = when (code) {
 }
 
 /**
- * Comme [execute], mais conserve les octets bruts (corps audio du TTS). Le corps n'est
- * jamais converti en String sauf en cas d'erreur, où il sert de message.
+ * Comme [executeBuilt], mais conserve les octets bruts : le direct s'en sert pour parser
+ * sans `String` intermédiaire (les réponses portent les masques), le TTS pour le corps audio.
+ * Le corps n'est jamais converti en String sauf en cas d'erreur, où il sert de message.
+ *
+ * [marks] date les deux postes que le transport seul peut voir : en-têtes reçus, puis
+ * corps complet **avant** parsing — c'est ce qui sépare `descente` de `parse` dans la
+ * chronologie de l'écran. Passer `null` (le cas de `/health` et du TTS) ne date rien.
  */
-internal suspend fun OkHttpClient.executeBytes(request: Request): Result<ByteArray> =
-    withContext(Dispatchers.IO) {
-        try {
-            newCall(request).execute().use { response ->
-                val bytes = response.body?.bytes() ?: ByteArray(0)
-                if (response.code in 200..299) {
-                    Result.success(bytes)
-                } else {
-                    Result.failure(httpError(response.code, bytes.toString(Charsets.UTF_8)))
-                }
-            }
-        } catch (c: CancellationException) {
-            throw c
-        } catch (e: Exception) {
-            Result.failure(e.toApiError())
+internal suspend fun OkHttpClient.executeBytesBuilt(
+    marks: WireMarks? = null,
+    build: () -> Request,
+): Result<ByteArray> = ioResult {
+    newCall(build()).execute().use { response ->
+        marks?.onHeaders()
+        val bytes = response.body?.bytes() ?: ByteArray(0)
+        marks?.onBody()
+        if (response.code in 200..299) {
+            bytes
+        } else {
+            // Levée ApiError : reprise telle quelle par ioResult.
+            throw httpError(response.code, bytes.toString(Charsets.UTF_8))
         }
     }
+}
+
+internal suspend fun OkHttpClient.executeBytes(request: Request): Result<ByteArray> =
+    executeBytesBuilt { request }
 
 /** Vérifie un code 2xx, sinon renvoie l'erreur typée correspondante. */
 internal fun HttpOutcome.requireSuccess(): Result<String> =

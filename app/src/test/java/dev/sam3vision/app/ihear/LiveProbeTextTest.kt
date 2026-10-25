@@ -1,6 +1,7 @@
 package dev.sam3vision.app.ihear
 
 import dev.sam3vision.app.DistanceLayer
+import dev.sam3vision.core.live.FrameTimings
 import dev.sam3vision.core.distance.DistanceReading
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -153,6 +154,46 @@ class LiveProbeTextTest {
         val details = liveProbeDetails(ready())
         assertTrue(details.contains("suivis (8) : person, chair, table, laptop, bottle, cup, bag, door"))
         assertTrue(details.contains("reconnus : person, chair"))
+    }
+
+    /** Chronologie complète d'une frame, telle que les marques réelles la produisent. */
+    private fun timed() = FrameTimings(
+        captureToJpegMs = 22,
+        jpegToSentMs = 61,
+        sentToReceivedMs = 153,
+        receivedToOverlaysMs = 37,
+        overlaysToPixelMs = 8,
+        captureToPixelMs = 348,
+        serverTotalMs = 92,
+        server = mapOf("total" to 92.0, "vision_ms" to 47.0, "detr_ms" to 38.0),
+    )
+
+    @Test
+    fun `aucune chronologie avant la premiere frame`() {
+        assertEquals("", liveProbeTimingsLine(LiveProbeState()))
+    }
+
+    @Test
+    fun `la chronologie tient sur une seule ligne du panneau`() {
+        val line = liveProbeTimingsLine(ready().copy(timings = timed()))
+        assertEquals("latence 348 · capt 22 · up 61 · srv 92 · rtt 153 · masque 37 · pixel 8", line)
+        assertFalse(line.contains("\n"))
+    }
+
+    @Test
+    fun `le detail ajoute la chronologie et les etages serveur`() {
+        val details = liveProbeDetails(ready().copy(timings = timed()))
+        assertTrue(details.contains("capture → jpeg : 22 ms"))
+        assertTrue(details.contains("envoi → réponse : 153 ms (dont serveur 92 ms, réseau + file 61 ms)"))
+        assertTrue(details.contains("latence perçue : 348 ms"))
+        assertTrue(details.contains("serveur : vision 47 ms · detr 38 ms"))
+    }
+
+    @Test
+    fun `sans chronologie le detail ne rajoute aucune ligne`() {
+        val details = liveProbeDetails(ready())
+        assertFalse(details.any { it.startsWith("capture → jpeg") })
+        assertFalse(details.any { it.startsWith("serveur :") })
     }
 
     @Test

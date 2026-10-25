@@ -16,9 +16,9 @@ import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.lensSpecOf
-import dev.sam3vision.app.rotateBitmap
-import dev.sam3vision.app.scaleToEdge
+import dev.sam3vision.app.uprightScaled
 import dev.sam3vision.core.distance.LensSpec
+import dev.sam3vision.core.live.captureStamp
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -78,8 +78,12 @@ class IhearCameraHost(private val context: Context) {
 
     private var boundPreview: PreviewView? = null
 
-    /** Frame convertie (JPEG base64, 448 px) : branchée par la fenêtre, consommée par SAM. */
-    var onFrame: ((String) -> Unit)? = null
+    /**
+     * Frame convertie (JPEG base64, 320 px) et **instant d'exposition** du capteur
+     * (`imageInfo.timestamp`, ns monotones, même base que `elapsedRealtimeNanos`) :
+     * branchée par la fenêtre, consommée par SAM. L'horodatage alimente la chronologie.
+     */
+    var onFrame: ((String, Long) -> Unit)? = null
 
     /**
      * Appelé **avant** la conversion : `false` = la frame ne servirait à rien (une
@@ -157,7 +161,10 @@ class IhearCameraHost(private val context: Context) {
         .also { it.setAnalyzer(executor, ::analyse) }
 
     /**
-     * ImageProxy → bitmap redressé → JPEG base64 ; la frame est fermée quoi qu'il arrive.
+     * ImageProxy → bitmap redressé et réduit en **une** passe → JPEG base64 ; la frame est
+     * fermée quoi qu'il arrive. L'instant d'exposition du capteur accompagne le JPEG
+     * (poste « capture » de la chronologie), validé par [captureStamp] : certains HAL
+     * n'incluent pas la veille dans leur horloge (27 s de dérive mesurés sur le Redmi).
      *
      * Chronométré (tous les [LOG_EVERY_FRAMES] frames) : ce coût-là n'est **pas** dans la
      * latence affichée par la sonde, qui ne mesure que l'appel réseau. Or c'est du temps
@@ -170,12 +177,15 @@ class IhearCameraHost(private val context: Context) {
         }
         val startedAt = SystemClock.elapsedRealtime()
         try {
-            // Réduire **avant** de tourner : la rotation coûte le nombre de pixels, et
-            // 320 px tournés valent 4× moins que 640. La géométrie finale est identique.
-            val scaled = scaleToEdge(proxy.toBitmap(), IHEAR_FRAME_EDGE)
-            val rotated = rotateBitmap(scaled, proxy.imageInfo.rotationDegrees)
-            val jpeg = bitmapToJpegBase64(rotated, IHEAR_FRAME_QUALITY)
-            onFrame?.invoke(jpeg)
+            // Rotation **et** réduction dans la même matrice : un seul rééchantillonnage et
+            // un seul bitmap, là où `scaleToEdge` puis `rotateBitmap` en faisaient deux
+            // (≈ 2,7 ms et une allocation par frame, mesurés).
+            val upright = uprightScaled(proxy.toBitmap(), proxy.imageInfo.rotationDegrees, IHEAR_FRAME_EDGE)
+            val jpeg = bitmapToJpegBase64(upright, IHEAR_FRAME_QUALITY)
+            onFrame?.invoke(
+                jpeg,
+                captureStamp(proxy.imageInfo.timestamp, SystemClock.elapsedRealtimeNanos()),
+            )
             countConversion(
                 frames = ++conversionFrames,
                 ms = SystemClock.elapsedRealtime() - startedAt,

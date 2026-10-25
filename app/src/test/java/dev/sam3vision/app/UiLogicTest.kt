@@ -71,6 +71,47 @@ class UiLogicTest {
     }
 
     @Test
+    fun `la taille cible echange largeur et hauteur sur un quart de tour`() {
+        // Capteur 640×480 livré à l'horizontale, redressé à 90° : 480×640, réduit à 512.
+        assertEquals(384 to 512, targetSize(640, 480, 90, LIVE_EDGE))
+        assertEquals(384 to 512, targetSize(640, 480, -270, LIVE_EDGE))
+    }
+
+    @Test
+    fun `la taille cible d'un paysage ne tourne rien`() {
+        assertEquals(512 to 384, targetSize(640, 480, 0, LIVE_EDGE))
+        // 180° ne change pas les dimensions.
+        assertEquals(512 to 384, targetSize(640, 480, 180, LIVE_EDGE))
+    }
+
+    @Test
+    fun `une image deja plus petite que l'edge n'est jamais agrandie`() {
+        assertEquals(320 to 240, targetSize(320, 240, 0, LIVE_EDGE))
+        assertEquals(240 to 320, targetSize(320, 240, 270, LIVE_EDGE))
+        assertEquals(512 to 512, targetSize(512, 512, 0, LIVE_EDGE))
+    }
+
+    @Test
+    fun `un edge impair garde le bord demande sans depasser`() {
+        val (width, height) = targetSize(1000, 500, 0, 333)
+        assertEquals(333, width)
+        assertEquals(166, height)
+        assertTrue("le bord impair ne doit pas être dépassé", width <= 333 && height <= 333)
+        // Les proportions sont conservées à l'arrondi près.
+        assertEquals(0.5, height.toDouble() / width.toDouble(), 0.01)
+    }
+
+    @Test
+    fun `les angles camera sont ramenes dans le cercle`() {
+        assertEquals(270, normalizeDegrees(-90))
+        assertEquals(0, normalizeDegrees(360))
+        assertTrue(isQuarterTurn(90))
+        assertTrue(isQuarterTurn(-90))
+        assertFalse(isQuarterTurn(180))
+        assertFalse(isQuarterTurn(0))
+    }
+
+    @Test
     fun `les couleurs de theme sont distinctes`() {
         assertNotEquals(AppColors.primary, AppColors.danger)
         assertNotEquals(AppColors.background, AppColors.surface)

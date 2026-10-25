@@ -4,10 +4,13 @@ import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.LiveHealth
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 
-/** /live est plus court que /segment (60 s) : délai dédié de 10 s. */
+/**
+ * Ancien délai dédié du direct (10 s), **conservé pour compatibilité** : il tuait la 1re
+ * frame quand le conteneur Modal se réveillait (26,8 s mesurés). Le direct utilise
+ * désormais [liveHttpClient] (read 60 s, sans `callTimeout`) ; le budget de la frame reste
+ * appliqué par [WsLiveClient] (`withTimeoutOrNull`), qui sait elle seule ce qu'une frame vaut.
+ */
 const val LIVE_TIMEOUT_SECONDS: Long = 10L
 
 /**
@@ -21,38 +24,45 @@ const val WAKE_TIMEOUT_SECONDS: Long = 180L
 /** User-Agent propre au flux live, identifiable côté backend. */
 internal const val LIVE_USER_AGENT = "$USER_AGENT live"
 
+/** Client de réveil, **partagé** lui aussi : le tunnel reste chaud entre deux appels. */
+private val wakeSharedClient: OkHttpClient by lazy { defaultHttpClient(WAKE_TIMEOUT_SECONDS) }
+
 /**
  * Client de l'endpoint `/live` du direct (backend Modal `sam3-live`, contrat docs/LIVE-SPEC.md).
- * Réutilise la fabrique unique de clients HTTP de `:core` avec un délai de 10 s,
- * le parsing de `Json.kt` et les erreurs typées de `Errors.kt`.
+ * Réutilise le client **partagé** [liveHttpClient] — un seul pool de connexions pour toute
+ * l'app, donc DNS + TCP + TLS (71,3 ms mesurés) payés une fois —, le parsing de `Json.kt`
+ * et les erreurs typées de `Errors.kt`. Le paramètre [client] reste injectable pour les tests.
  */
 class HttpLiveClient(
     private val baseUrl: String,
-    private val client: OkHttpClient = defaultHttpClient(LIVE_TIMEOUT_SECONDS),
-    private val wakeClient: OkHttpClient = defaultHttpClient(WAKE_TIMEOUT_SECONDS),
+    private val client: OkHttpClient = liveHttpClient(),
+    private val wakeClient: OkHttpClient = wakeSharedClient,
+    private val marks: WireMarks? = null,
 ) : LiveClient {
 
+    /** Client effectif : exposé aux tests, qui prouvent le partage du pool. */
+    internal val httpClient: OkHttpClient get() = client
+
+    /**
+     * Corps construit **dans** `Dispatchers.IO` (28 Ko de base64 jamais assemblés sur le
+     * thread principal) et envoyé en [OneShotJsonBody] : jamais rejoué par OkHttp. La
+     * réponse est lue en octets et parsée sans `String` intermédiaire.
+     *
+     * `marks` ne date que `/live` : `/health` réveille le conteneur hors chronologie, le
+     * dater poserait des postes fantômes sur la frame en cours.
+     */
     override suspend fun live(
         jpegB64: String,
         prompts: List<String>?,
         workEdge: Int,
         maxObjects: Int,
-    ): Result<LiveFrame> {
-        val body = JSONObject()
-            .put("image_b64", jpegB64)
-            .put("prompts", if (prompts == null) JSONObject.NULL else jsonArrayOf(prompts))
-            .put("work_edge", workEdge)
-            .put("max_objects", maxObjects)
-            .toString()
-        val request = Request.Builder()
+    ): Result<LiveFrame> = client.executeBytesBuilt(marks) {
+        Request.Builder()
             .url(joinUrl(baseUrl, "/live"))
             .header("User-Agent", LIVE_USER_AGENT)
-            .post(body.toRequestBody(JSON_MEDIA))
+            .post(OneShotJsonBody(liveFrameJson(jpegB64, prompts, workEdge, maxObjects)))
             .build()
-        return client.execute(request)
-            .then { outcome -> outcome.requireSuccess() }
-            .then { raw -> catchingResult { parseLiveFrame(raw) } }
-    }
+    }.then { bytes -> catchingResult { parseLiveFrameBytes(bytes) } }
 
     override suspend fun health(): Result<LiveHealth> {
         val request = Request.Builder()

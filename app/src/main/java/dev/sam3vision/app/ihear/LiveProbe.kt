@@ -1,7 +1,10 @@
 package dev.sam3vision.app.ihear
 
 import android.graphics.Bitmap
+import android.os.SystemClock
 import androidx.compose.ui.graphics.toArgb
+import dev.sam3vision.core.live.FrameTimings
+import dev.sam3vision.core.live.ScreenTimings
 import dev.sam3vision.app.DistanceLayer
 import dev.sam3vision.app.MASK_ALPHA
 import dev.sam3vision.app.maskColorAt
@@ -16,8 +19,7 @@ import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.live.PositionAnnouncer
 import dev.sam3vision.core.live.PositionText
-import dev.sam3vision.core.mask.colorizeMask
-import dev.sam3vision.core.mask.decodeMaskPng
+import dev.sam3vision.core.mask.colorizedMaskBitmap
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
@@ -53,6 +55,8 @@ data class LiveProbeState(
     val latencyMs: Long = 0,
     val p95Ms: Long = 0,
     val serverMs: Long = 0,
+    /** Chronologie de la dernière frame (capture → pixel) + étages serveur reçus. */
+    val timings: FrameTimings = FrameTimings(),
     val width: Int = 0,
     val height: Int = 0,
     val gpu: String = "",
@@ -110,6 +114,9 @@ class LiveProbe(private val scope: CoroutineScope) {
     /** Déclencheur des annonces vocales : stabilité, non-répétition, 4 s d'écart. */
     private val announcer = PositionAnnouncer()
 
+/** Chronologie de la frame courante : capture du capteur → pixel affiché. */
+    private val chronology = ScreenTimings { SystemClock.elapsedRealtimeNanos() }
+
     /** Vrai si les Réglages autorisent l'annonce (« Annoncer les objets et leur distance »). */
     private var announcePositions = false
 
@@ -130,7 +137,7 @@ class LiveProbe(private val scope: CoroutineScope) {
     ) {
         val clean = baseUrl.trim()
         session = if (clean.isBlank()) null else LiveSession(
-            liveClient(clean),
+            liveClient(clean, marks = chronology),
             prompts = prompts,
             maxObjects = if (maxObjects > 0) maxObjects else DEFAULT_MAX_OBJECTS,
             cadence = Cadence.Fast,
@@ -139,7 +146,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         // conteneur qui parle, pas la frame. Une fois la première analyse passée, on
         // repart sur la session normale à délai court (10 s).
         coldSession = if (clean.isBlank()) null else LiveSession(
-            liveClient(clean, timeoutSeconds = COLD_TIMEOUT_SECONDS),
+            liveClient(clean, timeoutSeconds = COLD_TIMEOUT_SECONDS, marks = chronology),
             prompts = prompts,
             maxObjects = if (maxObjects > 0) maxObjects else DEFAULT_MAX_OBJECTS,
             cadence = Cadence.Fast,
@@ -150,6 +157,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         distances.setLens(lens)
         nextTickAt = 0L
         queued = null
+        chronology.reset()
         rate.reset()
         announcer.reset()
         _state.update {
@@ -177,6 +185,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         announcer.reset()
         nextTickAt = 0L
         queued = null
+        chronology.reset()
         _state.update {
             LiveProbeState(
                 endpoint = it.endpoint,
@@ -189,13 +198,16 @@ class LiveProbe(private val scope: CoroutineScope) {
     }
 
     /** Masques et chiffres remis à zéro (sortie d'écran) sans oublier l'endpoint. */
-    fun clear() = _state.update {
-        LiveProbeState(
-            endpoint = it.endpoint,
-            gpu = it.gpu,
-            conceptsSent = it.conceptsSent,
-            debugVisible = it.debugVisible,
-        )
+    fun clear() {
+        chronology.reset()
+        _state.update {
+            LiveProbeState(
+                endpoint = it.endpoint,
+                gpu = it.gpu,
+                conceptsSent = it.conceptsSent,
+                debugVisible = it.debugVisible,
+            )
+        }
     }
 
     fun toggleDebug() = _state.update { it.copy(debugVisible = !it.debugVisible) }
@@ -204,8 +216,12 @@ class LiveProbe(private val scope: CoroutineScope) {
      * Frame encodée en réserve (une seule) : elle est convertie **pendant** que la
      * requête précédente est en vol, puis part dès que le créneau se libère.
      * Sans elle, chaque cycle payait l'encodage JPEG après la réponse (+30-40 ms).
+     * Les horodatages voyagent avec la frame : une frame en file garde sa capture.
      */
-    private var queued: String? = null
+    private var queued: QueuedFrame? = null
+
+    /** JPEG en attente, avec l'instant d'exposition et celui de la fin d'encodage (ns). */
+    private data class QueuedFrame(val jpegB64: String, val captureAtNs: Long, val encodedAtNs: Long)
 
     /**
      * Faut-il convertir la frame qui arrive ? Oui si une frame de réserve manque :
@@ -220,23 +236,28 @@ class LiveProbe(private val scope: CoroutineScope) {
     }
 
     /**
-     * Frame caméra (JPEG base64, 448 px) : mise en réserve si un créneau est pris,
+     * Frame caméra (JPEG base64, 320 px) : mise en réserve si un créneau est pris,
      * envoyée tout de suite sinon. Rien n'est mis en file au-delà d'une frame : la
      * scène a changé, une vieille image n'apprend rien.
      */
-    fun onFrame(jpegB64: String) {
+    /**
+     * Idem avec l'instant d'**exposition** de la frame (`imageInfo.timestamp`, ns
+     * monotones) : c'est lui qui rend la latence per\u00e7ue mesurable de bout en bout.
+     */
+    fun onFrame(jpegB64: String, captureAtNs: Long = 0L) {
         if (jpegB64.isBlank()) return
+        val encodedAtNs = SystemClock.elapsedRealtimeNanos()
         val active = (if (warmed) session else coldSession) ?: run {
             android.util.Log.w("sam3vision", "frame ignorée : aucune session SAM (endpoint vide ?)")
             return
         }
         if (active.saturated) {
-            queued = jpegB64
+            queued = QueuedFrame(jpegB64, captureAtNs, encodedAtNs)
             return
         }
         val now = System.currentTimeMillis()
         if (now < nextTickAt) return
-        dispatch(active, jpegB64, now)
+        dispatch(active, QueuedFrame(jpegB64, captureAtNs, encodedAtNs), now)
     }
 
     /**
@@ -244,10 +265,14 @@ class LiveProbe(private val scope: CoroutineScope) {
      * La cadence affichée se compte **à l'envoi** : deux réponses qui arrivent ensemble
      * après un réveil ne veulent pas dire « 40 images par seconde ».
      */
-    private fun dispatch(active: LiveSession, jpegB64: String, at: Long) {
+    private fun dispatch(active: LiveSession, frame: QueuedFrame, at: Long) {
         rate.record(at)
         nextTickAt = at + active.intervalMsAdaptive()
-        scope.launch { runFrame(active, jpegB64, at) }
+        // Nouvelle frame : la chronologie repart de l'exposition du capteur.
+        chronology.beginFrame(frame.captureAtNs, frame.encodedAtNs)
+        // Hors du thread principal : la sérialisation de la frame (JSON + base64) et la
+        // normalisation des concepts ne doivent jamais tomber dans la boucle de composition.
+        scope.launch(Dispatchers.Default) { runFrame(active, frame.jpegB64, at) }
     }
 
     /**
@@ -268,6 +293,8 @@ class LiveProbe(private val scope: CoroutineScope) {
 
     private suspend fun runFrame(active: LiveSession, jpegB64: String, at: Long) {
         val result = active.runFrame(jpegB64) ?: return drain()
+        // Réponse complète (corps lu et JSON tourné) : le poste « reçu » est posé ici.
+        chronology.markReceived()
         result.fold(
             onSuccess = { frame ->
                 if (_state.value.frames == 0) {
@@ -282,7 +309,7 @@ class LiveProbe(private val scope: CoroutineScope) {
             // les derniers connus, seul le message d'erreur change.
             onFailure = { error ->
                 android.util.Log.w("sam3vision", "live KO: ${error::class.simpleName} ${error.message}")
-                _state.update { it.copy(error = failureText(error)) }
+                _state.update { it.copy(error = failureText(error), timings = chronology.snapshot()) }
             },
         )
         drain()
@@ -309,6 +336,7 @@ class LiveProbe(private val scope: CoroutineScope) {
                 latencyMs = active.stats.averageMs,
                 p95Ms = active.stats.p95Ms,
                 serverMs = frame.elapsedMs,
+                timings = chronology.snapshot(frame),
                 width = frame.width,
                 height = frame.height,
                 frames = current.frames + 1,
@@ -319,6 +347,16 @@ class LiveProbe(private val scope: CoroutineScope) {
                 error = null,
             )
         }
+    }
+
+    /**
+     * Frame effectivement **dessinée** : dernier poste de la chronologie, posé par l'écran
+     * après la composition (`withFrameNanos`). Tant que l'écran ne l'appelle pas, la ligne
+     * s'arrête aux masques et `pixel` affiche « — ».
+     */
+    fun noteDrawn() {
+        if (!chronology.noteDrawn()) return
+        _state.update { current -> current.copy(timings = chronology.snapshot(current.timings)) }
     }
 
     /** Libellé de transport : ce que le socket fait vraiment, pas ce qu'on voudrait. */
@@ -361,17 +399,19 @@ class LiveProbe(private val scope: CoroutineScope) {
         else error.message ?: "échec de l'appel SAM"
 
     /**
-     * Masques colorisés de la frame, calculés hors du thread principal. Le coût est
-     * mesuré (une ligne tous les 20 paquets) : c'est du temps mural entre la réponse
-     * réseau et ce qui arrive à l'écran, et il n'est pas dans `latence`.
+     * Masques colorisés de la frame, calculés hors du thread principal : décodage selon
+     * `frame.maskEncoding` (`bits` = 1 bit + zlib, sinon PNG gris) puis coloriage par table
+     * de 256 niveaux — jamais de luminance sur un masque déjà gris.
+     *
+     * Le coût est mesuré (une ligne tous les [LOG_EVERY_FRAMES] paquets) : c'est du temps
+     * mural entre la réponse réseau et ce qui arrive à l'écran, et il n'est pas dans `latence`.
      */
     private suspend fun overlaysFor(frame: LiveFrame): List<Bitmap> = withContext(Dispatchers.Default) {
         val startedAt = android.os.SystemClock.elapsedRealtime()
         val overlays = frame.objects.mapIndexedNotNull { index, obj ->
-            decodeMaskPng(obj.maskPngB64)?.let { gray ->
-                colorizeMask(gray, maskColorAt(index).toArgb(), MASK_ALPHA)
-            }
+            colorizedMaskBitmap(obj.maskPngB64, frame.maskEncoding, maskColorAt(index).toArgb(), MASK_ALPHA)
         }
+        chronology.markOverlays()
         logDecoding(android.os.SystemClock.elapsedRealtime() - startedAt, overlays.size)
         overlays
     }

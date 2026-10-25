@@ -39,11 +39,24 @@ class WsLiveClientTest {
             private set
         private var onText: ((String) -> Unit)? = null
         private var onClosed: ((Throwable?) -> Unit)? = null
+        private var onOpen: (() -> Unit)? = null
+        var opened = false
+            private set
 
-        override fun open(url: String, onText: (String) -> Unit, onClosed: (Throwable?) -> Unit): Boolean {
+        override fun open(
+            url: String,
+            onText: (String) -> Unit,
+            onClosed: (Throwable?) -> Unit,
+            onOpen: () -> Unit,
+        ): Boolean {
             openedUrl = url
             this.onText = onText
             this.onClosed = onClosed
+            this.onOpen = onOpen
+            if (openResult) {
+                opened = true
+                onOpen()          // le handshake aboutit : le client peut dater les « en-têtes »
+            }
             return openResult
         }
 
@@ -80,6 +93,53 @@ class WsLiveClientTest {
     }
 
     @Test
+    fun `les jalons reseau datent en-tetes puis corps`() = runBlocking {
+        // Le transport appelle onOpen au handshake et le client onBody à la réception :
+        // la chronologie de l'écran peut alors séparer l'attente de la descente.
+        val seen = mutableListOf<String>()
+        val marks = object : WireMarks {
+            override fun onHeaders() { seen += "headers" }
+            override fun onBody() { seen += "body" }
+        }
+        val transport = FakeTransport { json -> listOf(frameReply(json.getInt("id"))) }
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient(), marks = marks)
+
+        client.live("QQ==", null, 640, 4).getOrThrow()
+
+        assertEquals(listOf("headers", "body"), seen)
+    }
+
+    @Test
+    fun `un message orphelin ne pose pas de jalon corps`() = runBlocking {
+        val seen = mutableListOf<String>()
+        val marks = object : WireMarks {
+            override fun onHeaders() { seen += "headers" }
+            override fun onBody() { seen += "body" }
+        }
+        // Réponse portant un id qu'aucune requête n'attend : ignorée, donc non datée.
+        val transport = FakeTransport { listOf("{\"id\":99,\"elapsed_ms\":1}") }
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient(), marks = marks)
+
+        client.live("QQ==", null, 640, 4)
+
+        assertEquals(listOf("headers"), seen)
+    }
+
+    @Test
+    fun `le message WS demande des masques bits, comme le POST`() = runBlocking {
+        // Un seul corps de frame pour les deux transports : le champ `mask_encoding` ne
+        // doit pas exister sur l'un et pas sur l'autre (sinon le WS resterait en PNG).
+        val transport = FakeTransport { json -> listOf(frameReply(json.getInt("id"))) }
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient())
+
+        client.live("QQ==", null, 640, 4).getOrThrow()
+
+        val sent = JSONObject(transport.sent.single())
+        assertEquals("bits", sent.getString("mask_encoding"))
+        assertTrue("prompts null doit rester null", sent.isNull("prompts"))
+    }
+
+    @Test
     fun `la reponse du serveur devient une LiveFrame`() = runBlocking {
         val transport = FakeTransport { json -> listOf(frameReply(json.getInt("id"))) }
         val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient())
@@ -94,6 +154,36 @@ class WsLiveClientTest {
         assertEquals(0.91f, obj.score, 0.001f)
         assertEquals(listOf(1f, 2f, 30f, 40f), obj.box)
         assertEquals("QUJD", obj.maskPngB64)
+    }
+
+    @Test
+    fun `la reponse porte l encodage applique et les chronos serveur`() = runBlocking {
+        val transport = FakeTransport { json ->
+            listOf(
+                """{"id":${json.getInt("id")},"width":512,"height":1138,"elapsed_ms":88,
+                    "mask_encoding":"bits","timings_ms":{"vision":41.5,"total":88.2},
+                    "objects":[{"label":"person","score":0.9,"box":[1,2,3,4],"mask_b64":"TTEIAAIA"}]}""",
+            )
+        }
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient())
+
+        val frame = client.live("QQ==", listOf("person"), 640, 4).getOrThrow()
+
+        assertEquals("bits", frame.maskEncoding)
+        assertEquals(41.5, frame.timingsMs.getValue("vision"), 0.0001)
+        assertEquals(88L, frame.elapsedMs)
+    }
+
+    /** Backend sans `FAST_TIMING` : pas de `timings_ms`, et `mask_encoding` absent ⇒ `png`. */
+    @Test
+    fun `une reponse sans champs optionnels reste lisible`() = runBlocking {
+        val transport = FakeTransport { json -> listOf(frameReply(json.getInt("id"))) }
+        val client = WsLiveClient(base, transport, 1_000, RecordingLiveClient())
+
+        val frame = client.live("QQ==", null, 640, 4).getOrThrow()
+
+        assertEquals("png", frame.maskEncoding)
+        assertTrue(frame.timingsMs.isEmpty())
     }
 
     @Test
@@ -194,7 +284,12 @@ class WsLiveClientTest {
     fun `un silence du serveur referme le socket pour que la frame suivante le rouvre`() = runBlocking {
         var opens = 0
         val transport = object : WsTransport {
-            override fun open(url: String, onText: (String) -> Unit, onClosed: (Throwable?) -> Unit): Boolean {
+            override fun open(
+                url: String,
+                onText: (String) -> Unit,
+                onClosed: (Throwable?) -> Unit,
+                onOpen: () -> Unit,
+            ): Boolean {
                 opens += 1
                 return true
             }

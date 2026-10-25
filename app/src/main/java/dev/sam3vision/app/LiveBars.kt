@@ -42,16 +42,7 @@ fun LiveTopBar(
             SamModeChip(state.samEnabled, onToggleSam)
             TransportChip(state.transport)
         }
-        Text(
-            state.statusLine,
-            color = AppColors.text,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .background(AppColors.surface.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-        )
+        LiveStatusLines(state)
         state.spoken?.let { phrase ->
             Text(
                 "🔊 $phrase",
@@ -67,6 +58,26 @@ fun LiveTopBar(
         PromptRow(draft, onDraftChange, onApply)
         (failure ?: state.error)?.let { StatusBanner(it, AppColors.danger) }
     }
+}
+
+/**
+ * Ligne d'état du direct, puis la **chronologie par étage sur une seule ligne** (jamais de
+ * retour à la ligne) : rien affiché tant qu'aucun poste n'est mesuré.
+ */
+@Composable
+private fun LiveStatusLines(state: LiveUiState) {
+    Text(
+        state.statusLine,
+        color = AppColors.text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        modifier = Modifier
+            .padding(top = 8.dp)
+            .background(AppColors.surface.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+    if (state.chronologie.isBlank()) return
+    Text(state.chronologie, color = AppColors.success, fontSize = 11.sp, maxLines = 1)
 }
 
 /**
@@ -124,7 +135,7 @@ fun LiveBottomBar(
             AppColors.primary,
             onToggleMemory,
         )
-        if (state.lastJpegB64.isNotBlank()) {
+        if (state.hasFrame) {
             Chip("Analyser la frame", AppColors.surfaceHigh, onOpenChat)
         }
     }

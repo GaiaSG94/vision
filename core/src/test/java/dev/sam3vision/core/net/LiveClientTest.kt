@@ -1,14 +1,16 @@
 package dev.sam3vision.core.net
 
 import dev.sam3vision.core.TestHttpServer
-import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.LiveHealth
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -121,10 +123,86 @@ class LiveClientTest {
     }
 
     @Test
-    fun `le client live par défaut est borné à 10 secondes`() {
+    fun `le client du direct est partage et regle pour le reveil`() {
+        // Changement de cap : plus de callTimeout de 10 s (le réveil GPU mesuré à 26,8 s
+        // était tué, frame perdue et inférence facturée quand même). Le direct partage un
+        // seul client pour toute l'app : DNS + TCP + TLS (71,3 ms) payés une seule fois.
         assertEquals(10L, LIVE_TIMEOUT_SECONDS)
-        val expected = LiveFrame(0, 0, 0, emptyList())
-        assertEquals(0L, expected.elapsedMs)
+        assertEquals(3_000, liveHttpClient().connectTimeoutMillis)
+        assertEquals(5_000, liveHttpClient().writeTimeoutMillis)
+        assertEquals(60_000, liveHttpClient().readTimeoutMillis)
+        assertEquals(0, liveHttpClient().callTimeoutMillis)
+        // Aucun rejeu de POST : la frame n'est jamais renvoyée (voir OneShotJsonBody).
+        assertFalse(liveHttpClient().retryOnConnectionFailure)
+    }
+
+    @Test
+    fun `deux clients live successifs partagent le meme pool de connexions`() {
+        val premier = HttpLiveClient(server.baseUrl)
+        val second = HttpLiveClient(server.baseUrl)
+
+        assertSame(liveHttpClient(), premier.httpClient)
+        assertSame(premier.httpClient, second.httpClient)
+        // newBuilder (WebSocket, client minuté) garde le meme pool : tunnel TLS partagé.
+        assertSame(premier.httpClient.connectionPool, liveWsClient(60L).connectionPool)
+        assertSame(premier.httpClient.dispatcher, liveWsClient(60L).dispatcher)
+    }
+
+    @Test
+    fun `le corps du direct n'est jamais rejoue`() {
+        val body = OneShotJsonBody("""{"a":1}""")
+
+        assertTrue("un corps one-shot interdit le re-POST", body.isOneShot())
+        assertEquals(7L, body.contentLength())
+        assertEquals(JSON_MEDIA, body.contentType())
+    }
+
+    @Test
+    fun `le parse depuis les octets donne le meme resultat que depuis une chaine`() {
+        val depuisChaine = parse(validLive)
+        val depuisOctets = parseBytes(validLive.toByteArray(Charsets.UTF_8))
+
+        assertNotNull(depuisOctets)
+        assertEquals(depuisChaine.toString(), depuisOctets.toString())
+        assertEquals(2, depuisOctets!!.objects("objects").size)
+        assertEquals("QUJD", depuisOctets.objects("objects")[0].maskedFields().maskB64)
+        assertNull("un corps illisible reste null, sans exception", parseBytes("pas du json".toByteArray()))
+    }
+
+    @Test
+    fun `live demande des masques bits et lit l encodage servi`() = runBlocking {
+        // Le client demande explicitement le format M1 (1 bit + zlib) …
+        val frame = HttpLiveClient(server.baseUrl).live("SUVLFw==", listOf("person"), 512, 6).getOrThrow()
+        assertEquals("bits", JSONObject(server.requests.single().body).getString("mask_encoding"))
+        // … et retient ce que le backend dit avoir réellement envoyé.
+        assertEquals("png", frame.maskEncoding)
+    }
+
+    @Test
+    fun `live lit mask_encoding et timings_ms de la reponse`() = runBlocking {
+        liveBody = """
+            {"width":64,"height":40,"elapsed_ms":9,"mask_encoding":"BITS",
+             "timings_ms":{"vision":41.5,"total":88.2,"queue":"du texte"},
+             "objects":[{"label":"chaise","score":0.5,"box":[1,1,2,2],"mask_b64":"TTEIAAIA"}]}
+        """.trimIndent()
+        val frame = HttpLiveClient(server.baseUrl).live("QQ==", null, 640, 12).getOrThrow()
+
+        assertEquals("bits", frame.maskEncoding)
+        assertEquals(41.5, frame.timingsMs.getValue("vision"), 0.0001)
+        assertEquals(88.2, frame.timingsMs.getValue("total"), 0.0001)
+        assertEquals("un poste non numerique est ignore, sans exception", 2, frame.timingsMs.size)
+        assertEquals(9L, frame.elapsedMs)
+    }
+
+    @Test
+    fun `live sur un backend sans champs garde le comportement d avant`() = runBlocking {
+        // Backend déployé actuel : ni mask_encoding ni timings_ms.
+        liveBody = validLive
+        val frame = HttpLiveClient(server.baseUrl).live("QQ==", null, 640, 12).getOrThrow()
+
+        assertEquals("png", frame.maskEncoding)
+        assertTrue(frame.timingsMs.isEmpty())
+        assertEquals(512L, frame.elapsedMs)
     }
 
     @Test

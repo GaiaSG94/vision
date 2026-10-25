@@ -8,8 +8,8 @@ import androidx.compose.ui.graphics.toArgb
 import dev.sam3vision.core.audio.Wav
 import dev.sam3vision.core.live.PositionText
 import dev.sam3vision.core.live.shouldPrewarm
-import dev.sam3vision.core.mask.colorizeMask
-import dev.sam3vision.core.mask.decodeMaskPng
+import dev.sam3vision.core.mask.colorizedMaskBitmap
+import dev.sam3vision.core.model.MASK_ENCODING_PNG
 import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Detection
@@ -188,8 +188,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun buildOverlays(photo: Bitmap?, objects: List<SegObject>): List<Bitmap> {
         val base = photo ?: return emptyList()
         return withContext(Dispatchers.Default) {
+            // Même helper que le direct : décodage selon l'encodage, coloriage par table.
             objects.mapIndexedNotNull { index, obj ->
-                decodeMaskPng(obj.maskPngB64)?.let { gray -> colorizeMask(gray, maskArgb(index), MASK_ALPHA) }
+                colorizedMaskBitmap(obj.maskPngB64, MASK_ENCODING_PNG, maskArgb(index), MASK_ALPHA)
             }
         }
     }

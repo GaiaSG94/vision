@@ -18,10 +18,15 @@ import androidx.compose.ui.unit.sp
 private val PanelBackground = Color(0xD010161C)
 private val PanelDetail = Color(0xFFAFC0CC)
 
+/** Chronologie : un ton au-dessus du détail, elle se lit d'un coup d'œil pendant le direct. */
+private val PanelTimings = Color(0xFF7FD8A8)
+
 /**
  * Panneau de debug de SAM sur la page caméra : la ligne d'état (« SAM · 1,2 ips ·
- * 640 ms · 8 objets · A100 ») puis le détail utile quand quelque chose cloche —
- * endpoint, taille de frame, p95, nombre de frames et de masques, dernière erreur.
+ * 640 ms · 8 objets · A100 »), la **chronologie sur une ligne** (« latence 348 · capt 22 ·
+ * up 61 · srv 92 · rtt 153 · masque 37 · pixel 8 ») puis le détail utile quand quelque
+ * chose cloche — endpoint, taille de frame, p95, poste par poste, étages serveur, nombre
+ * de frames et de masques, dernière erreur.
  *
  * Purement informatif : aucun clic (les gestes de la page sont captés à la racine).
  */
@@ -58,6 +63,18 @@ fun LiveDebugPanel(
             fontWeight = FontWeight.Medium,
             maxLines = if (dense) 2 else Int.MAX_VALUE,
         )
+        // Chronologie : une seule ligne, jamais de retour à la ligne dans l'aperçu.
+        // En mode dense elle reste visible — c'est la fenêtre que l'on regarde quand on
+        // mesure la latence —, mais le détail complet de `master` y est réduit aux erreurs.
+        val chronologie = liveProbeTimingsLine(state)
+        if (chronologie.isNotBlank()) {
+            Text(
+                chronologie,
+                color = PanelTimings,
+                fontSize = if (dense) 8.sp else 11.sp,
+                maxLines = 1,
+            )
+        }
         details.forEach { line ->
             Text(line, color = PanelDetail, fontSize = if (dense) 8.sp else 11.sp, maxLines = 1)
         }

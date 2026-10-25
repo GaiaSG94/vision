@@ -42,7 +42,7 @@ class LiveStateTest {
         val s = LiveUiState()
         assertEquals(false, s.running)
         assertEquals(0, s.objectsCount)
-        assertEquals("", s.lastJpegB64)
+        assertEquals(false, s.hasFrame)
     }
 
     @Test

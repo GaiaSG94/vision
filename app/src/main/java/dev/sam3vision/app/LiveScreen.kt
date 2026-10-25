@@ -1,8 +1,6 @@
 package dev.sam3vision.app
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -68,6 +66,10 @@ fun LiveScreen(
 
     LaunchedEffect(Unit) { viewModel.startFromSettings() }
     LiveCameraHost(viewModel, previewView, attached) { failure = it }
+    // Dernier poste de la chronologie : la frame n'est comptée dessinée qu'après compose.
+    // La clé est la liste de masques (neuve à chaque frame), pas la frame : deux scènes
+    // identiques donnent deux `LiveFrame` égales.
+    FirstPixelWatcher(state.overlays, state.overlays.isNotEmpty()) { viewModel.noteDrawn() }
 
     LiveStage(
         state = state,
@@ -279,33 +281,18 @@ private suspend fun bindLiveCamera(
     onLens(lensSpecOf(camera.cameraInfo))
 }
 
-/** ImageProxy → bitmap redressé → JPEG base64. Les frames s'accumulent jamais : gate côté ViewModel. */
+/**
+ * ImageProxy → JPEG base64 en **une** passe de matrice (rotation + échelle), avec
+ * l'instant d'exposition du capteur : c'est lui qui rend la latence perçue mesurable
+ * de bout en bout. Les frames ne s'accumulent jamais : gate côté ViewModel.
+ */
 private fun pushFrame(proxy: ImageProxy, viewModel: LiveViewModel) {
     try {
-        val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
-        viewModel.onFrame(bitmapToJpegBase64(scaleToEdge(rotated, LIVE_EDGE), LIVE_JPEG_QUALITY))
+        val upright = uprightScaled(proxy.toBitmap(), proxy.imageInfo.rotationDegrees, LIVE_EDGE)
+        viewModel.onFrame(bitmapToJpegBase64(upright, LIVE_JPEG_QUALITY), proxy.imageInfo.timestamp)
     } catch (_: Throwable) {
         // frame illisible : la suivante part tout de suite
     } finally {
         proxy.close()
     }
-}
-
-/** Rotation d'un bitmap (l'analyseur caméra livre toujours de l'horizontal). */
-fun rotateBitmap(src: Bitmap, degrees: Int): Bitmap {
-    if (degrees % 360 == 0) return src
-    return Bitmap.createBitmap(src, 0, 0, src.width, src.height, Matrix().apply { postRotate(degrees.toFloat()) }, true)
-}
-
-/** Réduit un bitmap pour que son plus grand côté fasse [edge], sans jamais agrandir. */
-fun scaleToEdge(bitmap: Bitmap, edge: Int): Bitmap {
-    val longest = maxOf(bitmap.width, bitmap.height)
-    if (longest <= edge) return bitmap
-    val ratio = edge.toFloat() / longest
-    return Bitmap.createScaledBitmap(
-        bitmap,
-        (bitmap.width * ratio).toInt().coerceAtLeast(1),
-        (bitmap.height * ratio).toInt().coerceAtLeast(1),
-        true,
-    )
 }

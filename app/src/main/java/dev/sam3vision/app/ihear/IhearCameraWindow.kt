@@ -53,6 +53,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.runtime.collectAsState
 import dev.sam3vision.app.CameraSurface
 import dev.sam3vision.app.LiveDistanceLayer
+import dev.sam3vision.app.FirstPixelWatcher
 import dev.sam3vision.app.decodeScaledExact
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -74,11 +75,7 @@ internal fun IhearCameraWindow(
 ) {
     val probe by viewModel.probe.state.collectAsState()
     val preview = glue.preview
-    LaunchedEffect(glue.host, viewModel) {
-        // SAM ne voit que l'enregistrement : hors REC, aucune frame n'est même convertie.
-        glue.host.wantsFrame = { viewModel.state.value.recordingVideo && viewModel.probe.wantsFrame() }
-        glue.host.onFrame = { jpeg -> if (viewModel.state.value.recordingVideo) viewModel.probe.onFrame(jpeg) }
-    }
+    IhearCameraWiring(glue, viewModel, probe.frames)
     val shown = state.recordingVideo || state.photoPath != null
     val windowAlpha by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
@@ -112,6 +109,23 @@ internal fun IhearCameraWindow(
                 .offset(x = (RECORDING_DOT_DP / 2).dp, y = (RECORDING_DOT_DP / 2).dp),
         )
     }
+}
+
+/**
+ * Câblage de l'analyseur sur la sonde SAM : les frames (avec leur instant d'exposition,
+ * seul point de départ honnête de la latence perçue) dans un sens, l'admission dans
+ * l'autre, et le dernier poste de la chronologie posé au frame Compose suivant.
+ */
+@Composable
+private fun IhearCameraWiring(glue: CameraGlue, viewModel: IhearViewModel, frames: Int) {
+    LaunchedEffect(glue.host, viewModel) {
+        // SAM ne voit que l'enregistrement : hors REC, aucune frame n'est même convertie.
+        glue.host.wantsFrame = { viewModel.state.value.recordingVideo && viewModel.probe.wantsFrame() }
+        glue.host.onFrame = { jpeg, captureAtNs ->
+            if (viewModel.state.value.recordingVideo) viewModel.probe.onFrame(jpeg, captureAtNs)
+        }
+    }
+    FirstPixelWatcher(frames, frames > 0) { viewModel.probe.noteDrawn() }
 }
 
 /** Permission + liaison caméra : un seul bloc, rappelé par le visuel. Composée en

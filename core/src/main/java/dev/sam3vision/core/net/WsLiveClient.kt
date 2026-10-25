@@ -18,9 +18,11 @@ import org.json.JSONObject
  */
 class WsLiveClient(
     private val baseUrl: String,
-    private val transport: WsTransport = OkHttpWsTransport(defaultHttpClient(LIVE_TIMEOUT_SECONDS)),
+    private val transport: WsTransport = OkHttpWsTransport(liveWsClient()),
     private val timeoutMs: Long = LIVE_TIMEOUT_SECONDS * 1000,
     private val http: LiveClient = HttpLiveClient(baseUrl),
+    /** Jalons réseau pour la chronologie de l'écran (facultatif : les tests n'en posent pas). */
+    private val marks: WireMarks? = null,
 ) : LiveClient {
 
     private val lock = Any()
@@ -76,24 +78,24 @@ class WsLiveClient(
             webSocketUrl(baseUrl, LIVE_WS_PATH),
             { text -> onText(text) },
             { error -> onClosed(error) },
+            // Handshake accepté : poste « en-têtes » de la session (absent en WebSocket
+            // pour les frames suivantes — un socket déjà ouvert n'a plus d'en-têtes à lire).
+            { marks?.onHeaders() },
         )
         return connected
     }
 
-    /** Message de requête : même corps que `POST /live`, plus l'`id` de corrélation. */
+    /**
+     * Message de requête : **exactement** le corps de `POST /live` (mêmes champs, mêmes
+     * défauts, `mask_encoding` compris — voir [liveFrameJson]), plus l'`id` de corrélation.
+     */
     private fun frameMessage(
         id: Int,
         jpegB64: String,
         prompts: List<String>?,
         workEdge: Int,
         maxObjects: Int,
-    ): String = JSONObject()
-        .put("id", id)
-        .put("image_b64", jpegB64)
-        .put("prompts", if (prompts == null) JSONObject.NULL else jsonArrayOf(prompts))
-        .put("max_objects", maxObjects)
-        .put("work_edge", workEdge)
-        .toString()
+    ): String = liveFrameJson(jpegB64, prompts, workEdge, maxObjects, id)
 
     /** Réponse du serveur : même forme que `POST /live`, ou `error` (connexion maintenue). */
     private fun parseReply(raw: String): Result<LiveFrame> {
@@ -105,7 +107,11 @@ class WsLiveClient(
     /** Message entrant : seule la requête portant cet `id` est réveillée. */
     private fun onText(text: String) {
         val id = parse(text)?.optInt("id", -1) ?: -1
-        synchronized(lock) { pending[id] }?.complete(text)
+        val reply = synchronized(lock) { pending[id] } ?: return
+        // Corps (message) complet, avant le parsing de la réponse par l'appelant : c'est le
+        // poste « corps » de la chronologie. Un message orphelin ne date rien.
+        marks?.onBody()
+        reply.complete(text)
     }
 
     /** Socket fermé ou en panne : les frames en vol échouent tout de suite. */

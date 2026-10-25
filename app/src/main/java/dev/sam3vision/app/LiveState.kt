@@ -3,7 +3,9 @@ package dev.sam3vision.app
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.DistanceText
 import dev.sam3vision.core.live.Cadence
+import dev.sam3vision.core.live.FrameTimings
 import dev.sam3vision.core.live.LiveSession
+import dev.sam3vision.core.live.TimingsText
 import dev.sam3vision.core.model.SeenTrack
 import dev.sam3vision.core.settings.Settings
 
@@ -23,6 +25,28 @@ data class LiveMemoryState(
     val empty: Boolean get() = tracks.isEmpty()
 }
 
+/**
+ * Dernière frame JPEG acceptée, **hors du flux d'état** : le state n'en transporte que la
+ * référence. Avant, la chaîne base64 (21-28 Ko) était recopiée et comparée à chaque frame
+ * par `copy()`/`equals` de [LiveUiState] — pour un seul bouton (« Analyser la frame »).
+ */
+class LatestFrame {
+    @Volatile
+    var jpegB64: String = ""
+        private set
+
+    fun set(value: String) {
+        jpegB64 = value
+    }
+
+    fun clear() {
+        jpegB64 = ""
+    }
+
+    /** Vrai dès qu'une frame a été gardée par le direct. */
+    val present: Boolean get() = jpegB64.isNotEmpty()
+}
+
 /** État du mode Direct, observé par [LiveScreen]. */
 data class LiveUiState(
     val running: Boolean = false,
@@ -34,7 +58,6 @@ data class LiveUiState(
     val latencyMs: Long = 0,
     val objectsCount: Int = 0,
     val error: String? = null,
-    val lastJpegB64: String = "",
     /** Détecteur SAM actif : `false` = vision LLM seule (l'image part directement au LLM). */
     val samEnabled: Boolean = false,
     val prompts: List<String> = emptyList(),
@@ -42,6 +65,10 @@ data class LiveUiState(
     val distanceLayer: DistanceLayer? = null,
     /** Dernière phrase dite par la voix (positions) : affichée comme sous-titre. */
     val spoken: String? = null,
+    /** Porteur de la dernière frame JPEG (identité seule : rien à copier d'une frame à l'autre). */
+    val latestFrame: LatestFrame = LatestFrame(),
+    /** Chronologie de la dernière frame (capture → pixel) + étages serveur reçus. */
+    val timings: FrameTimings = FrameTimings(),
     /** Description approfondie du LLM sur la frame courante ("" tant qu'aucune). */
     val narration: String = "",
     val narrationBusy: Boolean = false,
@@ -51,6 +78,12 @@ data class LiveUiState(
     /** Transport du direct : « WebSocket » (rapide) ou « HTTP » (repli). Vide = inconnu. */
     val transport: String = "",
 ) {
+    /** Une frame a-t-elle déjà été gardée ? (bouton « Analyser la frame », questions). */
+    val hasFrame: Boolean get() = latestFrame.present
+
+    /** Chronologie sur **une seule ligne** ; vide tant que rien n'est mesuré. */
+    val chronologie: String get() = TimingsText.compact(timings)
+
     val statusLine: String
         get() = if (running && starting) {
             WAKING_LINE

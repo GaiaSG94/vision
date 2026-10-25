@@ -1,7 +1,9 @@
 package dev.sam3vision.app.ihear
 
+import dev.sam3vision.core.live.TimingsText
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.DistanceText
+
 /** Longueur maximale d'un endpoint affiché : au-delà, le milieu est coupé. */
 const val ENDPOINT_MAX_CHARS = 46
 
@@ -22,9 +24,16 @@ fun liveProbeHeadline(state: LiveProbeState): String {
 }
 
 /**
+ * Chronologie **sur une seule ligne** (« latence 348 · capt 22 · up 61 · srv 92 · rtt 153 ·
+ * masque 37 · pixel 8 »), chaîne vide avant la première frame mesurée. Le formatage est
+ * celui de [TimingsText] : une seule implémentation, testée en JVM.
+ */
+fun liveProbeTimingsLine(state: LiveProbeState): String = TimingsText.compact(state.timings)
+
+/**
  * Détail du panneau de debug : endpoint, résolution, latences (moyenne, p95, serveur),
- * nombre de frames, concepts reconnus, distances mesurées, phrase annoncée et dernière
- * erreur. Liste vide = rien à montrer.
+ * chronologie poste par poste, étages serveur reçus, nombre de frames, concepts reconnus,
+ * distances mesurées, phrase annoncée et dernière erreur. Liste vide = rien à montrer.
  */
 fun liveProbeDetails(state: LiveProbeState): List<String> = buildList {
     if (state.endpoint.isNotBlank()) add("endpoint : ${shortEndpoint(state.endpoint)}")
@@ -33,6 +42,10 @@ fun liveProbeDetails(state: LiveProbeState): List<String> = buildList {
         add("latence : ${state.latencyMs} ms · p95 ${state.p95Ms} ms · serveur ${state.serverMs} ms")
         add("${state.frames} frames · ${state.masks.size} masques")
         add("transport : ${state.transport}")
+    }
+    if (state.timings.known) {
+        addAll(TimingsText.detail(state.timings))
+        add(TimingsText.servers(state.timings.server))
     }
     if (state.conceptsSent.isNotEmpty()) {
         add("suivis (${state.conceptsSent.size}) : ${state.conceptsSent.joinToString(", ")}")

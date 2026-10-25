@@ -13,8 +13,17 @@ import okhttp3.WebSocketListener
  * Aucun état métier ici : le contrat (`id`, `image_b64`, réponses) vit dans [WsLiveClient].
  */
 interface WsTransport {
-    /** Ouvre la connexion ; `false` = socket impossible à ouvrir (l'appelant bascule en HTTP). */
-    fun open(url: String, onText: (String) -> Unit, onClosed: (Throwable?) -> Unit): Boolean
+    /**
+     * Ouvre la connexion ; `false` = socket impossible à ouvrir (l'appelant bascule en HTTP).
+     * [onOpen] est appelé quand le handshake aboutit (en-têtes du `101` reçus) : c'est le
+     * seul jalon « réseau prêt » observable côté WebSocket, une fois par session.
+     */
+    fun open(
+        url: String,
+        onText: (String) -> Unit,
+        onClosed: (Throwable?) -> Unit,
+        onOpen: () -> Unit = {},
+    ): Boolean
 
     /** Envoie un message texte ; `false` = socket fermé ou envoi refusé. */
     fun send(text: String): Boolean
@@ -39,21 +48,30 @@ internal fun webSocketUrl(baseUrl: String, path: String): String {
 
 /**
  * Implémentation réelle (`okhttp3.WebSocket`), un seul socket à la fois.
- * Le `callTimeout` du client HTTP est neutralisé : il borne une requête, alors qu'un
- * WebSocket vit toute la session — c'est [WsLiveClient] qui borne chaque frame.
+ * `newBuilder()` ne fabrique **pas** un client neuf : pool de connexions et dispatcher
+ * sont partagés avec [liveHttpClient], donc le handshake `wss://` réutilise le tunnel
+ * DNS/TCP/TLS déjà ouvert par `/health`. Seul le `callTimeout` est neutralisé : il borne
+ * une requête, alors qu'un WebSocket vit toute la session — c'est [WsLiveClient] qui
+ * borne chaque frame.
  */
 class OkHttpWsTransport(client: OkHttpClient) : WsTransport {
 
-    private val client = client.newBuilder().callTimeout(0, TimeUnit.MILLISECONDS).build()
+    /** Exposé aux tests : ils prouvent que le transport partage bien le pool du direct. */
+    internal val client = client.newBuilder().callTimeout(0, TimeUnit.MILLISECONDS).build()
     private var socket: WebSocket? = null
 
-    override fun open(url: String, onText: (String) -> Unit, onClosed: (Throwable?) -> Unit): Boolean {
+    override fun open(
+        url: String,
+        onText: (String) -> Unit,
+        onClosed: (Throwable?) -> Unit,
+        onOpen: () -> Unit,
+    ): Boolean {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", LIVE_USER_AGENT)
             .build()
         socket = try {
-            client.newWebSocket(request, Listener(onText, onClosed))
+            client.newWebSocket(request, Listener(onText, onClosed, onOpen))
         } catch (e: IllegalArgumentException) {
             return false
         }
@@ -67,11 +85,15 @@ class OkHttpWsTransport(client: OkHttpClient) : WsTransport {
         socket = null
     }
 
-    /** Traduit les rappels OkHttp en `onText` / `onClosed(error?)`. */
+    /** Traduit les rappels OkHttp en `onOpen` / `onText` / `onClosed(error?)`. */
     private class Listener(
         private val onText: (String) -> Unit,
         private val onClosed: (Throwable?) -> Unit,
+        private val onOpen: () -> Unit,
     ) : WebSocketListener() {
+
+        /** Handshake accepté (`101`) : les en-têtes de la session sont là. */
+        override fun onOpen(webSocket: WebSocket, response: Response) = onOpen()
 
         override fun onMessage(webSocket: WebSocket, text: String) = onText(text)
 

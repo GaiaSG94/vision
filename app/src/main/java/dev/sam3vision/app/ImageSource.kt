@@ -3,6 +3,7 @@ package dev.sam3vision.app
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -66,3 +67,45 @@ fun testBitmap(color: Int = 0xFF2E7D32.toInt()): Bitmap =
 /** Échelle d'affichage : l'overlay doit être dessiné dans les mêmes bornes que la photo. */
 fun overlayScaleFor(viewportWidth: Float, bitmapWidth: Int): Float =
     if (bitmapWidth <= 0) 1f else min(1f, viewportWidth / bitmapWidth)
+
+/** Ramène un angle dans `[0, 360)` (les HAL caméra livrent parfois des valeurs négatives). */
+fun normalizeDegrees(degrees: Int): Int = ((degrees % 360) + 360) % 360
+
+/** Vrai si la rotation échange largeur et hauteur (90° ou 270°). */
+fun isQuarterTurn(degrees: Int): Boolean = normalizeDegrees(degrees) % 180 != 0
+
+/**
+ * Taille finale d'une frame après rotation de [degrees] puis réduction au bord [edge] :
+ * largeur et hauteur sont échangées sur un quart de tour, l'image n'est jamais agrandie.
+ * Fonction **pure** (aucun `Bitmap`), testée en JVM : c'est elle qui pilote la matrice
+ * unique d'[uprightScaled].
+ */
+fun targetSize(width: Int, height: Int, degrees: Int, edge: Int): Pair<Int, Int> {
+    val rotatedWidth = if (isQuarterTurn(degrees)) height else width
+    val rotatedHeight = if (isQuarterTurn(degrees)) width else height
+    val longest = max(rotatedWidth, rotatedHeight)
+    if (longest <= 0 || longest <= edge) return rotatedWidth to rotatedHeight
+    val ratio = edge.toFloat() / longest
+    return max(1, (rotatedWidth * ratio).toInt()) to max(1, (rotatedHeight * ratio).toInt())
+}
+
+/**
+ * Redresse **et** réduit en une seule passe : rotation [degrees] et échelle au bord [edge]
+ * dans la même matrice, donc un seul rééchantillonnage — là où `rotateBitmap` puis
+ * `scaleToEdge` créaient deux bitmaps (≈ 2,7 ms et un alloc par frame économisés).
+ * Renvoie [src] tel quel si rien ne change.
+ */
+fun uprightScaled(src: Bitmap, degrees: Int, edge: Int): Bitmap {
+    if (src.width <= 0 || src.height <= 0) return src
+    val quarterTurn = isQuarterTurn(degrees)
+    // Dimensions dans le repère déjà tourné : c'est là que l'échelle s'applique.
+    val turnedWidth = if (quarterTurn) src.height else src.width
+    val turnedHeight = if (quarterTurn) src.width else src.height
+    val (targetWidth, targetHeight) = targetSize(src.width, src.height, degrees, edge)
+    if (normalizeDegrees(degrees) == 0 && targetWidth == turnedWidth && targetHeight == turnedHeight) return src
+    val matrix = Matrix().apply {
+        postRotate(normalizeDegrees(degrees).toFloat())
+        postScale(targetWidth.toFloat() / turnedWidth, targetHeight.toFloat() / turnedHeight)
+    }
+    return Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
+}

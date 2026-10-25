@@ -148,7 +148,7 @@ private fun LiveRoute(
         viewModel = liveViewModel,
         onBack = { liveViewModel.stop(); pop() },
         onAsk = {
-            viewModel.useLiveFrame(liveViewModel.state.value.lastJpegB64)
+            viewModel.useLiveFrame(liveViewModel.latestFrameB64())
             push(Route.Chat)
         },
         onOpenSettings = { push(Route.Settings) },
