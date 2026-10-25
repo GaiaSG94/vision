@@ -1,5 +1,13 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — 4 objets maximum à l'écran
+
+- **Plafond unique `ObjectLimits.MAX_ON_SCREEN = 4`** (core) : le direct envoie
+  `max_objects = 4` à `/live` (le serveur élague les scores les plus faibles, donc moins
+  de masques à décoder et d'overlays à dessiner) et la photo tronque la liste rendue par
+  `/segment` dans `AnalyzeUseCase`, labels LLM compris.
+- Tests : `LiveSessionTest` (plafond par défaut) et `UseCasesTest` (9 objets → 4).
+
 ## 2026-10-25 — réveil préventif du GPU à l'ouverture de l'écran caméra
 
 - **Le délai de réveil passe derrière la préparation.** `AppViewModel.prewarmGpu()` lance un
