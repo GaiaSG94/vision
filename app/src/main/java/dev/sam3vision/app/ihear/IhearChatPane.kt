@@ -11,11 +11,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,27 +28,38 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Palette claire du chat iHear : page blanche, bulles modernes arrondies. */
+/** Palette sombre du chat iHear : page noire, barres système couvertes, bulles claires. */
 object IhearPalette {
-    val page = Color.White
+    /** Fond de la page chat : le noir couvre aussi la zone d'heure/batterie du haut
+     * et le bandeau des 3 boutons système du bas (le fond passe sous les insets). */
+    val page = Color.Black
     val text = Color(0xFF1B1F24)
-    val title = Color.Black
+    val textOnDark = Color.White
+    val title = Color.White
     val textMuted = Color(0xFF6B7280)
-    val userBubble = Color(0xFFD7E9FF)
-    val aiBubble = Color(0xFFF1F3F6)
+    /** Toutes les bulles, user comme IA, sont blanches sur la page noire. */
+    val userBubble = Color.White
+    val aiBubble = Color.White
+    /** Bulle sélectionnée : noire à contour blanc (le texte reste lisible). */
+    val selectedBubble = Color.Black
+    val selectionBorder = Color.White
+    /** Fond d'avatar discret (gris clair façon icône de profil). */
+    val avatar = Color(0xFFE5E7EB)
     val accent = Color(0xFF2563EB)
 }
 
 /**
- * La page chat d'iHear : fond blanc, bulles user / IA aux angles bien ronds, une
- * seule bulle sélectionnée à la fois (bordure noire + ombre portée), une icône par
- * bulle — deux barres verticales (❚❚) quand elle parle, rectangle (⏹) sinon.
- * Aucune interaction tactile : tout passe par les gestes de [IhearRootLayout]. Les
- * bulles anciennes sont en haut, les plus récentes en bas (le fil suit l'écriture),
- * et la bulle d'intro pose en premier message tant que l'audio est en cours.
+ * La page chat d'iHear : fond noir (couvrant aussi les barres système), bulles
+ * blanches user à droite et IA à gauche, une seule bulle sélectionnée à la fois
+ * (noire, contour blanc + ombre), et à côté de la sélection une icône ronde façon
+ * icône de profil portant ▶ (silence) ou ❚❚ (lecture). Aucune interaction tactile :
+ * tout passe par les gestes de [IhearRootLayout]. Les bulles anciennes sont en haut,
+ * les plus récentes en bas (le fil suit l'écriture), et la bulle d'intro reste posée
+ * en premier message pendant la lecture (puis pour toute l'ouverture en cours).
  */
 @Composable
 fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
@@ -91,7 +104,7 @@ fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
     }
 }
 
-/** En-tête du chat : titre « iHear » en noir, plus un éventuel message d'état. */
+/** En-tête du chat : titre « iHear » en blanc sur le fond noir, plus l'état éventuel. */
 @Composable
 private fun ChatHeader(status: String?) {
     Text(
@@ -139,7 +152,7 @@ private fun ThinkingBubble() {
     Box(Modifier.fillMaxWidth()) {
         Text(
             "…",
-            color = IhearPalette.textMuted,
+            color = IhearPalette.text,
             fontSize = 15.sp,
             modifier = Modifier
                 .align(Alignment.CenterStart)
@@ -149,9 +162,9 @@ private fun ThinkingBubble() {
     }
 }
 
-/** Deux barres verticales (en lecture) / rectangle (silencieux). */
+/** Deux barres verticales (lecture) / triangle (silence), affichés dans l'avatar. */
 const val GLYPH_PLAYING = "❚❚"
-const val GLYPH_IDLE = "⏹"
+const val GLYPH_PLAY = "▶"
 
 /** Angles fortement arrondis, avec la pointe côté locuteur. */
 val BubbleShape = RoundedCornerShape(20.dp)
@@ -159,7 +172,11 @@ val BubbleShape = RoundedCornerShape(20.dp)
 private val UserCorner = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 6.dp, bottomEnd = 20.dp)
 private val AiCorner = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 6.dp)
 
-/** Une bulle de chat : alignement, coins, sélection et icône d'état. */
+/**
+ * Une bulle de chat : user à droite, IA à gauche, coins arrondis, sélection noire à
+ * contour blanc. À côté de la sélection seulement : l'avatar rond [VoiceIcon], côté
+ * gauche pour une bulle user, côté droit pour une bulle IA, aligné haut de bulle.
+ */
 @Composable
 private fun ChatBubble(entry: ChatEntry, selected: Boolean, speaking: Boolean) {
     val fromUser = entry is ChatEntry.UserBubble
@@ -168,41 +185,50 @@ private fun ChatBubble(entry: ChatEntry, selected: Boolean, speaking: Boolean) {
         horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
     ) {
         Row(
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (fromUser) VoiceGlyph(speaking)
+            if (fromUser && selected) VoiceIcon(speaking)
             BubbleText(entry, fromUser, selected, 1f)
-            if (!fromUser) VoiceGlyph(speaking)
+            if (!fromUser && selected) VoiceIcon(speaking)
         }
     }
 }
 
-/** Glyph d'état : ❚❚ pendant la lecture, ⏹ sinon. */
+/** Avatar rond façon icône de profil : ▶ quand la voix ne parle pas, ❚❚ sinon. */
 @Composable
-private fun VoiceGlyph(speaking: Boolean) {
-    Text(
-        if (speaking) GLYPH_PLAYING else GLYPH_IDLE,
-        fontSize = 13.sp,
-        color = if (speaking) IhearPalette.accent else IhearPalette.textMuted,
-    )
+private fun VoiceIcon(speaking: Boolean) {
+    Box(
+        modifier = Modifier.size(28.dp).background(IhearPalette.avatar, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (speaking) GLYPH_PLAYING else GLYPH_PLAY,
+            fontSize = 11.sp,
+            color = IhearPalette.text,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
-/** Corps de la bulle : ombre + bordure noire quand elle est sélectionnée. */
+/**
+ * Corps de la bulle : blanche par défaut ; sélectionnée, noire à contour blanc et
+ * texte blanc, avec ombre portée.
+ */
 @Composable
 private fun BubbleText(entry: ChatEntry, fromUser: Boolean, selected: Boolean, scale: Float) {
     val shape = if (fromUser) UserCorner else AiCorner
-    val base = if (fromUser) IhearPalette.userBubble else IhearPalette.aiBubble
+    val fillColor = if (selected) IhearPalette.selectedBubble else if (fromUser) IhearPalette.userBubble else IhearPalette.aiBubble
     Text(
         entry.text,
-        color = IhearPalette.text,
+        color = if (selected) IhearPalette.textOnDark else IhearPalette.text,
         fontSize = 15.sp,
         lineHeight = 20.sp,
         modifier = Modifier
             .widthIn(max = 300.dp)
             .shadow(if (selected) 8.dp else 2.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
-            .background(base, shape)
-            .then(if (selected) Modifier.border(2.dp, Color.Black, shape) else Modifier)
+            .background(fillColor, shape)
+            .then(if (selected) Modifier.border(2.dp, IhearPalette.selectionBorder, shape) else Modifier)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     )
 }

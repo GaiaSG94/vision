@@ -40,8 +40,9 @@ import kotlinx.coroutines.withContext
  * Toute la mécanique iHear : un seul écran — le chat — avec la caméra reléguée dans
  * une fenêtre flottante (vidéo du tap au premier plan, photo du double tap + flash).
  * Appui long vocal transcrit par Muse, historique Room `MessageMultimedia`, MP3 de
- * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée est jouée à
- * l'ouverture et posée comme premier message du chat tant qu'elle est active.
+ * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée (anglais) est dite à
+ * chaque ouverture complète de l'app et posée comme premier message du chat tant
+ * que le user ne l'a pas coupée par la voix.
  */
 class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -55,7 +56,9 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private val player = SpeechPlayer(
         dir = File(app.cacheDir, "ihear-play"),
         onComplete = {
-            _state.update { st -> st.copy(speakingEntryId = null, introVisible = false) }
+            // La bulle d'intro reste posée dans le chat pendant toute l'ouverture
+            // (seule la coupure par la voix la retire) : elle ne disparaît plus à la fin.
+            _state.update { st -> st.copy(speakingEntryId = null) }
         },
         onPlaybackError = { _state.update { st -> st.copy(speakingEntryId = null) } },
     )
@@ -123,14 +126,14 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ————— Intro vocale (1re ouverture) : le premier message du chat —————
+    // ————— Intro vocale (chaque ouverture complète) : le premier message du chat —————
 
-    /** Intro dûe ? MP3 embarqué joué à l'ouverture, phrase posée en tête du chat. */
+    /** Intro attendue ? MP3 embarqué (anglais) dit et posé en tête du chat à chaque
+     * ouverture complète de l'app, tant que le user ne l'a pas coupée par la voix. */
     private suspend fun playIntroIfPending() {
         if (!settings.introPending) return
-        // Persisté AVANT la lecture : un arrêt en cours de route ne rejoue pas l'intro.
-        settings = settings.copy(introPlayed = true)
-        prefs.save(settings)
+        // Aucun marqueur persisté : chaque ouverture complète rejoue l'intro ; une simple
+        // mise en arrière-plan puis retour ne recrée pas ce ViewModel, donc ne rejoue pas.
         val file = withContext(Dispatchers.IO) { IntroAudio.ensure(getApplication()) }
         _state.update {
             it.copy(introVisible = true, speakingEntryId = INTRO_BUBBLE_ID, status = null)

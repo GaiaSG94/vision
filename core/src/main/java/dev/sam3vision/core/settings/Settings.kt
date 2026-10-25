@@ -27,7 +27,8 @@ data class Settings(
     val ttsAnnouncePositions: Boolean = true,
     /** Intro vocale embarquée autorisée (bascule des Réglages, `true` par défaut). */
     val introEnabled: Boolean = true,
-    /** Intro déjà entendue : l'écran de garde ne se represente plus. */
+    /** Marqueur historique « intro déjà entendue », conservé pour le format de fichier
+     * (l'intro ne s'appuie plus dessus : elle est rejouée à chaque ouverture complète). */
     val introPlayed: Boolean = false,
     /** Distances affichées sur le direct (hauteurs connues + sténopé, sans GPU). */
     val distanceOverlayEnabled: Boolean = true,
@@ -89,10 +90,11 @@ data class Settings(
     }
 
     /**
-     * Vrai si l'écran de garde tactile doit être présenté : seulement tant que
-     * l'intro n'a pas été entendue une fois et qu'elle n'est pas coupée aux Réglages.
+     * Intro attendue à chaque ouverture complète de l'app (relance après fermeture,
+     * pas au simple retour d'arrière-plan) : seule la coupure par la voix
+     * (« Disable iHear intro », [introEnabled] = false) la fait taire définitivement.
      */
-    val introPending: Boolean get() = introEnabled && !introPlayed
+    val introPending: Boolean get() = introEnabled
 
     /** Plafond d'objets réellement appliqué (le réglage peut être hors bornes). */
     val objectsOnScreen: Int get() = ObjectLimits.clamp(maxObjects)

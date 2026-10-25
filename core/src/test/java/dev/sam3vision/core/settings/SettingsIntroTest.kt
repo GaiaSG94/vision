@@ -25,7 +25,7 @@ class SettingsIntroTest {
     }
 
     @Test
-    fun `l'intro n'est jouee qu'une fois`() {
+    fun `le marqueur introPlayed fait l'aller-retour codec (format fichier)`() {
         assertFalse(Settings.Default.introPlayed)
         val played = Settings.Default.copy(introPlayed = true)
         assertTrue(SettingsCodec.decode(SettingsCodec.encode(played)).introPlayed)
@@ -33,14 +33,14 @@ class SettingsIntroTest {
     }
 
     @Test
-    fun `l'intro ne se redemande plus apres le premier ecran de garde`() {
+    fun `l'intro s'attend a chaque ouverture tant qu'elle n'est pas coupee par la voix`() {
         assertTrue(Settings.Default.introPending)
-        assertFalse(Settings.Default.copy(introPlayed = true).introPending)
+        assertTrue("Une ouverture precedente ne fait pas taire l'intro", Settings.Default.copy(introPlayed = true).introPending)
         assertFalse(Settings.Default.copy(introEnabled = false).introPending)
     }
 
     @Test
-    fun `un ancien reglage redemande l'intro une fois`() {
+    fun `un ancien reglage garde l'intro attendue`() {
         val decoded = SettingsCodec.decode("llmBaseUrl=x\nintroEnabled=true\n")
         assertFalse(decoded.introPlayed)
         assertTrue(decoded.introPending)

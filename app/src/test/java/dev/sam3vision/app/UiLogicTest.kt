@@ -36,17 +36,16 @@ class UiLogicTest {
 
     @Test
     fun `la bascule d'intro dit l'etat qu'elle porte`() {
-        assertEquals("Intro à la 1re ouverture : on", introToggleLabel(true))
-        assertEquals("Intro à la 1re ouverture : off", introToggleLabel(false))
+        assertEquals("Intro à chaque ouverture : on", introToggleLabel(true))
+        assertEquals("Intro à chaque ouverture : off", introToggleLabel(false))
         assertNotEquals(introToggleLabel(true), introToggleLabel(false))
     }
 
     @Test
-    fun `la bulle d'intro reste posee seulement avant la premiere ecoute`() {
-        assertTrue(introBubbleVisible(settingsReady = true, introEnabled = true, introPlayed = false))
-        assertTrue(!introBubbleVisible(settingsReady = false, introEnabled = true, introPlayed = false))
-        assertTrue(!introBubbleVisible(settingsReady = true, introEnabled = true, introPlayed = true))
-        assertTrue(!introBubbleVisible(settingsReady = true, introEnabled = false, introPlayed = false))
+    fun `la bulle d'intro est posee a chaque ouverture tant que l'intro n'est pas coupee`() {
+        assertTrue(introBubbleVisible(settingsReady = true, introEnabled = true))
+        assertTrue(!introBubbleVisible(settingsReady = false, introEnabled = true))
+        assertTrue(!introBubbleVisible(settingsReady = true, introEnabled = false))
     }
 
     @Test
