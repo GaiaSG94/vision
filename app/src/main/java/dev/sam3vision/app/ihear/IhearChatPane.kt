@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -88,6 +90,9 @@ fun IhearChatPane(state: IhearUiState, viewModel: IhearViewModel, modifier: Modi
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
+            // Marge latérale : les bulles ne touchent jamais les bords de l'écran
+            // (16.dp de chaque côté, y compris ombre/bordure de la sélection).
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
             item {
                 // L'intro écrite est toujours le premier message ; seule à l'écran,
@@ -209,9 +214,16 @@ private fun ChatBubble(entry: ChatEntry, selected: Boolean, speaking: Boolean) {
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
     ) {
+        // Ligne interne pleine largeur : la bulle (poids flexible, max 280.dp)
+        // ne déborde jamais sur l'avatar ni sur le bord opposé ; le contentPadding
+        // de la liste garantit 16.dp du côté du locuteur.
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(
+                6.dp,
+                if (fromUser) Alignment.End else Alignment.Start,
+            ),
         ) {
             if (fromUser && selected) VoiceIcon(speaking)
             BubbleText(entry, fromUser, selected, 1f)
@@ -241,7 +253,7 @@ private fun VoiceIcon(speaking: Boolean) {
  * texte blanc, avec ombre portée.
  */
 @Composable
-private fun BubbleText(entry: ChatEntry, fromUser: Boolean, selected: Boolean, scale: Float) {
+private fun RowScope.BubbleText(entry: ChatEntry, fromUser: Boolean, selected: Boolean, scale: Float) {
     val shape = if (fromUser) UserCorner else AiCorner
     val fillColor = if (selected) IhearPalette.selectedBubble else if (fromUser) IhearPalette.userBubble else IhearPalette.aiBubble
     Text(
@@ -250,7 +262,8 @@ private fun BubbleText(entry: ChatEntry, fromUser: Boolean, selected: Boolean, s
         fontSize = 15.sp,
         lineHeight = 20.sp,
         modifier = Modifier
-            .widthIn(max = 300.dp)
+            .weight(1f, fill = false)
+            .widthIn(max = 280.dp)
             .shadow(if (selected) 8.dp else 2.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
             .background(fillColor, shape)
             .then(if (selected) Modifier.border(2.dp, IhearPalette.selectionBorder, shape) else Modifier)
