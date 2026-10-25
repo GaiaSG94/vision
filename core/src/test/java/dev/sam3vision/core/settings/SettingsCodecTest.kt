@@ -28,13 +28,13 @@ class SettingsCodecTest {
 
     @Test
     fun `le mode vision seule survit a un aller-retour`() {
-        // Le codec est la sérialisation de PrivateFileSettingsStore : défaut false
-        // (vision LLM seule), puis true relu tel quel après bascule dans le direct.
-        assertEquals(false, SettingsCodec.decode("").liveSamEnabled)
-        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(Settings.Default)).liveSamEnabled)
+        // Le codec est la sérialisation de PrivateFileSettingsStore : défaut true
+        // (SAM appelé pendant le direct), puis false relu tel quel après bascule.
+        assertEquals(true, SettingsCodec.decode("").liveSamEnabled)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(Settings.Default)).liveSamEnabled)
 
-        val sam = Settings.Default.copy(liveSamEnabled = true)
-        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(sam)).liveSamEnabled)
+        val vision = Settings.Default.copy(liveSamEnabled = false)
+        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(vision)).liveSamEnabled)
     }
 
     @Test
