@@ -33,10 +33,14 @@ class PcmToMp3Encoder(
             false,
             emptyMap(),
         )
+        // jump3r 1.0.4 mappe les modes explicites en minuscules ("mono", "stereo"…)
+        // vers l'enum MPEGMode en majuscules : tout mode explicite lève
+        // `No enum constant MPEGMode.<mode>`. AUTO est le seul chemin sain, et il
+        // conserve le mono puisque la source déclare un seul canal.
         val encoder = de.sciss.jump3r.lowlevel.LameEncoder(
             sourceFormat,
             DEFAULT_BITRATE_KBPS,
-            de.sciss.jump3r.lowlevel.LameEncoder.CHANNEL_MODE_MONO,
+            de.sciss.jump3r.lowlevel.LameEncoder.CHANNEL_MODE_AUTO,
             de.sciss.jump3r.lowlevel.LameEncoder.QUALITY_MIDDLE,
             false,
         )
