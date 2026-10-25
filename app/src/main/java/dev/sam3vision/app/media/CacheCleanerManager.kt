@@ -12,7 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Les trois règles de purge du cache iHear, combinées dans une seule classe :
+ * Les trois règles de purge du cache iSee, combinées dans une seule classe :
  *
  * 1. **Purge totale sur fermeture (A)** — [purgeAll] : vide la table Room et exécute
  * `context.cacheDir.deleteRecursively()`. Prévu pour `onDestroy()` de l'activité.

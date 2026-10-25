@@ -21,7 +21,7 @@ import dev.sam3vision.core.glasses.CaptureAction
 
 /** Routes de l'app (navigation par état, sans dépendance navigation-compose). */
 sealed interface Route {
-    /** Page d'accueil iHear : chat plein écran + fenêtre caméra flottante. */
+    /** Page d'accueil iSee : chat plein écran + fenêtre caméra flottante. */
     data object Ihear : Route
     data object Capture : Route
     data object Analysis : Route
@@ -38,9 +38,9 @@ sealed interface Route {
 }
 
 /**
- * Racine de navigation : iHear en page d'accueil (chat + fenêtre caméra),
+ * Racine de navigation : iSee en page d'accueil (chat + fenêtre caméra),
  * puis les écrans d'origine. Les gestes racine (IhearRootLayout) pilotent la
- * caméra et le chat via [IhearViewModel] quand iHear est à l'écran.
+ * caméra et le chat via [IhearViewModel] quand iSee est à l'écran.
  */
 @Composable
 fun AppNav(

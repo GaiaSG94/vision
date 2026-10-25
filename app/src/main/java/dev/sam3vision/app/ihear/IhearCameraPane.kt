@@ -36,11 +36,11 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 const val IHEAR_FRAME_EDGE = 448
 
-/** Qualité JPEG de la frame iHear : 55 suffit très bien à SAM, et allège l'upload. */
+/** Qualité JPEG de la frame iSee : 55 suffit très bien à SAM, et allège l'upload. */
 const val IHEAR_FRAME_QUALITY = 55
 
 /**
- * Le vrai pilote CameraX d'iHear, derrière la fenêtre flottante : aperçu + `ImageCapture`
+ * Le vrai pilote CameraX d'iSee, derrière la fenêtre flottante : aperçu + `ImageCapture`
  * + `VideoCapture<Recorder>` + analyse de frames, tous liés en même temps, et
  * l'implémentation [IhearCameraActions] qu'appelle [IhearViewModel]. Vidéo sans piste
  * micro (le dictaphone reste libre, comme le mode tap).

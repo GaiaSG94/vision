@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Voix de l'intro iHear : le texte écrit reste toujours le premier message du
+ * Voix de l'intro iSee : le texte écrit reste toujours le premier message du
  * chat ; seul cet audio se coupe par la voix (« Disable iHear intro »).
  * L'audio est dit à chaque ouverture complète tant qu'il est autorisé.
  */

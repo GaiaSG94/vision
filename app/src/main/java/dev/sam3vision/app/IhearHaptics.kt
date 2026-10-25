@@ -7,7 +7,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 
 /**
- * Haptique iHear : deux motifs **distinguables d'emblée**, comme demandé :
+ * Haptique iSee : deux motifs **distinguables d'emblée**, comme demandé :
  * - appui long (micro) : une salve franche au démarrage (deux temps, amplitude forte),
  * - balayage vertical : un créneau léger continu tant que le doigt glisse.
  */

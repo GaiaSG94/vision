@@ -35,7 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Palette sombre du chat iHear : page noire, barres système couvertes, bulles claires. */
+/** Palette sombre du chat iSee : page noire, barres système couvertes, bulles claires. */
 object IhearPalette {
     /** Fond de la page chat : le noir couvre aussi la zone d'heure/batterie du haut
      * et le bandeau des 3 boutons système du bas (le fond passe sous les insets). */
@@ -59,7 +59,7 @@ object IhearPalette {
 }
 
 /**
- * La page chat d'iHear : fond noir (couvrant aussi les barres système), bulles
+ * La page chat d'iSee : fond noir (couvrant aussi les barres système), bulles
  * blanches user à droite et IA à gauche, une seule bulle sélectionnée à la fois
  * (noire, contour blanc + ombre), et à côté de la sélection une icône ronde façon
  * icône de profil portant ▶ (silence) ou ❚❚ (lecture). Aucune interaction tactile :
@@ -117,11 +117,11 @@ fun IhearChatPane(state: IhearUiState, viewModel: IhearViewModel, modifier: Modi
     }
 }
 
-/** En-tête du chat : titre « iHear » en blanc sur le fond noir, plus l'état éventuel. */
+/** En-tête du chat : titre « iSee » en blanc sur le fond noir, plus l'état éventuel. */
 @Composable
 private fun ChatHeader(status: String?) {
     Text(
-        "iHear",
+        "iSee",
         color = IhearPalette.title,
         fontSize = 15.sp,
         fontWeight = FontWeight.Bold,

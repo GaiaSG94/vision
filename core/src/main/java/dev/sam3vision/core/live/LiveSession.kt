@@ -12,7 +12,7 @@ import dev.sam3vision.core.net.WsLiveClient
  * - [fastMs] : plancher, on n'envoie pas plus souvent ;
  * - [targetMs] : entre les deux.
  *
- * Le Direct garde la cadence prudente (350/500/900 ms) ; la page caméra d'iHear
+ * Le Direct garde la cadence prudente (350/500/900 ms) ; la page caméra d'iSee
  * part sur [Cadence.Fast] (100 ms) : le GPU répond en ~115 ms, la limite réelle est
  * alors l'aller-retour réseau, pas la carte.
  */
@@ -33,7 +33,7 @@ data class Cadence(
         val Direct = Cadence(fastMs = 350L, targetMs = 500L, slowMs = 900L)
 
         /**
-         * iHear : pas de plancher artificiel (on repart dès qu'un créneau se libère),
+         * iSee : pas de plancher artificiel (on repart dès qu'un créneau se libère),
          * deux créneaux possibles, mais **budget de 200 ms** : si le backend sérialise
          * les requêtes (mesuré : 115 ms de GPU, 344 ms de latence à deux en vol), le
          * régulateur referme à un créneau et la latence retombe vers 160-180 ms.

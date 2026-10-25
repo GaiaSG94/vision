@@ -9,7 +9,7 @@ package dev.sam3vision.core.net
  *
  * Le délai du **handshake** suit celui de la frame : mesuré sur le téléphone, un
  * transport figé à 10 s échouait pendant les 26-50 s de réveil du conteneur. Une seule
- * fabrique pour les deux écrans qui parlent à SAM (Direct et page caméra iHear).
+ * fabrique pour les deux écrans qui parlent à SAM (Direct et page caméra iSee).
  */
 fun liveClient(
     baseUrl: String,

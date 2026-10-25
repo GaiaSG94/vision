@@ -74,7 +74,7 @@ private val LABEL_LIFT = 30.dp
 
 /**
  * Bandeau du haut (boutons + état + concepts) : aucune pastille ne s'y cache.
- * Les autres hôtes — la fenêtre flottante d'iHear — passent leur propre marge.
+ * Les autres hôtes — la fenêtre flottante d'iSee — passent leur propre marge.
  */
 private val TOP_SAFE_INSET = 230.dp
 

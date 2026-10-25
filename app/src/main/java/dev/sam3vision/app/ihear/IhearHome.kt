@@ -10,7 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 
 /**
- * L'écran d'accueil iHear : un seul écran, le chat plein écran. La caméra vit dans
+ * L'écran d'accueil iSee : un seul écran, le chat plein écran. La caméra vit dans
  * une bulle du chat, en bas du fil : aperçu pendant la vidéo du tap, photo +
  * pastilles SAM après le double tap, puis évaporation en fondu. Toute l'interaction
  * passe par les gestes de [IhearRootLayout] ; les panneaux Compose restent muets.

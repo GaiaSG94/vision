@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Room
 
 /**
- * Une ligne = un échange iHear (ou un évènement média du Direct) : horodatage, texte
+ * Une ligne = un échange iSee (ou un évènement média du Direct) : horodatage, texte
  * de l'utilisateur, texte lu à voix haute, et les chemins d'accès locaux des fichiers
  * physiques (micro enregistré, voix ElevenLabs, vidéo d'environnement). Les chemins
  * pointent dans `context.cacheDir` : l'unique local où l'app peut écrire.
@@ -59,7 +59,7 @@ interface MessageMultimediaDao {
     suspend fun purgeAll()
 }
 
-/** Base Room dédiée à l'historique iHear (schéma exporté dans `app/schemas/`). */
+/** Base Room dédiée à l'historique iSee (schéma exporté dans `app/schemas/`). */
 @Database(entities = [MessageMultimedia::class], version = 1, exportSchema = true)
 abstract class MediaDatabase : RoomDatabase() {
 

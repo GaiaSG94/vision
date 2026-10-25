@@ -9,7 +9,7 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
 
 ## Ce que voit l'utilisateur (captures décrites, 1080×2400)
 
-- **Accueil iHear** : chat plein écran + fenêtre caméra flottante. **Lunettes Ray-Ban Meta** :
+- **Accueil iSee** : chat plein écran + fenêtre caméra flottante. **Lunettes Ray-Ban Meta** :
   bloc « Lunettes Ray-Ban Meta » des Réglages — appui court sur le bouton capture → photo
   analysée, appui long → photo + chat (`docs/META-GLASSES.md`).
 - **Capture** : plein écran sombre, titre « SAM Vision », zone d'aperçu caméra, trois

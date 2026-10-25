@@ -58,7 +58,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * La caméra d'iHear dans une bulle du chat : angles arrondis, un peu moins d'un
+ * La caméra d'iSee dans une bulle du chat : angles arrondis, un peu moins d'un
  * demi-écran en largeur comme en hauteur. L'aperçu y vit pendant l'enregistrement
  * du tap ; la photo du double tap y apparaît avec un flash, se montre quelques
  * secondes (remplacée à chaque photo d'une rafale, pastilles SAM par-dessus) puis
@@ -180,7 +180,7 @@ private fun CameraWindowBody(
             liveProbeNotice(probe)?.let { notice -> ProbeNotice(notice) }
         } else {
             Column(Modifier.align(Alignment.Center).padding(12.dp)) {
-                Text("iHear needs the camera.", color = Color.White, fontSize = 12.sp)
+                Text("iSee needs the camera.", color = Color.White, fontSize = 12.sp)
             }
         }
         state.photoPath?.let {

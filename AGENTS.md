@@ -21,7 +21,7 @@
 
 App Android native **Kotlin/Compose** : photo → description par un LLM vision → questions/réponses
 sur la photo ; dictée Meta ASR (repli ElevenLabs Scribe), voix ElevenLabs (TTS), segmentation
-SAM 3.1 optionnelle via endpoint Modal ; **iHear** en écran d'accueil (chat + caméra, swipe,
+SAM 3.1 optionnelle via endpoint Modal ; **iSee** en écran d'accueil (chat + caméra, swipe,
 branché sur `feat/ihear-ui`). **Client unique : aucun backend à nous, aucune clé dans le dépôt.**
 
 | Élément | Valeur |

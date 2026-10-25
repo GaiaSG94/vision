@@ -33,13 +33,13 @@ private val SamColorScheme = darkColorScheme(
 
 /**
  * Activité unique : Compose + navigation par état, thème sombre pour les écrans
- * d'origine, iHear en page d'accueil, lunettes Ray-Ban Meta.
+ * d'origine, iSee en page d'accueil, lunettes Ray-Ban Meta.
  *
  * La racine n'est pas le ComposeView mais [IhearRootLayout] : elle voit chaque geste
  * de la surface de l'app — appui long (micro maintenu, transcription Muse), tap
  * simple (vidéo), double tap (photo), balayages horizontal (page) et vertical
  * (sélection de bulle, avec haptique dédiée). Les gestes ne s'appliquent que quand
- * les panneaux iHear sont à l'écran.
+ * les panneaux iSee sont à l'écran.
  */
 class MainActivity : ComponentActivity() {
 

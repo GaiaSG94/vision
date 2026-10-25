@@ -4,7 +4,7 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
- * Machine à gestes iHear, sans dépendance Android (testable en JVM) : tap simple,
+ * Machine à gestes iSee, sans dépendance Android (testable en JVM) : tap simple,
  * double tap, balayage horizontal (changement de page) et balayage vertical
  * (sélection de bulle). L'appui long reste le domaine de [LongPressTrigger] — dans
  * la vue : quand une tenue démarre, [handOffToHold] glisse tout l'état présent

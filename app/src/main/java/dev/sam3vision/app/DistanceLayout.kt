@@ -81,7 +81,7 @@ fun pillTranslationY(anchorY: Float, topInset: Float): Float =
  * (la couleur suit donc le masque). Une boîte illisible est ignorée.
  *
  * [withLabel] préfixe la pastille du concept (« personne ≈ 3,9 m ») : les hôtes
- * sans masques — la fenêtre iHear — n'ont que ce texte pour savoir de quel objet
+ * sans masques — la fenêtre iSee — n'ont que ce texte pour savoir de quel objet
  * elle parle.
  */
 fun screenLabels(

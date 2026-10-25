@@ -6,7 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Appui long iHear : garde le micro ouvert tant que le doigt est posé, puis rend
+ * Appui long iSee : garde le micro ouvert tant que le doigt est posé, puis rend
  * **le texte transcrit ET le PCM capté** (le PCM part en MP3 dans le cache via
  * [MediaCacheStore]). La mécanique micro est celle de [DictationRecorder], la
  * transcription celle de `DictationUseCase` (Meta Muse, repli Scribe) — le moteur

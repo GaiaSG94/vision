@@ -4,7 +4,7 @@ import dev.sam3vision.app.DistanceLayer
 import dev.sam3vision.core.distance.LensSpec
 import java.io.File
 
-/** Le seul écran iHear : le chat plein écran, la caméra vit dans une fenêtre flottante. */
+/** Le seul écran iSee : le chat plein écran, la caméra vit dans une fenêtre flottante. */
 
 /** Une bulle de l'écran chat : le texte du user, celui lu à voix haute, ou l'intro. */
 sealed interface ChatEntry {
@@ -21,7 +21,7 @@ sealed interface ChatEntry {
     }
 }
 
-/** État complet de l'écran iHear (chat + fenêtre caméra). */
+/** État complet de l'écran iSee (chat + fenêtre caméra). */
 data class IhearUiState(
     val entries: List<ChatEntry> = emptyList(),
 

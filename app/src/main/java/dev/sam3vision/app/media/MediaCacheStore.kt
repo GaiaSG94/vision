@@ -11,7 +11,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Le cache physique iHear : tout fichier lourd est écrit dans `context.cacheDir/ihear`
+ * Le cache physique iSee : tout fichier lourd est écrit dans `context.cacheDir/ihear`
  * — `user-<ts>.mp3` (micro maintenu), `reply-<ts>.mp3` (voix ElevenLabs), `env-<ts>.mp4`
  * (vidéo d'environnement). Chaque écriture met à jour la ligne Room correspondante, si
  * bien que la purge FIFO de [CacheCleanerManager] sait toujours quel(s) fichier(s)
@@ -23,7 +23,7 @@ class MediaCacheStore(
     private val encoder: PcmToMp3Encoder = PcmToMp3Encoder(),
 ) {
 
-    /** Dossier racine du cache iHear : `cacheDir/ihear`. */
+    /** Dossier racine du cache iSee : `cacheDir/ihear`. */
     fun dir(): File = File(context.cacheDir, HEAR_DIR)
 
     /** Transcription effectuée : crée la ligne message avec texte + audio utilisateur. */

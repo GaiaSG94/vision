@@ -62,9 +62,9 @@ le cadre** (`pillTranslationX`) et **hors du bandeau du haut** (`pillTranslation
 collé au bord droit sortait à moitié de l'écran et un objet dans le haut de l'image
 voyait sa distance cachée derrière les boutons (constaté le 25/10, corrigé).
 
-## iHear : les pastilles sur la photo du double tap
+## iSee : les pastilles sur la photo du double tap
 
-L'accueil iHear (chat + fenêtre caméra) ne suit aucun flux `/live` : ni masques, ni
+L'accueil iSee (chat + fenêtre caméra) ne suit aucun flux `/live` : ni masques, ni
 pistes, donc aucun objet à étiqueter en continu. Le **double tap** prend une photo,
 l'affiche dans la fenêtre flottante et l'envoie au `/segment` de SAM ; chaque objet
 dont le concept a une hauteur connue reçoit sa pastille **avec son nom**

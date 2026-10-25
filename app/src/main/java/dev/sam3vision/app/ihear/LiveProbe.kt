@@ -72,7 +72,7 @@ data class LiveProbeState(
 }
 
 /**
- * Analyse SAM du mode vidéo d'iHear : pendant l'enregistrement, chaque frame part à
+ * Analyse SAM du mode vidéo d'iSee : pendant l'enregistrement, chaque frame part à
  * `/live` (une à la fois, cadence adaptative) et revient en masques, distances et
  * statistiques.
  *

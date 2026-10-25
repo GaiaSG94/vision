@@ -83,7 +83,7 @@ private fun VoiceSwitches(draft: Settings, onChange: (Settings) -> Unit) {
     )
 }
 
-/** Bascule « intro » + son explication : le premier message du chat de iHear. */
+/** Bascule « intro » + son explication : le premier message du chat de iSee. */
 @Composable
 private fun IntroSetting(draft: Settings, onChange: (Boolean) -> Unit) {
     SwitchRow(label = introToggleLabel(draft.introEnabled), checked = draft.introEnabled, onChange = onChange)

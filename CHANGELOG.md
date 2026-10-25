@@ -1,5 +1,16 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (12) — l'application s'appelle iSee
+
+- **Nom affiché** : `app_name` passe de « iHear » à « iSee » (étiquette du lanceur, manifeste),
+  avec le titre de l'en-tête du chat et le message « iSee needs the camera. ».
+- **Documentation** : README, AGENTS, `docs/` et CHANGELOG parlent d'iSee.
+- **Inchangé volontairement** : le package `dev.sam3vision.app.ihear`, les classes `Ihear*`, les
+  noms de fichiers et le dossier de cache `cacheDir/ihear` gardent leur nom — rien de visible.
+  `IHEAR_INTRO_TEXT` et la phrase « Disable iHear intro » restent mot pour mot celles du MP3
+  embarqué (`intro_ihear.mp3`) : l'intro audio dit donc encore « iHear » jusqu'à régénération de
+  la voix (`docs/ELEVENLABS-TTS.md`).
+
 ## 2026-10-25 (11) — retour à 8 objets à l'écran par défaut
 
 - `ObjectLimits.DEFAULT_ON_SCREEN` : **4 → 8** (demande user du 25/10, déjà consignée
@@ -13,7 +24,7 @@
 
 ## 2026-10-25 (10) — tout dans une seule app : masques, distances et voix dans la fenêtre caméra
 
-- **Fusion** de `origin/master` (lunettes Ray-Ban Meta, mode US, narration, chat iHear) avec la
+- **Fusion** de `origin/master` (lunettes Ray-Ban Meta, mode US, narration, chat iSee) avec la
   branche `feat/ihear-rec-distances` (masques SAM, distances, voix, latence).
 - **Fenêtre caméra flottante** : l'aperçu passe dans `CameraSurface` (aperçu + masques dans la
   même surface native, sinon les masques passent derrière), les pastilles « ≈ 1,2 m » sont
@@ -29,7 +40,7 @@
 
 ## 2026-10-25 (4) — la page caméra montre les masques SAM et les stats de debug
 
-- **Ce qui manquait** : l'accueil iHear (le parcours principal) filmait sans rien montrer de
+- **Ce qui manquait** : l'accueil iSee (le parcours principal) filmait sans rien montrer de
   SAM — ni masque, ni chiffre. Un tap démarrait un MP4, le second l'archivait, point.
 - **Masques en direct** : pendant l'enregistrement, chaque frame (512 px, q65) part à `/live`
   une à la fois (`LiveSession`, cadence adaptative) et revient en masques colorisés,
@@ -47,12 +58,12 @@
   de l'aperçu passaient *derrière* lui. Symptôme : « 6 objets » côté backend, rien à l'écran.
   `CameraSurface` (`app/…/CameraSurface.kt`) met la `PreviewView` et la couche de masques dans
   le même `FrameLayout` (fusion `CENTER_CROP`, même cadrage que l'aperçu) ; utilisé par la page
-  caméra d'iHear **et** par le Direct.
+  caméra d'iSee **et** par le Direct.
 - Panneau de debug : en haut de l'écran (il cachait la scène), lignes coupées à une ligne,
   et « réveil du GPU en cours… » au lieu d'un échec sec quand le conteneur Modal dort.
 - Tests : +9 `app` (`LiveProbeTextTest`) → **348 JVM verts**, `assembleDebug` et
   `check-kotlin-limits` verts. Détail : `docs/MASQUES-DEBUG.md`.
-## 2026-10-25 (9) — page caméra iHear : distances affichées et dites pendant le REC
+## 2026-10-25 (9) — page caméra iSee : distances affichées et dites pendant le REC
 
 - **Pastilles de distance** sur l'aperçu de la page caméra (`LiveDistanceLayer`, composé
   après l'`AndroidView` : au-dessus de l'aperçu, jamais derrière) et **distance du plus
@@ -72,9 +83,9 @@
   (292 core + 70 app). `assembleDebug` et `check-kotlin-limits` verts.
 
 ## 2026-10-25 (5) — la voix dit les distances (« Personne à gauche, à 1,4 mètre »)
-## 2026-10-25 (9) — iHear : une pastille de distance par objet sur la photo
+## 2026-10-25 (9) — iSee : une pastille de distance par objet sur la photo
 
-- **Le manque** : les distances n'existaient que sur l'écran Direct ; l'accueil iHear
+- **Le manque** : les distances n'existaient que sur l'écran Direct ; l'accueil iSee
   (chat + fenêtre caméra) n'en affichait aucune — le module `ihear/` ne touchait même
   pas au calcul. Or c'est l'écran par défaut de l'app.
 - **Double tap = photo mesurée** : la photo part au `/segment` de SAM, les boîtes
@@ -104,10 +115,10 @@
 - **minSdk 26 → 29** (exigence des AAR Meta) : **Android 10+ requis**, un appareil en Android 8
   ou 9 ne peut plus installer l'APK. Rien d'autre ne bouge pour le téléphone.
 - **Fusion de `origin/master`** dans la branche (elle ne portait qu'un commit, master ~77 de
-  plus) : accueil iHear (chat + fenêtre caméra), mode Direct avec narration LLM continue, voix
+  plus) : accueil iSee (chat + fenêtre caméra), mode Direct avec narration LLM continue, voix
   ElevenLabs, dictée Meta (ASR), prédiction locale des boîtes, objets à l'écran réglables,
   nettoyage des captures (Room), `versionCode` = date du commit.
-- **Doc** : `docs/META-GLASSES.md` mis à jour (accueil iHear, gestes réels, minSdk 29, fonctions
+- **Doc** : `docs/META-GLASSES.md` mis à jour (accueil iSee, gestes réels, minSdk 29, fonctions
   du téléphone sans lunettes) ; `docs/glasses-dat-spike.md` renvoie désormais à cette doc.
 
 ## 2026-10-25 — Réglages : la clé InferHub embarquée se relit (bouton « Afficher »)
@@ -119,7 +130,7 @@
   masqués par défaut — capture d'écran, voisin — mais portent un bouton **Afficher / Masquer**.
 - **Bug corrigé au passage** : `IhearViewModel` chargeait `prefs.load()` **sans**
   `seededFromBuild`, là où `AppViewModel` et `LiveViewModel` le faisaient. Conséquence : avant
-  le premier « Enregistrer », l'accueil iHear (chat, photo) pouvait répondre « LLM non
+  le premier « Enregistrer », l'accueil iSee (chat, photo) pouvait répondre « LLM non
   configuré » alors que les Réglages affichaient une clé. Les deux chemins sèment maintenant.
 - Rien n'est écrit dans le dépôt : la clé reste dans `local.properties` (gitignoré) et dans le
   store chiffré de l'app. Couche 0 refuse de toute façon une clé `sk-…` dans le diff.
@@ -223,13 +234,13 @@
 
 ## 2026-10-25 — le Direct et l'accueil classique rouvrés (ils étaient inatteignables)
 
-- **Bug de navigation** : la refonte iHear (accueil gestes-only) n'ouvrait plus ni le
+- **Bug de navigation** : la refonte iSee (accueil gestes-only) n'ouvrait plus ni le
   **Direct** (flux SAM en continu, annonces de position) ni l'**accueil classique**
   (photo → analyse avec masques) : `Route.Live` et `Route.Capture` n'étaient poussées
   par personne, donc **inatteignables** — l'annonce vocale des positions n'était
   testable que par le code.
 - Nouvelle section **« Autres écrans »** dans les Réglages (seul écran à boutons
-  encore accessible depuis l'accueil iHear, via le retour système) : « Mode Direct
+  encore accessible depuis l'accueil iSee, via le retour système) : « Mode Direct
   (vidéo en continu) » et « Accueil classique (photo + analyse) ».
 
 ## 2026-10-25 (2) — distances : rien sur un objet coupé, pastilles centrées (recette téléphone)

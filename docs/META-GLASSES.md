@@ -2,7 +2,7 @@
 
 > Vérifié sur les docs Meta du 20/10/2026 et sur les AAR `com.meta.wearable:mwdat-*:1.0.1`
 > (décompilés pour relever les signatures exactes). Branche : `feat/meta-glasses`.
-> Revu le 25/10/2026 après la fusion de `master` (refonte iHear, mode Direct) : les chemins de
+> Revu le 25/10/2026 après la fusion de `master` (refonte iSee, mode Direct) : les chemins de
 > fichiers cités plus bas sont ceux du dépôt fusionné.
 
 ## Ce que ça fait
@@ -20,13 +20,13 @@ téléphone, mais n'y est pas porté), pas de publication publique (developer pr
 
 ## Où atterrit la photo dans l'app
 
-Depuis la fusion de `master`, l'accueil n'est plus l'écran photo : c'est **iHear**, le chat
+Depuis la fusion de `master`, l'accueil n'est plus l'écran photo : c'est **iSee**, le chat
 plein écran avec une fenêtre caméra flottante. Les lunettes n'ont pas d'écran dédié ; leur
 photo suit donc **le même chemin que la capture téléphone** : `app/AppNav.kt` (`GlassesBridge`)
 appelle `AppViewModel.onPhoto`, puis ouvre l'analyse ou le chat selon le geste.
 
 Le point d'entrée reste **Réglages → bloc « Lunettes Ray-Ban Meta »** (enregistrement, session,
-capture, lunettes simulées en build debug), accessible depuis l'accueil iHear.
+capture, lunettes simulées en build debug), accessible depuis l'accueil iSee.
 
 ## Prérequis, une fois
 

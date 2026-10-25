@@ -1,4 +1,4 @@
-# MASQUES SAM + STATS DE DEBUG (accueil iHear)
+# MASQUES SAM + STATS DE DEBUG (accueil iSee)
 
 Ce que l'utilisateur voit sur la page caméra de l'app, et pourquoi.
 

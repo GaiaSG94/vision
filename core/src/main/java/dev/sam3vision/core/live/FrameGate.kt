@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Si tous les créneaux sont pris, la nouvelle frame est jetée (jamais mise en
  * attente). Sûre entre threads (callback caméra sur un thread de fond).
  *
- * Un créneau par défaut (comportement historique du Direct). La page caméra d'iHear
+ * Un créneau par défaut (comportement historique du Direct). La page caméra d'iSee
  * en autorise deux, mais [LiveSession] redescend à un seul dès que la latence dépasse
  * son budget : deux frames en vol ne valent le coup que si le backend les traite en
  * parallèle, sinon la seconde attend la première et la latence double pour rien.

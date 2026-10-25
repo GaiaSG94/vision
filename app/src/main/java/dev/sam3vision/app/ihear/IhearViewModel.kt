@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Toute la mécanique iHear : un seul écran — le chat — avec la caméra reléguée dans
+ * Toute la mécanique iSee : un seul écran — le chat — avec la caméra reléguée dans
  * une fenêtre flottante (vidéo du tap au premier plan, photo du double tap + flash).
  * Appui long vocal transcrit par Muse, historique Room `MessageMultimedia`, MP3 de
  * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée (anglais) est dite à
@@ -73,7 +73,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Voix de l'intro (le texte écrit, lui, ne part jamais). */
     private val intro = IhearIntro(getApplication(), player, { settings }, { settings = it }, prefs, { fn -> _state.update(fn) })
 
-    /** Vrai quand l'écran iHear est à l'écran : les gestes ne touchent que lui. */
+    /** Vrai quand l'écran iSee est à l'écran : les gestes ne touchent que lui. */
     @Volatile
     var active: Boolean = false
 
@@ -205,7 +205,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Relâchement : la marche a déjà été jouée au début du glissement ; on coupe
-     * juste l'haptique — même en dehors d'iHear, pour ne pas laisser la vibration collée. */
+     * juste l'haptique — même en dehors d'iSee, pour ne pas laisser la vibration collée. */
     fun onVerticalSwipeEnd(committed: Boolean, downward: Boolean) {
         haptics.verticalSwipeEnd()
         if (!active) return

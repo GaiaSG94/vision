@@ -12,18 +12,18 @@ import dev.sam3vision.core.gesture.IhearGestureBrain
 import dev.sam3vision.core.gesture.LongPressTrigger
 
 /**
- * Racine de la fenêtre iHear : la seule vue qui voit **tous** les gestes de la surface
+ * Racine de la fenêtre iSee : la seule vue qui voit **tous** les gestes de la surface
  * de l'app (l'unique page chat, textures et bulles confondues). Deux machines y tournent :
  *
  * - [LongPressTrigger] : appui maintenu ~300 ms → [onHoldStart] (micro ouvert) ; la
  *   vue intercepte alors tout (les enfants reçoivent un ACTION_CANCEL) jusqu'au
  *   relâchement qui émet [onHoldEnd] ;
  * - [IhearGestureBrain] : tap simple (vidéo), double tap (photo) et balayage vertical
- *   (sélection de bulle). L'ancien balayage horizontal n'est plus écouté : iHear
+ *   (sélection de bulle). L'ancien balayage horizontal n'est plus écouté : iSee
  *   n'a plus qu'une page.
  *
  * Les taps ne sont jamais consommés en-dehors d'une tenue : ce sont des observations
- * posées sur les événements, les écrans iHear restent libres de leur rendu. Les deux
+ * posées sur les événements, les écrans iSee restent libres de leur rendu. Les deux
  * bords latéraux restent exclus du geste système « retour » ; en revanche les balayages
  * haut/bas appartiennent à l'app : la page est alimentée sur **toute** la surface, bande
  * du bas comprise — quand la navigation gestuelle d'Android revendique d'elle-même son
@@ -41,7 +41,7 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
     /** Marche décidée dès le début du glissement vertical : une bulle par geste. */
     var onVerticalDragMove: ((downward: Boolean) -> Unit)? = null
 
-    /** Geste actif seulement quand les panneaux iHear sont à l'écran, sinon à l'ancienne UI. */
+    /** Geste actif seulement quand les panneaux iSee sont à l'écran, sinon à l'ancienne UI. */
     var gesturesEnabled: () -> Boolean = { true }
 
     private val handler = Handler(Looper.getMainLooper())
