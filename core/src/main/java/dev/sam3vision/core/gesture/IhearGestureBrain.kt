@@ -192,7 +192,7 @@ class IhearGestureBrain(
 
     companion object {
         const val DEFAULT_SLOP_PX = 24f
-        const val DEFAULT_DOUBLE_TAP_MS = 280L
+        const val DEFAULT_DOUBLE_TAP_MS = 450L
         const val DEFAULT_HORIZONTAL_MIN_PX = 80f
         const val DEFAULT_VERTICAL_MIN_PX = 60f
     }

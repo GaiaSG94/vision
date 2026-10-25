@@ -63,7 +63,6 @@ class MainActivity : ComponentActivity() {
         onHoldEnd = ihear::onHoldEnd
         onSingleTap = ihear::onSingleTap
         onDoubleTap = ihear::onDoubleTap
-        onHorizontalSwipe = ihear::onHorizontalSwipe
         onVerticalDragStart = ihear::onVerticalDragStart
         onVerticalSwipeEnd = { committed, downward -> ihear.onVerticalSwipeEnd(committed, downward) }
         addView(

@@ -83,13 +83,14 @@ private fun VoiceSwitches(draft: Settings, onChange: (Settings) -> Unit) {
     )
 }
 
-/** Bascule « intro » + son explication : l'écran de garde du premier lancement. */
+/** Bascule « intro » + son explication : le premier message du chat de iHear. */
 @Composable
 private fun IntroSetting(draft: Settings, onChange: (Boolean) -> Unit) {
     SwitchRow(label = introToggleLabel(draft.introEnabled), checked = draft.introEnabled, onChange = onChange)
     Text(
-        "Intro embarquée (voix Jade US, hors ligne) : jouée une seule fois, au premier " +
-            "appui sur l'écran d'accueil.",
+        "Intro embarquée (voix Jade US, hors ligne) : jouée une seule fois à la première " +
+            "ouverture, comme premier message du chat. On la coupe à l'appui long en " +
+            "dictant : « Disable iHear intro ».",
         color = AppColors.textMuted,
         fontSize = 11.sp,
     )
