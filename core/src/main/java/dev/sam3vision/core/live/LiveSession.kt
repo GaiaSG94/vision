@@ -33,17 +33,18 @@ data class Cadence(
         val Direct = Cadence(fastMs = 350L, targetMs = 500L, slowMs = 900L)
 
         /**
-         * iSee : pas de plancher artificiel (on repart dès qu'un créneau se libère),
-         * deux créneaux possibles, mais **budget de 200 ms** : si le backend sérialise
-         * les requêtes (mesuré : 115 ms de GPU, 344 ms de latence à deux en vol), le
-         * régulateur referme à un créneau et la latence retombe vers 160-180 ms.
+         * iSee : pas de plancher artificiel (on repart dès qu'un créneau se libère) et
+         * **un seul créneau**, budget 150 ms. Mesuré sur le téléphone : le backend
+         * sérialise les inférences sur un verrou GPU, donc deux frames en vol ne gagnent
+         * aucun débit — la seconde attend la première et la latence par frame double
+         * (417 ms à deux créneaux contre 185 ms à un seul, serveur inchangé à ~120 ms).
          */
         val Fast = Cadence(
             fastMs = 0L,
             targetMs = 0L,
             slowMs = 900L,
-            concurrency = 2,
-            latencyBudgetMs = 200L,
+            concurrency = 1,
+            latencyBudgetMs = 150L,
         )
     }
 }

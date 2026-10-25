@@ -189,4 +189,27 @@ class WsLiveClientTest {
         client.close()
         assertFalse(client.isConnected)
     }
+
+    @Test
+    fun `un silence du serveur referme le socket pour que la frame suivante le rouvre`() = runBlocking {
+        var opens = 0
+        val transport = object : WsTransport {
+            override fun open(url: String, onText: (String) -> Unit, onClosed: (Throwable?) -> Unit): Boolean {
+                opens += 1
+                return true
+            }
+
+            override fun send(text: String): Boolean = true
+
+            override fun close() {}
+        }
+        val client = WsLiveClient(base, transport, timeoutMs = 120, http = RecordingLiveClient())
+
+        assertTrue(client.live("QQ==", listOf("person"), 640, 4).exceptionOrNull() is ApiError.Timeout)
+        assertFalse("le socket muet doit être considéré fermé", client.isConnected)
+        assertEquals(1, opens)
+
+        client.live("QQ==", listOf("person"), 640, 4)
+        assertEquals("la frame suivante doit retenter un handshake", 2, opens)
+    }
 }

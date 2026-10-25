@@ -29,12 +29,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * Côté long de la frame envoyée à SAM par la page caméra (px).
  *
- * Le Direct envoie du 512 px : inutile ici. Le coût **serveur** ne bouge pas (mesuré :
- * 115-122 ms de 384 à 768 px, l'inférence domine), mais l'encodage JPEG du téléphone
- * et l'upload, eux, sont proportionnels : à 448 px on gagne ~20-30 ms par frame, ce
- * qui est exactement la marge nécessaire pour rester sous 200 ms de latence.
+ * Mesuré depuis le téléphone (POST /live, 8 concepts, frame entière) : le coût
+ * **serveur** ne bouge pas (86-93 ms à 256, 320 comme 448 px), mais l'upload et le
+ * téléchargement des masques sont proportionnels — les masques reviennent à la taille
+ * exacte de l'image envoyée. À 320 px le corps fait 18 Ko contre 32 Ko à 448, soit
+ * ~15-20 ms de moins par frame : c'est la marge qui compte quand on vise 150 ms.
  */
-const val IHEAR_FRAME_EDGE = 448
+const val IHEAR_FRAME_EDGE = 320
 
 /** Qualité JPEG de la frame iSee : 55 suffit très bien à SAM, et allège l'upload. */
 const val IHEAR_FRAME_QUALITY = 55

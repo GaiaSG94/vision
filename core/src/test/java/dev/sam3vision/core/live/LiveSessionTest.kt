@@ -160,9 +160,9 @@ class LiveSessionTest {
     }
 
     @Test
-    fun `la cadence rapide ouvre deux creneaux d'envoi`() = runBlocking {
+    fun `la cadence rapide garde un seul creneau, le backend serialise`() {
         val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
-        assertEquals(2, session.slots)
+        assertEquals(1, session.slots)
         assertFalse(session.saturated)
     }
 
@@ -172,36 +172,48 @@ class LiveSessionTest {
     }
 
     @Test
-    fun `le regulateur attend trois mesures avant de se prononcer`() {
+    fun `le regulateur ne touche a rien quand la cadence n_a qu_un creneau`() {
         val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
-        session.stats.record(344L)
+        (1..3).forEach { _ -> session.stats.record(344L) }
         session.regulate()
+        assertEquals(1, session.slots)
+    }
+
+    @Test
+    fun `le regulateur attend trois mesures avant de refermer les creneaux`() {
+        val session = LiveSession(FakeLiveClient(), cadence = twoSlots())
         assertEquals(2, session.slots)
-        session.stats.record(344L)
-        session.regulate()
-        assertEquals(2, session.slots)
-        session.stats.record(344L)
+        (1..3).forEach { _ -> session.stats.record(344L) }
         session.regulate()
         assertEquals(1, session.slots)
     }
 
     @Test
     fun `le regulateur ne rouvre que sous la moitie du budget`() {
-        val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        val session = LiveSession(FakeLiveClient(), cadence = twoSlots())
         (1..3).forEach { _ -> session.stats.record(344L) }
         session.regulate()
         assertEquals(1, session.slots)
-        // 180 ms : sous le budget mais pas sous la moitié -> on reste à un créneau
+        // 120 ms : sous le budget (150) mais pas sous sa moitié -> on reste à un créneau
         session.stats.reset()
-        (1..3).forEach { _ -> session.stats.record(180L) }
+        (1..3).forEach { _ -> session.stats.record(120L) }
         session.regulate()
         assertEquals(1, session.slots)
-        // 80 ms : le backend respire, on rouvre
+        // 60 ms : le backend respire, on rouvre
         session.stats.reset()
-        (1..3).forEach { _ -> session.stats.record(80L) }
+        (1..3).forEach { _ -> session.stats.record(60L) }
         session.regulate()
         assertEquals(2, session.slots)
     }
+
+    /** Cadence à deux créneaux : ce que l'app ne demande plus, mais que le régulateur sait gérer. */
+    private fun twoSlots() = Cadence(
+        fastMs = 0L,
+        targetMs = 0L,
+        slowMs = 900L,
+        concurrency = 2,
+        latencyBudgetMs = 150L,
+    )
 
     @Test
     fun `le Direct n_a pas de budget de latence donc garde un creneau`() {

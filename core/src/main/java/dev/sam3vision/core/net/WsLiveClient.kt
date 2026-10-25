@@ -121,9 +121,30 @@ class WsLiveClient(
 
     private suspend fun awaitReply(reply: CompletableDeferred<String>): Result<String> = try {
         val raw = withTimeoutOrNull(timeoutMs) { reply.await() }
-        if (raw == null) Result.failure(ApiError.Timeout()) else Result.success(raw)
+        if (raw == null) {
+            dropDeadSocket()
+            Result.failure(ApiError.Timeout())
+        } else Result.success(raw)
     } catch (e: ApiError) {
         Result.failure(e)
+    }
+
+    /**
+     * Un délai dépassé sans message de fermeture = socket **apparemment** vivant mais
+     * silencieusement mort (le conteneur a été arrêté, redéployé, la passerelle a changé
+     * de cible). Sans ce nettoyage, `connected` resterait vrai et chaque frame suivante
+     * attendrait son délai dans le vide — c'est ce qui figeait l'écran à
+     * « réveil du GPU en cours » avec 0 masque, alors que `/health` répondait en 0,1 s.
+     *
+     * On ferme et on marque fermé : la frame suivante **rouvre** le handshake.
+     */
+    private fun dropDeadSocket() {
+        val wasOpen = synchronized(lock) {
+            val open = connected
+            connected = false
+            open
+        }
+        if (wasOpen) runCatching { transport.close() }
     }
 
     private companion object {
