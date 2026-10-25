@@ -8,15 +8,15 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 /**
- * L'écran d'accueil iHear : la page caméra **et** la page chat posées l'une sur
- * l'autre — le chat recouvre la caméra par défaut, et la caméra reste vivante
- * dessous (le swipe de page ne coupe jamais le flux vidéo : consigne d'origine).
- * Un tap pendant que l'app filme appelle la page caméra en premier plan. Toute
- * l'interaction passe par les gestes de [IhearRootLayout] ;
- * les panneaux Compose restent muets (aucune surcouche tactile).
+ * L'écran d'accueil iHear : un seul écran, le chat plein écran. La caméra vit dans une
+ * fenêtre flottante (angles arrondis, moins d'un demi-écran) posée en haut à droite :
+ * aperçu pendant la vidéo du tap, photo + flash pendant quelques secondes, puis
+ * évaporation en fondu. Toute l'interaction passe par les gestes de [IhearRootLayout];
+ * les panneaux Compose restent muets.
  */
 @Composable
 fun IhearHome(viewModel: IhearViewModel, onOpenSettings: () -> Unit) {
@@ -30,14 +30,9 @@ fun IhearHome(viewModel: IhearViewModel, onOpenSettings: () -> Unit) {
     BackHandler(enabled = true) { onOpenSettings() }
 
     Box(Modifier.fillMaxSize()) {
-        // La caméra reste composée et liée même sous le chat : jamais coupée.
-        IhearCameraPane(state = state, viewModel = viewModel, modifier = Modifier.fillMaxSize())
-        // Photo du double tap : brief flash sur la page caméra, puis évaporation.
-        if (state.page == IhearPage.Camera) {
-            IhearPhotoFlash(photoPath = state.photoPath)
-        }
-        if (state.page == IhearPage.Chat) {
-            IhearChatPane(state = state, modifier = Modifier.fillMaxSize())
-        }
+        IhearChatPane(state = state, modifier = Modifier.fillMaxSize())
+        // Fenêtre caméra flottante : composée en permanence (la caméra reste liée),
+        // invisible et muette hors photo/vidéo.
+        IhearCameraWindow(state = state, viewModel = viewModel, modifier = Modifier.align(Alignment.TopEnd))
     }
 }

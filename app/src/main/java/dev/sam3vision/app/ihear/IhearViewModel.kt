@@ -37,8 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Toute la mécanique iHear : le chat devant, la page caméra plein écran dessous
- * (jamais coupée par un changement de page) — vidéo du tap, photo du double tap.
+ * Toute la mécanique iHear : un seul écran — le chat — avec la caméra reléguée dans
+ * une fenêtre flottante (vidéo du tap au premier plan, photo du double tap + flash).
  * Appui long vocal transcrit par Muse, historique Room `MessageMultimedia`, MP3 de
  * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée est jouée à
  * l'ouverture et posée comme premier message du chat tant qu'elle est active.
@@ -67,7 +67,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile
     var active: Boolean = false
 
-    /** Caméra de la page [IhearCameraPane], câblée par le composable à l'attachement. */
+    /** Caméra de la fenêtre flottante, câblée par le composable à l'attachement. */
     var camera: IhearCameraActions? = null
 
     /** Dernière photo du double tap : contexte image de la question suivante. */
@@ -206,19 +206,10 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Tap simple n'importe où : démarre la vidéo (page caméra), ou la ferme. */
+    /** Tap simple n'importe où : démarre la vidéo (fenêtre flottante), ou la ferme. */
     fun onSingleTap() {
         if (!active) return
         if (_state.value.recordingVideo) stopVideo() else startVideo()
-    }
-
-    /** Balayage horizontal : bascule chat ⇄ page caméra, sans jamais couper la caméra.
-     * La vidéo continue sous le chat si elle est en cours (consigne d'origine). */
-    fun onHorizontalSwipe(rightToLeft: Boolean) {
-        if (!active) return
-        _state.update {
-            it.copy(page = if (rightToLeft) IhearPage.Camera else IhearPage.Chat)
-        }
     }
 
     /** Double tap rapide : photo immédiate (texture, flash, évaporation en fenêtre). */
@@ -365,7 +356,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ————— Vidéo du tap (page caméra plein écran) —————
+    // ————— Vidéo du tap (fenêtre flottante) —————
 
     private fun startVideo() {
         val file = media.newVideoFile()
@@ -374,7 +365,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(status = "Camera not ready — try again") }
             return
         }
-        _state.update { it.copy(recordingVideo = true, page = IhearPage.Camera, status = null) }
+        _state.update { it.copy(recordingVideo = true, status = null) }
     }
 
     /** Second tap : finalisation du MP4, ligne Room « vidéo d'environnement », FIFO. */
