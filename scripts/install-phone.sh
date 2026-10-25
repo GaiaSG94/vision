@@ -127,12 +127,27 @@ check_apk_fresh() {
 apk_meta() {
   local meta
   meta="$(dirname "$1")/output-metadata.json"
-  [[ -f "$meta" ]] || die "output-metadata.json absent à côté de $1 (rebuild propre)"
+  if [[ ! -f "$meta" ]]; then
+    return_from_apk "$1"
+    return 0
+  fi
   python3 - "$meta" <<'PY'
 import json, sys
 el = json.load(open(sys.argv[1]))["elements"][0]
 print(el["versionCode"], el["versionName"])
 PY
+}
+
+# Repli quand l'APK a été copiée hors de son dossier de build : aapt2 lit l'en-tête.
+return_from_apk() {
+  local aapt code name
+  aapt="$(ls -d "${ANDROID_HOME:-$HOME/Android/Sdk}"/build-tools/*/ 2>/dev/null | sort -V | tail -1)aapt2"
+  [[ -x "$aapt" ]] || die "ni output-metadata.json ni aapt2 pour lire $1"
+  line="$("$aapt" dump badging "$1" 2>/dev/null | head -1)"
+  code="$(printf '%s' "$line" | grep -oE "versionCode='[0-9]+'" | tr -dc '0-9')"
+  name="$(printf '%s' "$line" | grep -oE "versionName='[^']*'" | cut -d\' -f2)"
+  [[ -n "$code" ]] || die "versionCode illisible dans $1"
+  printf '%s %s\n' "$code" "$name"
 }
 
 # ---------------------------------------------------------------- téléphone -----
@@ -245,6 +260,7 @@ install_if_needed() {
   [[ -n "$UNREADABLE" ]] && die "$UNREADABLE"
   inst_code="${INSTALLED%% *}"
   if [[ -n "$INSTALLED" && "$inst_code" == "$code" ]] && [[ $FORCE -eq 0 ]]; then
+    write_state "${sha:-local}" "$code" "$name"
     note "déjà à jour : $name ($code)"
     return 0
   fi
