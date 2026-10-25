@@ -7,6 +7,26 @@ val localProps = Properties().apply {
 }
 fun localProp(key: String): String = localProps.getProperty(key) ?: ""
 
+/** Valeur git, chaîne vide si le binaire git est absent (build hors dépôt). */
+fun gitValue(vararg args: String): String = runCatching {
+    val process = ProcessBuilder(listOf("git") + args)
+        .directory(rootProject.projectDir)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().readText().trim()
+    process.waitFor()
+    output
+}.getOrDefault("")
+
+/** Date du commit HEAD (secondes) : croissante, donc utilisable comme versionCode. */
+val gitCommitSeconds: Int = System.getenv("SAM_VERSION_CODE")?.toIntOrNull()
+    ?: gitValue("log", "-1", "--format=%ct").toIntOrNull()
+    ?: 1
+
+/** Nombre de commits et empreinte courte : lisibles dans « À propos » et les logs. */
+val gitCommitCount: Int = gitValue("rev-list", "--count", "HEAD").toIntOrNull() ?: 0
+val gitShortSha: String = gitValue("rev-parse", "--short=7", "HEAD").ifBlank { "nogit" }
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -22,8 +42,13 @@ android {
         applicationId = "dev.sam3vision.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // versionCode = date du commit HEAD : Android REFUSE d'installer une build
+        // plus ancienne (INSTALL_FAILED_VERSION_DOWNGRADE), donc un APK périmé ne peut
+        // plus écraser la version du téléphone (règle user du 2026-10-25). Une PR bâtie
+        // sur un master plus vieux est rejetée, c'est voulu : scripts/install-phone.sh
+        // explique quoi faire (rebuilder sur origin/master).
+        versionCode = gitCommitSeconds
+        versionName = "1.0.$gitCommitCount-$gitShortSha"
 
         // Valeurs lues depuis local.properties (jamais commité) ; vides si absent.
         buildConfigField("String", "LLM_BASE_URL", "\"${localProp("llm.base.url")}\"")

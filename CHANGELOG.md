@@ -1,5 +1,37 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — le plafond d'objets est bien persisté (correctif)
+
+- **Bug trouvé à la recette téléphone** : le réglage « Objets à l'écran » changeait bien
+  dans l'UI, mais revenait à 4 après redémarrage. `EncryptedSettingsStore` (le store
+  réellement utilisé) ne lisait ni n'écrivait `max_objects` — seul le repli fichier
+  chiffré le faisait. Les deux stores sont désormais alignés.
+- **Parité documentée** dans `EncryptedSettingsStore` : tout champ ajouté à `Settings`
+  doit être écrit dans `save` et relu dans `load`, sinon il retombe sur son défaut
+  silencieusement à chaque lancement.
+
+## 2026-10-25 — nombre d'objets à l'écran réglable (Réglages)
+
+- **Réglage « Objets à l'écran »** : section dédiée dans Réglages (deux gros boutons − / +,
+  valeur affichée en gros), de 1 à 12, **4 par défaut**. Il pilote les deux modes d'un coup :
+  le direct envoie ce plafond à `/live` (`max_objects`) et la photo tronque la liste de
+  `/segment` — donc moins de masques, moins d'overlays, description LLM alignée.
+- **Une seule source de vérité** : `ObjectLimits` (`DEFAULT_ON_SCREEN = 4`, bornes 1..12,
+  `clamp`, `step`). Le réglage est borné à l'enregistrement, à la lecture du fichier de
+  réglages et à l'usage : un fichier ancien ou trafiqué ne peut pas sortir de l'intervalle.
+- **Persistance** dans les deux implémentations (`EncryptedSettingsStore`, codec du fichier
+  chiffré) ; clé absente = 4, donc aucune migration.
+- Tests : `ObjectLimitsTest` 3, `SettingsCodecTest` 4, `UseCasesTest` (+plafond réglé),
+  `LiveSessionTest` (+plafond transmis).
+
+## 2026-10-25 — 4 objets maximum à l'écran
+
+- **Plafond unique `ObjectLimits.MAX_ON_SCREEN = 4`** (core) : le direct envoie
+  `max_objects = 4` à `/live` (le serveur élague les scores les plus faibles, donc moins
+  de masques à décoder et d'overlays à dessiner) et la photo tronque la liste rendue par
+  `/segment` dans `AnalyzeUseCase`, labels LLM compris.
+- Tests : `LiveSessionTest` (plafond par défaut) et `UseCasesTest` (9 objets → 4).
+
 ## 2026-10-25 — réveil préventif du GPU à l'ouverture de l'écran caméra
 
 - **Le délai de réveil passe derrière la préparation.** `AppViewModel.prewarmGpu()` lance un

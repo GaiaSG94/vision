@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import dev.sam3vision.core.model.ObjectLimits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -12,6 +13,10 @@ private const val PREFS_FILE = "sam3vision_secure_settings"
 /**
  * Stockage chiffré (Jetpack security-crypto : AES256-SIV pour les clés,
  * AES256-GCM pour les valeurs, maître dans le Keystore matériel).
+ *
+ * ⚠️ Parité obligatoire avec [SettingsCodec] (repli fichier chiffré) : un champ
+ * ajouté à [Settings] doit être écrit **ici** (`save`) et relu **là-bas** (`load`),
+ * sinon il retombe silencieusement sur son défaut à chaque redémarrage.
  */
 class EncryptedSettingsStore(context: Context) : SettingsStore {
 
@@ -41,6 +46,9 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
                 .ifBlank { default.asrModel },
             introEnabled = prefs.getBoolean(KEY_INTRO_ENABLED, default.introEnabled),
             introPlayed = prefs.getBoolean(KEY_INTRO_PLAYED, default.introPlayed),
+            maxObjects = ObjectLimits.clamp(
+                prefs.getInt(KEY_MAX_OBJECTS, default.maxObjects),
+            ),
         )
     }
 
@@ -59,6 +67,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_ASR_MODEL, s.asrModel)
             .putBoolean(KEY_INTRO_ENABLED, s.introEnabled)
             .putBoolean(KEY_INTRO_PLAYED, s.introPlayed)
+            .putInt(KEY_MAX_OBJECTS, s.objectsOnScreen)
             .apply()
     }
 
@@ -67,6 +76,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_LLM_API_KEY = "llm_api_key"
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_SAM_BASE_URL = "sam_base_url"
+        const val KEY_MAX_OBJECTS = "max_objects"
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_VOICE_ID = "tts_voice_id"
         const val KEY_TTS_AUTOPLAY = "tts_autoplay"

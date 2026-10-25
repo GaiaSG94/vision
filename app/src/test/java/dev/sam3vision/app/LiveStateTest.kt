@@ -82,6 +82,30 @@ class LiveStateTest {
     }
 
     @Test
+    fun `premiere frame toujours gardee`() {
+        assertTrue(shouldKeepFrame(nowMs = 12_345L, lastKeepAtMs = 0L))
+    }
+
+    @Test
+    fun `frame trop rapprochee est ignoree`() {
+        assertEquals(false, shouldKeepFrame(nowMs = 1_400L, lastKeepAtMs = 1_000L))
+    }
+
+    @Test
+    fun `frame gardee une fois l intervalle ecoule`() {
+        assertTrue(shouldKeepFrame(nowMs = 2_000L, lastKeepAtMs = 1_000L))
+        assertTrue(shouldKeepFrame(nowMs = 2_500L, lastKeepAtMs = 1_000L, intervalMs = 1_000L))
+    }
+
+    @Test
+    fun `la voix du direct est au repos par defaut`() {
+        val state = LiveUiState()
+        assertEquals(LiveVoicePhase.IDLE, state.voice.phase)
+        assertEquals("", state.voice.text)
+        assertEquals(null, state.voice.error)
+    }
+
+    @Test
     fun `nom court du gpu sans prefixe constructeur`() {
         assertEquals("A100-SXM4-40GB", shortGpu("NVIDIA A100-SXM4-40GB"))
         assertEquals("A100", shortGpu("A100"))

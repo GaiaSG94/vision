@@ -87,6 +87,8 @@ fun LiveScreen(
         onToggleMemory = { memoryOpen = !memoryOpen },
         onFocus = viewModel::setFocus,
         onAskMemory = viewModel::askMemory,
+        onVoiceStart = viewModel::startVoice,
+        onVoiceStop = viewModel::stopVoice,
     )
 }
 
@@ -163,6 +165,8 @@ private fun LiveStage(
     onToggleMemory: () -> Unit,
     onFocus: (Int) -> Unit,
     onAskMemory: (String) -> Unit,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -187,6 +191,8 @@ private fun LiveStage(
             onOpenChat = onAsk,
             onFocus = onFocus,
             onAskMemory = onAskMemory,
+            onVoiceStart = onVoiceStart,
+            onVoiceStop = onVoiceStop,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
@@ -201,6 +207,8 @@ private fun LiveFooter(
     onOpenChat: () -> Unit,
     onFocus: (Int) -> Unit,
     onAskMemory: (String) -> Unit,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth()) {
@@ -209,6 +217,9 @@ private fun LiveFooter(
                 memory = state.memory,
                 onFocus = onFocus,
                 onAsk = onAskMemory,
+                voice = state.voice,
+                onVoiceStart = onVoiceStart,
+                onVoiceStop = onVoiceStop,
                 onClose = onToggleMemory,
             )
         }

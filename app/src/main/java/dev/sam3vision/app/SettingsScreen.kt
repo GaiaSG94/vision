@@ -64,6 +64,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             BackendFields(draft) { draft = it }
+            ObjectsSettings(draft) { draft = it }
             DistanceSettings(draft) { draft = it }
             TtsSettings(
                 draft = draft,

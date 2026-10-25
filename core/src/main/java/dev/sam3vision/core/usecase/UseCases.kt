@@ -2,6 +2,7 @@ package dev.sam3vision.core.usecase
 
 import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
+import dev.sam3vision.core.model.ObjectLimits
 import dev.sam3vision.core.model.Role
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.net.SamClient
@@ -15,9 +16,11 @@ class AnalyzeUseCase(
     private val llm: LlmClient,
     private val sam: SamClient? = null,
     private val maxLabels: Int = 20,
+    private val maxObjects: Int = ObjectLimits.DEFAULT_ON_SCREEN,
 ) {
     suspend fun invoke(jpegB64: String, prompts: List<String>? = null): Result<Analysis> {
-        val objects = sam?.segment(jpegB64, prompts)?.getOrNull()?.objects.orEmpty()
+        val cap = ObjectLimits.clamp(maxObjects)
+        val objects = sam?.segment(jpegB64, prompts)?.getOrNull()?.objects.orEmpty().take(cap)
         val labels = objects.map { it.label }.filter { it.isNotBlank() }.distinct().take(maxLabels)
         return llm.describe(jpegB64, labels).map { analysis ->
             analysis.copy(

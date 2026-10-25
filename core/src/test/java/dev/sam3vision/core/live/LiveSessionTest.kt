@@ -2,6 +2,7 @@ package dev.sam3vision.core.live
 
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.LiveHealth
+import dev.sam3vision.core.model.ObjectLimits
 import dev.sam3vision.core.net.ApiError
 import dev.sam3vision.core.net.LiveClient
 import kotlinx.coroutines.runBlocking
@@ -85,7 +86,7 @@ class LiveSessionTest {
         session.runFrame("QQ==")
         assertEquals(listOf("person", "tree"), client.lastPrompts)
         assertEquals(640, client.lastWorkEdge)
-        assertEquals(12, client.lastMaxObjects)
+        assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, client.lastMaxObjects)
     }
 
     @Test
@@ -117,6 +118,21 @@ class LiveSessionTest {
         assertEquals(500L, sessionWith(LiveStats(), 400L, 600L).intervalMsAdaptive())
         assertEquals(500L, sessionWith(LiveStats(), 900L).intervalMsAdaptive())
         assertEquals(500L, sessionWith(LiveStats(), 350L).intervalMsAdaptive())
+    }
+
+    @Test
+    fun `le direct plafonne a 4 objets par defaut`() = runBlocking {
+        val client = FakeLiveClient()
+        LiveSession(client).runFrame("QQ==")
+        assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, client.lastMaxObjects)
+        assertEquals(4, client.lastMaxObjects)
+    }
+
+    @Test
+    fun `le plafond regle dans les reglages est transmis au serveur`() = runBlocking {
+        val client = FakeLiveClient()
+        LiveSession(client, maxObjects = 7).runFrame("QQ==")
+        assertEquals(7, client.lastMaxObjects)
     }
 
     @Test

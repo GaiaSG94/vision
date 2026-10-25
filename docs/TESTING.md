@@ -15,15 +15,17 @@ résumé tronqué à 600) ;
 `net.LlmClientTest` 9 (JSON/texte libre/JSON noyé, Bearer+modèle, historique ≤ 20 tours,
 401→clé invalide, 429→limite, clé absente→échec sans réseau, BadResponse) ;
 `net.SamClientTest` 6 (parse `/segment`, User-Agent sans clé, 400 typé, `/health` ok/ko, timeout) ;
-`text.TextSanitizerTest` 4 ; `usecase.UseCasesTest` 6 (fusion objets+labels, sans SAM, échec SAM
-toléré, erreur LLM propagée). Détail : `core/build/test-results/testDebugUnitTest/*.xml`.
+`text.TextSanitizerTest` 4 ; `usecase.UseCasesTest` 10 (fusion objets+labels, sans SAM, échec SAM
+toléré, erreur LLM propagée, plafond d'objets par défaut et réglé) ; `model.ObjectLimitsTest` 3
+(`clamp`/`step` aux bornes 1..12, défaut 4). Détail : `core/build/test-results/testDebugUnitTest/*.xml`.
 
 Voix ElevenLabs (§ « Voix » plus bas) : `net.ElevenLabsTtsClientTest` 7 (audio 200 renvoyé
 tel quel + requête `text-to-speech/{voice}` conforme et voice ID échappé, 402 sans crédits →
 `PaymentRequired` avec message clair, 401 → `InvalidKey` et 429 → `RateLimited`, texte vide ou
 clé absente = zéro appel réseau, voix absente refusée localement, 200 sans audio = erreur
 lisible) ; `settings.SettingsTtsTest` 3 (le codec conserve clé + voix + autoplay, un ancien
-fichier sans clés TTS reprend les défauts) ; `app.TtsLogicTest` 6 (`speakRefusal`, une seule
+fichier sans clés TTS reprend les défauts) ; `settings.SettingsCodecTest` 4 (le plafond
+d'objets survit à l'aller-retour, absent = défaut 4, valeur aberrante bornée) ; `app.TtsLogicTest` 6 (`speakRefusal`, une seule
 phrase active, libellés des boutons Écouter, `ttsAutoRead`, `withTtsDefaults`).
 
 Dictée Meta (`docs/META-ASR.md`) : `audio.WavTest` 3 (champs RIFF, assemblage en-tête+PCM,
@@ -137,7 +139,7 @@ Modal est actuellement fermé (0 GPU) : cette recette attend un redéploiement d
 ```bash
 EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # fait tout ci-dessous
 # ou à la main :
-adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-debug.apk   # émulateur seulement
 adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.CAMERA
 adb -s emulator-5554 shell pm grant dev.sam3vision.app android.permission.RECORD_AUDIO
 adb -s emulator-5554 shell am start -n dev.sam3vision.app/.MainActivity
@@ -242,3 +244,6 @@ photo et vidéo dans `files/Pictures` et `files/Movies` avec `.nomedia`, `assemb
   parameters à lambda) signale au 24/10 : `AnalysisScreen()` 64 lignes — non corrigé ici,
   fichier réservé à l'agent UI.
 - `install -r` échoue si un build antérieur a changé de signature : désinstaller d'abord.
+- **Téléphone réel : jamais `adb install`** — `scripts/install-phone.sh` (voir
+  `docs/PHONE-INSTALL.md`). Le `versionCode` étant la date du commit, une build plus
+  ancienne est refusée par Android (`INSTALL_FAILED_VERSION_DOWNGRADE`).

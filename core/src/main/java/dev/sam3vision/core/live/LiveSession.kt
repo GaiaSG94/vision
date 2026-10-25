@@ -1,6 +1,7 @@
 package dev.sam3vision.core.live
 
 import dev.sam3vision.core.model.LiveFrame
+import dev.sam3vision.core.model.ObjectLimits
 import dev.sam3vision.core.net.LiveClient
 
 /**
@@ -61,7 +62,8 @@ class LiveSession(
 
     companion object {
         const val DEFAULT_WORK_EDGE = 640
-        const val DEFAULT_MAX_OBJECTS = 12
+        /** Plafond d'objets affichés en direct (voir [ObjectLimits.MAX_ON_SCREEN]). */
+        const val DEFAULT_MAX_OBJECTS = ObjectLimits.DEFAULT_ON_SCREEN
         const val HIGH_MS = 900L
         const val LOW_MS = 350L
         const val TARGET_MS = 500L
