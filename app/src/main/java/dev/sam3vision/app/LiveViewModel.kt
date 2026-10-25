@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import dev.sam3vision.core.distance.DistanceMeter
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.LensSpec
+import dev.sam3vision.core.live.LiveNarrator
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.live.LiveTimeline
@@ -24,6 +25,7 @@ import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.HttpLiveClient
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LiveClient
+import dev.sam3vision.core.net.LiveLlmClient
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStoreFactory
@@ -72,6 +74,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     private var settings: Settings = Settings.Default
     private var history: List<ChatTurn> = emptyList()
 
+    /** Narration continue : une frame sur deux secondes part au LLM vision. */
+    private var narrator: LiveNarrator? = null
+
     /** Voix du direct : « Parler » pose la question sur le flux, sans clavier. */
     private val liveVoice = LiveVoice(
         app = app,
@@ -98,6 +103,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         resetForStart(prompts)
+        narrator = if (this.settings.llmConfigured) LiveNarrator(narratorClient(this.settings)) else null
         if (base.isBlank()) {
             session = null
             client = null
@@ -169,6 +175,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun onFrame(jpegB64: String) {
         if (jpegB64.isBlank()) return
+        narrate(jpegB64)
         val active = session
         if (active == null || !warm) {
             keepFrame(jpegB64)
@@ -184,6 +191,36 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = { frame -> publish(frame, jpegB64) },
                 onFailure = { error -> _state.update { it.copy(error = error.message, objectsCount = 0) } },
             )
+        }
+    }
+
+    /**
+     * Narration continue : la frame part au LLM vision avec les objets suivis et la
+     * description précédente, qui dit ce qui change. Cadence et « une seule en vol »
+     * sont tenues par [LiveNarrator] — la caméra n'attend jamais le réseau, et la
+     * narration fonctionne même sans détecteur SAM.
+     */
+    private fun narrate(jpegB64: String) {
+        val narrator = narrator ?: return
+        if (!narrator.due()) return
+        val labels = _state.value.frame?.objects?.map { it.label }?.distinct().orEmpty()
+        _state.update { it.copy(narrationBusy = true) }
+        viewModelScope.launch {
+            val result = narrator.narrate(jpegB64, labels)
+            _state.update { current ->
+                when {
+                    result == null -> current.copy(narrationBusy = false)
+                    result.isFailure -> current.copy(
+                        narrationBusy = false,
+                        narrationError = result.exceptionOrNull()?.message ?: "analyse LLM impossible",
+                    )
+                    else -> current.copy(
+                        narration = result.getOrNull().orEmpty(),
+                        narrationBusy = false,
+                        narrationError = null,
+                    )
+                }
+            }
         }
     }
 
@@ -341,6 +378,10 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun llm(s: Settings): LlmClient = InferHubLlmClient(s.llmBaseUrl, s.llmApiKey, s.llmModel)
 
+    /** Même client que [llm], typé pour la narration continue. */
+    private fun narratorClient(s: Settings): LiveLlmClient =
+        InferHubLlmClient(s.llmBaseUrl, s.llmApiKey, s.llmModel)
+
     /** Bouton « Parler » du panneau : le micro s'ouvre pour poser la question à la voix. */
     fun startVoice() = liveVoice.start()
 
@@ -348,6 +389,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     fun stopVoice() = liveVoice.stop()
 
     fun stop() {
+        narrator = null
         liveVoice.cancel()
         session = null
         client = null

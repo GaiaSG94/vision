@@ -10,7 +10,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 private const val MAX_TOKENS = 800
+private const val MAX_LIVE_TOKENS = 200
+private const val MAX_LIVE_CHARS = 400
+private const val MAX_PREVIOUS_IN_PROMPT = 300
 private const val TEMPERATURE = 0.2
+
+private val LIVE_SYSTEM =
+    "Tu observes un flux vidéo en direct et tu décris ce que tu vois, en français. " +
+        "Réponds en deux phrases maximum, au présent, sans liste, sans markdown. " +
+        "Si une description précédente est fournie, commence par ce qui a changé."
 
 private val DESCRIBE_SYSTEM =
     "Tu es un assistant vision. Tu décris une photo en français. " +
@@ -37,7 +45,19 @@ class InferHubLlmClient(
     private val model: String,
     private val client: OkHttpClient = defaultHttpClient(),
     private val maxHistoryTurns: Int = 20,
-) : LlmClient {
+) : LlmClient, LiveLlmClient {
+
+    /** Narration d'une frame du direct : courte, contextualisée, bornée en longueur. */
+    override suspend fun describeFrame(
+        jpegB64: String,
+        labels: List<String>,
+        previous: String,
+    ): Result<String> {
+        val messages = JSONArray()
+            .put(system(LIVE_SYSTEM))
+            .put(userWithImage(livePrompt(labels, previous), jpegB64))
+        return postChat(messages, MAX_LIVE_TOKENS).map { it.trim().take(MAX_LIVE_CHARS) }
+    }
 
     override suspend fun describe(jpegB64: String, labels: List<String>): Result<Analysis> {
         val prompt = if (labels.isEmpty()) {
@@ -64,7 +84,7 @@ class InferHubLlmClient(
     }
 
     /** Un seul point de sortie HTTP pour les deux méthodes : corps, en-têtes, extraction du texte. */
-    private suspend fun postChat(messages: JSONArray): Result<String> {
+    private suspend fun postChat(messages: JSONArray, maxTokens: Int = MAX_TOKENS): Result<String> {
         if (apiKey.isBlank()) {
             return Result.failure(ApiError.InvalidKey("clé API absente — renseigne-la dans Réglages"))
         }
@@ -72,7 +92,7 @@ class InferHubLlmClient(
             .put("model", model)
             .put("messages", messages)
             .put("temperature", TEMPERATURE)
-            .put("max_tokens", MAX_TOKENS)
+            .put("max_tokens", maxTokens)
             .toString()
         val request = Request.Builder()
             .url(joinUrl(baseUrl, "/chat/completions"))
@@ -113,6 +133,15 @@ private fun userWithImage(text: String, jpegB64: String): JSONObject = JSONObjec
                     .put("image_url", JSONObject().put("url", "data:image/jpeg;base64,$jpegB64")),
             ),
     )
+
+/** Consigne de la frame du direct : objets suivis, puis continuité avec la description précédente. */
+internal fun livePrompt(labels: List<String>, previous: String): String = buildString {
+    append("Décris cette frame du direct.")
+    if (labels.isNotEmpty()) append(" Objets suivis : ").append(labels.joinToString(", ")).append('.')
+    if (previous.isNotBlank()) {
+        append(" Description précédente : « ").append(previous.take(MAX_PREVIOUS_IN_PROMPT)).append(" ».")
+    }
+}
 
 internal fun parse(raw: String): JSONObject? = try {
     JSONObject(raw)

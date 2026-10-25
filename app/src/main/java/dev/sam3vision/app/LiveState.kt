@@ -39,6 +39,10 @@ data class LiveUiState(
     val distanceLayer: DistanceLayer? = null,
     /** Dernière phrase dite par la voix (positions) : affichée comme sous-titre. */
     val spoken: String? = null,
+    /** Description approfondie du LLM sur la frame courante ("" tant qu'aucune). */
+    val narration: String = "",
+    val narrationBusy: Boolean = false,
+    val narrationError: String? = null,
     /** Voix du direct : on parle pour poser sa question sur le flux en cours. */
     val voice: LiveVoiceState = LiveVoiceState(),
 ) {

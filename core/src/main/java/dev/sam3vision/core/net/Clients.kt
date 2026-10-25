@@ -65,6 +65,19 @@ interface TtsClient {
 }
 
 /**
+ * Analyse continue d'une frame du direct par un LLM vision : [labels] sont les objets
+ * suivis, [previous] la description précédente (continuité « qu'est-ce qui a changé ? »).
+ * Renvoie une phrase courte en français.
+ */
+interface LiveLlmClient {
+    suspend fun describeFrame(
+        jpegB64: String,
+        labels: List<String>,
+        previous: String,
+    ): Result<String>
+}
+
+/**
  * Transcription vocale (Meta Muse ASR) : un WAV PCM 16 bits mono -> texte.
  * [transcribe] renvoie [Result.failure] avec une [ApiError] typée ; un texte
  * vide n'est pas une erreur réseau (le cas d'usage décide quoi en faire).

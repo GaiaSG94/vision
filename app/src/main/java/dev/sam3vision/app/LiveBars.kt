@@ -83,6 +83,7 @@ fun LiveBottomBar(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        NarrationCard(state)
         val labels = objectChips(state)
         if (labels.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -98,6 +99,41 @@ fun LiveBottomBar(
         if (state.lastJpegB64.isNotBlank()) {
             Chip("Analyser la frame", AppColors.surfaceHigh, onOpenChat)
         }
+    }
+}
+
+/**
+ * Description approfondie du LLM sur la frame courante, mise à jour en continu.
+ * L'ancienne description reste affichée pendant un échec : elle garde le contexte.
+ */
+@Composable
+fun NarrationCard(state: LiveUiState, modifier: Modifier = Modifier) {
+    val failed = state.narration.isBlank() && !state.narrationError.isNullOrBlank()
+    val text = state.narration.ifBlank { state.narrationError.orEmpty() }
+    when {
+        text.isNotBlank() -> Text(
+            text,
+            color = AppColors.text,
+            fontSize = 13.sp,
+            maxLines = 3,
+            modifier = modifier
+                .fillMaxWidth()
+                .background(
+                    (if (failed) AppColors.danger else AppColors.surface).copy(alpha = 0.9f),
+                    RoundedCornerShape(12.dp),
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+
+        state.narrationBusy -> Text(
+            "Analyse LLM de la scène…",
+            color = AppColors.textMuted,
+            fontSize = 12.sp,
+            modifier = modifier
+                .fillMaxWidth()
+                .background(AppColors.surface.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
     }
 }
 

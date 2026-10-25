@@ -1,5 +1,18 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (7) — Direct : narration LLM continue des frames
+
+- **`describeFrame` + `LiveNarrator`** : une frame éligible toutes les 2 s, jamais deux en
+  vol, part au LLM vision avec les objets suivis **et la description précédente** — le
+  modèle dit ce qui a changé au lieu de répéter la même phrase.
+- **Carte de narration** dans le direct (3 lignes, erreur affichée sans effacer la dernière
+  description connue).
+- Fonctionne **sans détecteur SAM** : la narration porte sur la frame gardée pour les
+  questions, donc elle démarre même quand le GPU est injoignable.
+- Tests : `LiveNarratorTest` (cadence, continuité, échecs, bornes) et
+  `LiveNarrationClientTest` (contrat HTTP `describeFrame`) — `:core:test` +
+  `:app:testDebugUnitTest` verts, `check-kotlin-limits` OK.
+
 ## 2026-10-25 (6) — pas de script d'installation (demande user) : seul le versionCode reste
 
 - **Retiré** : `scripts/install-phone.sh`, `docs/PHONE-INSTALL.md`, la règle « seule porte
