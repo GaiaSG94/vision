@@ -27,18 +27,18 @@ class IhearHaptics(context: Context) {
 
     /** Appui long : salve perceptible unique (deux temps forts séparés d'un creux). */
     fun holdStart() {
-        vibrate(
-            VibrationEffect.createWaveform(
-                longArrayOf(0, HOLD_ON_MS, HOLD_OFF_MS, HOLD_ON_MS),
-                intArrayOf(0, HOLD_AMP, 0, HOLD_AMP),
-                -1,
-            ),
+        waveform(
+            longArrayOf(0, HOLD_ON_MS, HOLD_OFF_MS, HOLD_ON_MS),
+            intArrayOf(0, HOLD_AMP, 0, HOLD_AMP),
+            -1,
         )
     }
 
     /** Relâchement : micro-signal de fin, volontairement court. */
     fun holdEnd() {
-        vibrate(VibrationEffect.createOneShot(END_ON_MS, END_AMP))
+        vibrateSafe {
+            VibrationEffect.createOneShot(END_ON_MS, END_AMP)
+        }
     }
 
     /**
@@ -48,12 +48,13 @@ class IhearHaptics(context: Context) {
     fun verticalSwipeStart() {
         if (swiping) return
         swiping = true
-        vibrate(
-            VibrationEffect.createWaveform(
-                longArrayOf(0, SWIPE_ON_MS, SWIPE_OFF_MS),
-                intArrayOf(0, SWIPE_AMP),
-                1, // répète la boucle « marche/creux » tant que le doigt glisse
-            ),
+        // trois amplitudes pour trois timings : le creux porte aussi son 0,
+        // sinon VibrationEffect.createWaveform lève IllegalArgumentException
+        // et l'app crashe dès la première marche du balayage.
+        waveform(
+            longArrayOf(0, SWIPE_ON_MS, SWIPE_OFF_MS),
+            intArrayOf(0, SWIPE_AMP, 0),
+            1, // répète la boucle « marche/creux » tant que le doigt glisse
         )
     }
 
@@ -69,8 +70,14 @@ class IhearHaptics(context: Context) {
         vibrator.cancel()
     }
 
-    private fun vibrate(effect: VibrationEffect) {
-        runCatching { vibrator.vibrate(effect) }
+    /** Construction + envoi protégés : un paramètre invalide ne doit jamais tuer l'app —
+     * l'effet est construit *dans* le runCatching. */
+    private fun waveform(timings: LongArray, amplitudes: IntArray, repeat: Int) {
+        vibrateSafe { VibrationEffect.createWaveform(timings, amplitudes, repeat) }
+    }
+
+    private inline fun vibrateSafe(effect: () -> VibrationEffect) {
+        runCatching { vibrator.vibrate(effect()) }
     }
 
     private var swiping = false
