@@ -6,10 +6,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.ui.graphics.toArgb
 import dev.sam3vision.core.audio.Wav
+import dev.sam3vision.core.live.PositionText
 import dev.sam3vision.core.mask.colorizeMask
 import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
+import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.SegObject
 import dev.sam3vision.core.net.ElevenLabsSttClient
 import dev.sam3vision.core.net.ElevenLabsTtsClient
@@ -190,11 +192,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         chat = emptyList(),
                     )
                 }
+                announcePositions(analysis.objects, _state.value.photo)
             },
             onFailure = { error ->
                 _state.update { it.copy(phase = Phase.Failed(error.message ?: "analyse impossible"), segmentationActive = false) }
             },
         )
+    }
+
+    /**
+     * Dit à voix haute où sont les objets segmentés (« Personne à gauche, chaise au centre »).
+     * Même bascule que le direct, même voix ElevenLabs ; silencieux sans objet ou sans clé.
+     */
+    private fun announcePositions(objects: List<SegObject>, photo: Bitmap?) {
+        val settings = _state.value.settings
+        if (!settings.announcePositions || photo == null) return
+        val placed = objects.mapNotNull {
+            PositionText.fromDetection(Detection(it.label, it.score, it.box, photo.width, photo.height))
+        }
+        val phrase = PositionText.phrase(placed) ?: return
+        viewModelScope.launch { voice.say(settings, phrase) }
     }
 
     private fun segmentationNote(settings: Settings, analysis: Analysis): String? = when {

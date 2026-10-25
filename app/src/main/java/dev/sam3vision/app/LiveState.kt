@@ -37,6 +37,8 @@ data class LiveUiState(
     val prompts: List<String> = emptyList(),
     val memory: LiveMemoryState = LiveMemoryState(),
     val distanceLayer: DistanceLayer? = null,
+    /** Dernière phrase dite par la voix (positions) : affichée comme sous-titre. */
+    val spoken: String? = null,
 ) {
     val statusLine: String
         get() = if (running && starting) {

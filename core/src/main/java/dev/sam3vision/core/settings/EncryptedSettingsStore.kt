@@ -31,6 +31,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             ttsVoiceId = prefs.getString(KEY_TTS_VOICE_ID, default.ttsVoiceId).orEmpty()
                 .ifBlank { default.ttsVoiceId },
             ttsAutoplay = prefs.getBoolean(KEY_TTS_AUTOPLAY, default.ttsAutoplay),
+            ttsAnnouncePositions = prefs.getBoolean(KEY_TTS_ANNOUNCE_POSITIONS, default.ttsAnnouncePositions),
             // `.ifBlank` : une valeur vide persistée par une version antérieure retombe sur
             // le défaut au lieu de laisser un endpoint invalide (origin/master, commit f77c61c).
             asrBaseUrl = prefs.getString(KEY_ASR_BASE_URL, default.asrBaseUrl).orEmpty()
@@ -52,6 +53,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_TTS_API_KEY, s.ttsApiKey)
             .putString(KEY_TTS_VOICE_ID, s.ttsVoiceId)
             .putBoolean(KEY_TTS_AUTOPLAY, s.ttsAutoplay)
+            .putBoolean(KEY_TTS_ANNOUNCE_POSITIONS, s.ttsAnnouncePositions)
             .putString(KEY_ASR_BASE_URL, s.asrBaseUrl)
             .putString(KEY_ASR_API_KEY, s.asrApiKey)
             .putString(KEY_ASR_MODEL, s.asrModel)
@@ -68,6 +70,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_VOICE_ID = "tts_voice_id"
         const val KEY_TTS_AUTOPLAY = "tts_autoplay"
+        const val KEY_TTS_ANNOUNCE_POSITIONS = "tts_announce_positions"
         const val KEY_ASR_BASE_URL = "asr_base_url"
         const val KEY_ASR_API_KEY = "asr_api_key"
         const val KEY_ASR_MODEL = "asr_model"

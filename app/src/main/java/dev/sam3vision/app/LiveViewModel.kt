@@ -10,10 +10,14 @@ import dev.sam3vision.core.distance.LensSpec
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.live.LiveTimeline
+import dev.sam3vision.core.live.PlacedLabel
+import dev.sam3vision.core.live.PositionAnnouncer
+import dev.sam3vision.core.live.PositionText
 import dev.sam3vision.core.live.TimelineText
 import dev.sam3vision.core.mask.colorizeMask
 import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.ChatTurn
+import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.HttpLiveClient
@@ -29,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 /**
@@ -55,6 +60,11 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     /** Distances caméra→objets : sténopé + hauteurs connues, lissées par piste. */
     private val distances = DistanceMeter()
     private var sensorLens: LensSpec? = null
+
+    /** Annonce vocale des positions : une phrase à la fois, jamais superposée. */
+    private val announcer = PositionAnnouncer()
+    private val voice = VoiceAnnouncer(app, POSITION_VOICE_DIR)
+    private val speaking = Mutex()
     private var settings: Settings = Settings.Default
     private var history: List<ChatTurn> = emptyList()
 
@@ -64,7 +74,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Ouvre une session de direct sur l'endpoint configuré (Réglages, sinon build). */
     fun start(settings: Settings, prompts: List<String> = LivePrompts.Default) {
-        this.settings = settings
+        this.settings = seededFromBuild(settings)
         val base = settings.liveBaseUrl()
         if (base.isBlank()) {
             _state.update { it.copy(error = "Aucun endpoint SAM/live configuré — ouvre Réglages.") }
@@ -83,7 +93,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         warm = false
         nextTickAt = 0L
         lastFrameAt = 0L
-        _state.update { it.copy(running = true, starting = true, error = null, memory = LiveMemoryState()) }
+        _state.update { it.copy(running = true, starting = true, error = null, memory = LiveMemoryState(), spoken = null) }
         viewModelScope.launch { wakeGpu() }
     }
 
@@ -153,6 +163,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val detections = frame.objects.toDetections(width, height)
         val seen = timeline.record(now, detections)
         val readings = distances.measure(width, height, detections, seen.map { it?.id })
+        announcePositions(frame, width, height, now)
         val overlays = overlaysFor(frame)
         val gap = if (lastFrameAt == 0L) 0L else now - lastFrameAt
         lastFrameAt = now
@@ -196,6 +207,34 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         return sensorLens ?: LensSpec.Default
     }
 
+    /**
+     * Voix ElevenLabs : dit où sont les objets dès que la scène change
+     * (« Personne à gauche, chien au centre »). Silencieux sans clé, pendant une
+     * question sur la mémoire, ou si la bascule des Réglages est coupée.
+     */
+    private fun announcePositions(frame: LiveFrame, width: Int, height: Int, now: Long) {
+        if (!settings.announcePositions || _state.value.memory.asking) return
+        val placed = frame.objects.mapNotNull {
+            PositionText.fromDetection(Detection(it.label, it.score, it.box, width, height))
+        }
+        val phrase = announcer.onFrame(now, placed) ?: return
+        _state.update { it.copy(spoken = phrase) }
+        viewModelScope.launch { sayPositions(phrase) }
+    }
+
+    /**
+     * Synthèse + lecture, jamais deux annonces en même temps : une phrase en cours
+     * n'est ni coupée ni doublée par la frame suivante.
+     */
+    private suspend fun sayPositions(phrase: String) {
+        if (!speaking.tryLock()) return
+        try {
+            voice.say(settings, phrase)
+        } finally {
+            speaking.unlock()
+        }
+    }
+
     /** Instant demandé dans l'UI : « il y a N s » (0 = maintenant). */
     fun setFocus(seconds: Int) = _state.update {
         it.copy(memory = it.memory.copy(focusSeconds = seconds.coerceAtLeast(0)))
@@ -216,7 +255,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         }
         _state.update { it.copy(memory = it.memory.copy(asking = true, question = text, answer = null, error = null)) }
         viewModelScope.launch {
-            settings = store.load()
+            settings = seededFromBuild(store.load())
             if (!settings.llmConfigured) {
                 _state.update { it.copy(memory = it.memory.copy(asking = false, error = "Clé LLM absente — Réglages.")) }
                 return@launch
@@ -254,7 +293,14 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         client = null
         distances.reset()
         warm = false
+        announcer.reset()
+        voice.stop()
         _state.update { LiveUiState() }
+    }
+
+    override fun onCleared() {
+        voice.release()
+        super.onCleared()
     }
 
     /** Lit les réglages chiffrés puis démarre la session (appelé à l'entrée à l'écran). */
@@ -267,5 +313,8 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Fenêtre du journal envoyée au LLM : 30 s suffisent pour « il y a 5 s ». */
         const val MEMORY_WINDOW_MS = 30_000L
+
+        /** Dossier audio de l'annonce des positions : distinct de celui des bandeaux. */
+        const val POSITION_VOICE_DIR = "positions"
     }
 }

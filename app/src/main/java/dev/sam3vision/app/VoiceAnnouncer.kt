@@ -15,9 +15,9 @@ import java.io.File
  * Un échec (clé absente, 402, réseau) reste silencieux côté audio : l'information
  * est déjà affichée en gros caractères et exposée à TalkBack par le bandeau.
  */
-class VoiceAnnouncer(context: Context) {
+class VoiceAnnouncer(context: Context, dirName: String = DEFAULT_DIR) {
 
-    private val player = SpeechPlayer(File(context.cacheDir, "voice"))
+    private val player = SpeechPlayer(File(context.cacheDir, dirName))
 
     /** Synthétise puis lit [text] ; sans effet si le texte ou la clé sont vides. */
     suspend fun say(settings: Settings, text: String) {
@@ -31,4 +31,9 @@ class VoiceAnnouncer(context: Context) {
     fun stop() = player.stop()
 
     fun release() = player.release()
+
+    companion object {
+        /** Dossier par défaut (bandeaux de dictée) ; un second dossier évite d'écraser son MP3. */
+        const val DEFAULT_DIR = "voice"
+    }
 }

@@ -49,17 +49,37 @@ fun TtsSettings(
             onStop = onStop,
             actionLabel = "Tester la voix",
         )
-        SwitchRow(
-            label = "Lire les réponses automatiquement",
-            checked = draft.ttsAutoplay,
-        ) { onChange(draft.copy(ttsAutoplay = it)) }
-        Text(
-            "Activé : chaque réponse du chat est lue dès qu'elle arrive. Désactivé : bouton 🔊 seulement.",
-            color = AppColors.textMuted,
-            fontSize = 11.sp,
-        )
+        VoiceSwitches(draft, onChange)
         IntroSetting(draft) { onChange(draft.copy(introEnabled = it)) }
     }
+}
+
+/**
+ * Les deux bascules de lecture : réponses du chat (bouton 🔊 ou automatique) et
+ * annonce des positions détectées. Une ligne d'explication sous chacune.
+ */
+@Composable
+private fun VoiceSwitches(draft: Settings, onChange: (Settings) -> Unit) {
+    SwitchRow(
+        label = "Lire les réponses automatiquement",
+        checked = draft.ttsAutoplay,
+    ) { onChange(draft.copy(ttsAutoplay = it)) }
+    Text(
+        "Activé : chaque réponse du chat est lue dès qu'elle arrive. Désactivé : bouton 🔊 seulement.",
+        color = AppColors.textMuted,
+        fontSize = 11.sp,
+    )
+    SwitchRow(
+        label = "Annoncer la position des objets détectés",
+        checked = draft.ttsAnnouncePositions,
+    ) { onChange(draft.copy(ttsAnnouncePositions = it)) }
+    Text(
+        "Activé : en mode Direct (et après l'analyse d'une photo), la voix dit où sont les " +
+            "objets dès qu'ils apparaissent — « Personne à gauche, chien au centre ». " +
+            "Une annonce toutes les 4 s au plus, et seulement si la scène change.",
+        color = AppColors.textMuted,
+        fontSize = 11.sp,
+    )
 }
 
 /** Bascule « intro » + son explication : l'écran de garde du premier lancement. */

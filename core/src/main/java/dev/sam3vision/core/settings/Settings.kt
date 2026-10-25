@@ -17,6 +17,12 @@ data class Settings(
     val asrBaseUrl: String = DEFAULT_ASR_BASE_URL,
     val asrApiKey: String = "",
     val asrModel: String = DEFAULT_ASR_MODEL,
+    /**
+     * Annonce vocale des **positions** dès qu'un objet est détecté (mode Direct et
+     * analyse photo) : « Personne à gauche, chien à droite. » Via ElevenLabs, jamais
+     * le TTS système. `true` par défaut : c'est la fonction d'assistance attendue.
+     */
+    val ttsAnnouncePositions: Boolean = true,
     /** Intro vocale embarquée autorisée (bascule des Réglages, `true` par défaut). */
     val introEnabled: Boolean = true,
     /** Intro déjà entendue : l'écran de garde ne se represente plus. */
@@ -62,6 +68,7 @@ data class Settings(
             asrBaseUrl = DEFAULT_ASR_BASE_URL,
             asrApiKey = "",
             asrModel = DEFAULT_ASR_MODEL,
+            ttsAnnouncePositions = true,
             introEnabled = true,
             introPlayed = false,
             distanceOverlayEnabled = true,
@@ -86,6 +93,9 @@ data class Settings(
 
     /** Vrai si une réponse du chat doit être lue dès qu'elle arrive. */
     val ttsAutoRead: Boolean get() = ttsAutoplay && ttsConfigured
+
+    /** Vrai si les positions détectées doivent être dites à voix haute. */
+    val announcePositions: Boolean get() = ttsAnnouncePositions && ttsConfigured
 
     /** Vrai si la dictée Meta est utilisable (endpoint + clé renseignés). */
     val asrConfigured: Boolean get() = asrBaseUrl.isNotBlank() && asrApiKey.isNotBlank()

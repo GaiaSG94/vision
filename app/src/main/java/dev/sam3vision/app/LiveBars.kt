@@ -49,6 +49,18 @@ fun LiveTopBar(
                 .background(AppColors.surface.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         )
+        state.spoken?.let { phrase ->
+            Text(
+                "🔊 $phrase",
+                color = AppColors.text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .background(AppColors.primary.copy(alpha = 0.85f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
         PromptRow(draft, onDraftChange, onApply)
         (failure ?: state.error)?.let { StatusBanner(it, AppColors.danger) }
     }
