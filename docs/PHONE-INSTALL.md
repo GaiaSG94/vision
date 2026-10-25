@@ -18,7 +18,7 @@ Options utiles :
 | `--tree DIR` | bâtir un worktree précis (essai d'une branche) |
 | `--apk FILE` | installer une APK déjà construite |
 | `--if-free` | ne rien faire si un agent tient le téléphone (usage cron) |
-| `--force` | réinstaller même à version identique |
+| `--reinstall` | réinstaller même à version identique |
 | `--allow-downgrade` | autoriser une build plus vieille (débogage assumé) |
 
 Le script prend le verrou `~/bin/phone` le temps de l'installation, compare les

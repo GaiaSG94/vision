@@ -7,7 +7,7 @@
 #   install-phone --status                     # installé vs GitHub, sans rien toucher
 #
 #   --if-free           ne rien faire si un autre agent tient le téléphone (usage cron)
-#   --force             réinstaller même si la version est identique
+#   --reinstall         réinstaller même si la version est identique
 #   --allow-downgrade   autoriser une build plus ancienne que l'installée (débogage)
 #   --quiet             une ligne de sortie, pour les journaux
 #
@@ -56,7 +56,7 @@ parse_args() {
       --apk) MODE="apk"; APK="${2:?chemin manquant}"; shift 2 ;;
       --status) MODE="status"; shift ;;
       --if-free) IF_FREE=1; shift ;;
-      --force) FORCE=1; shift ;;
+      --reinstall) FORCE=1; shift ;;
       --allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
       --quiet) QUIET=1; shift ;;
       -h|--help) usage; exit 0 ;;
