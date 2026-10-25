@@ -2,6 +2,7 @@ package dev.sam3vision.app
 
 import dev.sam3vision.core.live.LiveSession
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -110,5 +111,20 @@ class LiveStateTest {
         assertEquals("A100-SXM4-40GB", shortGpu("NVIDIA A100-SXM4-40GB"))
         assertEquals("A100", shortGpu("A100"))
         assertEquals("", shortGpu(""))
+    }
+
+    @Test
+    fun `vision seule affiche la ligne dediee sans GPU`() {
+        val line = formatLiveStatus(true, 0f, 0, "", 0, null, samEnabled = false)
+        assertEquals(VISION_ONLY_LINE, line)
+        assertFalse(line.contains("GPU"))
+    }
+
+    @Test
+    fun `statut du direct suit le mode sam`() {
+        val vision = LiveUiState(running = true, samEnabled = false)
+        assertEquals(VISION_ONLY_LINE, vision.statusLine)
+        val sam = LiveUiState(running = true, samEnabled = true, gpu = "A100-SXM4-40GB")
+        assertTrue(sam.statusLine.contains("A100-SXM4-40GB"))
     }
 }

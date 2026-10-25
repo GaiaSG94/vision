@@ -52,7 +52,7 @@ data class LiveUiState(
         get() = if (running && starting) {
             WAKING_LINE
         } else {
-            formatLiveStatus(running, fps, latencyMs, gpu, objectsCount, nearestMeters)
+            formatLiveStatus(running, fps, latencyMs, gpu, objectsCount, nearestMeters, samEnabled)
         }
 
     /** Distance de l'objet le plus proche de la frame, `null` si rien n'est mesuré. */
@@ -73,6 +73,9 @@ data class DistanceLayer(
     val empty: Boolean get() = width <= 0 || height <= 0 || readings.isEmpty()
 }
 
+/** Ligne du direct en vision seule : pas de détecteur, donc pas de GPU à attendre. */
+const val VISION_ONLY_LINE: String = "Direct · vision LLM (l'image part au LLM, sans détecteur)"
+
 /** Ligne affichée pendant le démarrage à froid du conteneur (le clic « Direct » le réveille). */
 const val WAKING_LINE: String = "Réveil du GPU A100 40 Go sur Modal…"
 
@@ -81,6 +84,8 @@ fun shortGpu(name: String): String = name.removePrefix("NVIDIA ").trim()
 
 /**
  * Barre d'état du direct : « Direct · 1,4 ips · 780 ms · 8 objets · A100-SXM4-40GB ».
+ * En vision seule ([samEnabled] = false), il n'y a ni cadence de détection, ni latence
+ * de détecteur, ni GPU : la ligne le dit au lieu d'afficher « GPU ? ».
  * Fonction pure, testée en JVM.
  */
 fun formatLiveStatus(
@@ -90,8 +95,10 @@ fun formatLiveStatus(
     gpu: String,
     objects: Int,
     nearestMeters: Float? = null,
+    samEnabled: Boolean = true,
 ): String {
     if (!running) return "Direct arrêté"
+    if (!samEnabled) return VISION_ONLY_LINE
     val rate = if (fps <= 0f) "…" else String.format("%.1f ips", fps)
     val latency = if (latencyMs <= 0) "…" else "$latencyMs ms"
     val nearest = nearestMeters?.let { " · plus proche ${DistanceText.format(it)}" }.orEmpty()
