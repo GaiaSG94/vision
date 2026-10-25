@@ -21,6 +21,7 @@ import dev.sam3vision.core.mask.decodeMaskPng
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
+import dev.sam3vision.core.model.TimelineSummary
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.HttpLiveClient
 import dev.sam3vision.core.net.InferHubLlmClient
@@ -91,19 +92,24 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     private var lastKnownHeight = 0
 
     /**
-     * Ouvre une session de direct sur l'endpoint configuré (Réglages, sinon build).
-     * Sans endpoint SAM mais avec une clé LLM, le mode Direct reste utilisable :
-     * pas de détection, mais les questions portent sur la dernière image.
+     * Ouvre une session de direct. Par défaut (`liveSamEnabled = false`), l'image part
+     * **directement au LLM** : aucun client HTTP SAM, aucune session, aucun réveil GPU.
+     * Avec `liveSamEnabled`, la session `/live` est ouverte et le GPU réveillé comme avant.
+     * Dans les deux cas, la clé LLM est indispensable.
      */
     fun start(settings: Settings, prompts: List<String> = LivePrompts.Default) {
         this.settings = seededFromBuild(settings)
-        val base = this.settings.liveBaseUrl()
-        if (base.isBlank() && !this.settings.llmConfigured) {
-            _state.update { it.copy(error = "Aucun endpoint SAM/live configuré — ouvre Réglages.") }
+        if (!this.settings.llmConfigured) {
+            _state.update { it.copy(error = LLM_ABSENT_LINE) }
             return
         }
         resetForStart(prompts)
-        narrator = if (this.settings.llmConfigured) LiveNarrator(narratorClient(this.settings)) else null
+        narrator = LiveNarrator(narratorClient(this.settings))
+        if (!this.settings.liveSamEnabled) {
+            startVisionOnly()
+            return
+        }
+        val base = this.settings.liveBaseUrl()
         if (base.isBlank()) {
             session = null
             client = null
@@ -115,6 +121,15 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         session = LiveSession(http, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
         _state.update { it.copy(running = true, starting = true, error = null, memory = LiveMemoryState(), spoken = null) }
         viewModelScope.launch { wakeGpu() }
+    }
+
+    /** Direct en vision LLM seule : ni session, ni client SAM, ni réveil GPU — juste l'image au LLM. */
+    private fun startVisionOnly() {
+        session = null
+        client = null
+        _state.update {
+            it.copy(running = true, starting = false, error = null, gpu = "", spoken = null)
+        }
     }
 
     /** Remise à zéro commune aux deux démarrages : journal, distances, cadence, concepts. */
@@ -129,7 +144,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         nextTickAt = 0L
         lastFrameAt = 0L
         lastKeepAt = 0L
-        _state.update { it.copy(prompts = chosen) }
+        _state.update { it.copy(prompts = chosen, samEnabled = settings.liveSamEnabled) }
     }
 
     /** Change les concepts suivis : `[promptsText]` séparé par virgules, vide = défaut. */
@@ -140,6 +155,18 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Relance la session avec les concepts déjà actifs (flux arrêté ou en erreur). */
     fun restartActive() = restart(_state.value.prompts.ifEmpty { LivePrompts.Default })
+
+    /**
+     * Bascule « Vision seule ↔ SAM » depuis le bandeau du direct : le réglage est
+     * persisté, puis la session est relancée dans le nouveau mode.
+     */
+    fun toggleSam() {
+        viewModelScope.launch {
+            val next = store.load().let { it.copy(liveSamEnabled = !it.liveSamEnabled) }
+            store.save(next)
+            start(next, _state.value.prompts.ifEmpty { LivePrompts.Default })
+        }
+    }
 
     private fun restart(prompts: List<String>) = viewModelScope.launch { start(store.load(), prompts) }
 
@@ -331,37 +358,37 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Question sur la mémoire du direct : le journal (positions + heures relatives)
-     * et la dernière image partent au LLM, l'historique des questions est conservé.
+     * Question sur le direct : la **dernière image part tout de suite au LLM**, sans
+     * dépendre de SAM (ni session, ni journal, ni GPU). L'historique est conservé.
      * Les réglages sont relus à chaque question : une clé saisie pendant le direct
      * s'applique tout de suite.
      */
     fun askMemory(question: String) {
         val text = question.trim()
         if (text.isEmpty() || _state.value.memory.asking) return
-        if (_state.value.lastJpegB64.isBlank()) {
-            _state.update { it.copy(memory = it.memory.copy(error = "Le direct n'a pas encore d'image analysée.")) }
+        val jpeg = _state.value.lastJpegB64
+        if (jpeg.isBlank()) {
+            _state.update { it.copy(memory = it.memory.copy(error = NO_FRAME_LINE)) }
             return
         }
         _state.update { it.copy(memory = it.memory.copy(asking = true, question = text, answer = null, error = null)) }
         viewModelScope.launch {
             settings = seededFromBuild(store.load())
             if (!settings.llmConfigured) {
-                _state.update { it.copy(memory = it.memory.copy(asking = false, error = "Clé LLM absente — Réglages.")) }
+                _state.update { it.copy(memory = it.memory.copy(asking = false, error = LLM_ABSENT_LINE)) }
                 return@launch
             }
-            val snapshot = _state.value
-            askWithContext(text, snapshot.lastJpegB64, snapshot.memory.focusSeconds)
+            askWithContext(text, jpeg, _state.value.memory.focusSeconds)
         }
     }
 
-    /** Envoi au LLM : journal global + fenêtre demandée, puis mise à jour de l'état. */
+    /** Envoi au LLM : image + journal (s'il y a des pistes), puis mise à jour de l'état. */
     private suspend fun askWithContext(question: String, jpegB64: String, focusSeconds: Int) {
         val now = System.currentTimeMillis()
         val global = timeline.recent(now, MEMORY_WINDOW_MS)
         val window = focusWindow(now, focusSeconds)
         val focus = timeline.summary(window.first, window.last)
-        val context = TimelineText.context(global, focus, focusLabel(focusSeconds))
+        val context = timelineContextOrNull(global, focus, focusLabel(focusSeconds))
         val useCase = AskUseCase(llm(settings))
         useCase.invoke(jpegB64, question, history, context).fold(
             onSuccess = { answer ->
@@ -427,3 +454,23 @@ const val SAM_ABSENT_LINE = "Détecteur SAM non configuré — questions sur l'i
 /** Direct sans détecteur joignable : même repli, avec la raison exacte. */
 fun samUnreachableLine(reason: String): String =
     "Détecteur SAM injoignable ($reason) — questions sur l'image seule"
+
+/** Aucune clé LLM : rien ne peut fonctionner, ni la vision ni les questions. */
+const val LLM_ABSENT_LINE = "Clé LLM absente — renseigne-la dans Réglages"
+
+/** Question posée avant la première frame gardée : on le dit clairement, sans bloquer. */
+const val NO_FRAME_LINE = "Aucune image pour l'instant — recadre et réessaie dans une seconde"
+
+/**
+ * Contexte du journal pour le LLM, `null` s'il n'y a **aucune piste** : mieux vaut
+ * pas de contexte du tout que « rien de visible » alors que l'image est fournie.
+ * Fonction pure, testée en JVM.
+ */
+fun timelineContextOrNull(
+    global: TimelineSummary,
+    focus: TimelineSummary?,
+    label: String?,
+): String? {
+    if (global.empty && (focus == null || focus.empty)) return null
+    return TimelineText.context(global, focus, label)
+}

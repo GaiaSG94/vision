@@ -32,6 +32,12 @@ data class Settings(
     /** Distances affichées sur le direct (hauteurs connues + sténopé, sans GPU). */
     val distanceOverlayEnabled: Boolean = true,
     /**
+     * Direct en vision LLM seule par défaut : l'image part directement au LLM, sans GPU
+     * (aucun appel à `/live`, aucun réveil du conteneur). `true` = masques, objets,
+     * distances et journal SAM en plus de la vision.
+     */
+    val liveSamEnabled: Boolean = false,
+    /**
      * Champ de vision horizontal imposé à la caméra, en degrés : 0 = lu sur le
      * capteur. Sert quand le driver ne répond pas, ou pour affiner l'étalonnage.
      */
@@ -76,6 +82,7 @@ data class Settings(
             introEnabled = true,
             introPlayed = false,
             distanceOverlayEnabled = true,
+            liveSamEnabled = false,
             cameraFovDeg = 0f,
             maxObjects = ObjectLimits.DEFAULT_ON_SCREEN,
         )

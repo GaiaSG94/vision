@@ -34,6 +34,8 @@ data class LiveUiState(
     val objectsCount: Int = 0,
     val error: String? = null,
     val lastJpegB64: String = "",
+    /** Détecteur SAM actif : `false` = vision LLM seule (l'image part directement au LLM). */
+    val samEnabled: Boolean = false,
     val prompts: List<String> = emptyList(),
     val memory: LiveMemoryState = LiveMemoryState(),
     val distanceLayer: DistanceLayer? = null,

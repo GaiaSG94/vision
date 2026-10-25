@@ -54,6 +54,7 @@ internal object SettingsCodec {
     private const val K_INTRO_ENABLED = "introEnabled"
     private const val K_INTRO_PLAYED = "introPlayed"
     private const val K_DISTANCE_OVERLAY = "distanceOverlayEnabled"
+    private const val K_LIVE_SAM = "liveSamEnabled"
     private const val K_CAMERA_FOV = "cameraFovDeg"
     private const val K_MAX_OBJECTS = "maxObjects"
 
@@ -72,6 +73,7 @@ internal object SettingsCodec {
         appendLine("$K_INTRO_ENABLED=${s.introEnabled}")
         appendLine("$K_INTRO_PLAYED=${s.introPlayed}")
         appendLine("$K_DISTANCE_OVERLAY=${s.distanceOverlayEnabled}")
+        appendLine("$K_LIVE_SAM=${s.liveSamEnabled}")
         appendLine("$K_CAMERA_FOV=${s.cameraFovDeg}")
         appendLine("$K_MAX_OBJECTS=${s.objectsOnScreen}")
     }
@@ -99,6 +101,7 @@ internal object SettingsCodec {
             introPlayed = values[K_INTRO_PLAYED]?.toBooleanStrictOrNull() ?: default.introPlayed,
             distanceOverlayEnabled = values[K_DISTANCE_OVERLAY]?.toBooleanStrictOrNull()
                 ?: default.distanceOverlayEnabled,
+            liveSamEnabled = values[K_LIVE_SAM]?.toBooleanStrictOrNull() ?: default.liveSamEnabled,
             cameraFovDeg = values[K_CAMERA_FOV]?.toFloatOrNull()?.takeIf { it > 0f }
                 ?: default.cameraFovDeg,
             maxObjects = ObjectLimits.clamp(

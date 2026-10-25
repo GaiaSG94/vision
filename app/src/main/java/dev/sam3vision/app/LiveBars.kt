@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sam3vision.core.distance.DistanceText
 
-/** Bandeau du haut : retour, réglages, ligne d'état du direct, erreurs. */
+/** Bandeau du haut : retour, réglages, mode de vision, ligne d'état du direct, erreurs. */
 @Composable
 fun LiveTopBar(
     state: LiveUiState,
@@ -32,12 +32,14 @@ fun LiveTopBar(
     failure: String?,
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
+    onToggleSam: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().statusBarsPadding().padding(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Chip("Arrêter", AppColors.danger, onBack)
             Chip("Réglages", AppColors.surfaceHigh, onOpenSettings)
+            SamModeChip(state.samEnabled, onToggleSam)
         }
         Text(
             state.statusLine,
@@ -64,6 +66,16 @@ fun LiveTopBar(
         PromptRow(draft, onDraftChange, onApply)
         (failure ?: state.error)?.let { StatusBanner(it, AppColors.danger) }
     }
+}
+
+/**
+ * Pastille du mode du direct : « Vision » = l'image part directement au LLM (sans GPU),
+ * « SAM » = masques, objets, distances et journal. La pastille entière bascule le mode.
+ */
+@Composable
+fun SamModeChip(samEnabled: Boolean, onToggle: () -> Unit) {
+    val label = if (samEnabled) "SAM" else "Vision"
+    Chip(label, if (samEnabled) AppColors.success else AppColors.primary, onToggle)
 }
 
 /**

@@ -89,6 +89,7 @@ fun LiveScreen(
         onAskMemory = viewModel::askMemory,
         onVoiceStart = viewModel::startVoice,
         onVoiceStop = viewModel::stopVoice,
+        onToggleSam = viewModel::toggleSam,
     )
 }
 
@@ -167,6 +168,7 @@ private fun LiveStage(
     onAskMemory: (String) -> Unit,
     onVoiceStart: () -> Unit,
     onVoiceStop: () -> Unit,
+    onToggleSam: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
@@ -182,6 +184,7 @@ private fun LiveStage(
             failure = failure,
             onBack = onBack,
             onOpenSettings = onOpenSettings,
+            onToggleSam = onToggleSam,
             modifier = Modifier.align(Alignment.TopCenter),
         )
         LiveFooter(
