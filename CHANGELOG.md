@@ -1,5 +1,66 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (10) — tout dans une seule app : masques, distances et voix dans la fenêtre caméra
+
+- **Fusion** de `origin/master` (lunettes Ray-Ban Meta, mode US, narration, chat iHear) avec la
+  branche `feat/ihear-rec-distances` (masques SAM, distances, voix, latence).
+- **Fenêtre caméra flottante** : l'aperçu passe dans `CameraSurface` (aperçu + masques dans la
+  même surface native, sinon les masques passent derrière), les pastilles « ≈ 1,2 m » sont
+  composées après (donc au-dessus), et le panneau de debug passe en mode dense (9 sp, sans
+  endpoint) pour tenir dans la demi-fenêtre : cadence, latence, objets, plus proche, p95,
+  frames/masques, concepts, distances, phrase dite, erreur.
+- **Voix** : `ProximityVoice` dit une fois chaque nouvelle phrase de `LiveProbe` pendant le
+  REC — jamais par-dessus la réponse du chat, jamais sans clé ElevenLabs.
+- **Réglages** : endpoint SAM résolu par `resolveSamEndpoint` (saisie manuelle > région EU/US >
+  URL du build), bascule « Annoncer les objets et leur distance », bascule « Distances »,
+  champ de vision caméra.
+- Tests : **427 JVM verts**, `assembleDebug` et `check-kotlin-limits` OK.
+
+## 2026-10-25 (4) — la page caméra montre les masques SAM et les stats de debug
+
+- **Ce qui manquait** : l'accueil iHear (le parcours principal) filmait sans rien montrer de
+  SAM — ni masque, ni chiffre. Un tap démarrait un MP4, le second l'archivait, point.
+- **Masques en direct** : pendant l'enregistrement, chaque frame (512 px, q65) part à `/live`
+  une à la fois (`LiveSession`, cadence adaptative) et revient en masques colorisés,
+  superposés à l'aperçu au cadrage de la `PreviewView` (`MaskOverlayStack`, partagé avec le
+  Direct). Hors enregistrement, aucune frame ne part : le GPU n'est pas réveillé pour regarder
+  l'écran.
+- **Stats de debug** (`LiveDebugPanel`) : « SAM · 1,4 ips · 640 ms · 8 objets · A100-40GB »,
+  puis endpoint, taille de frame, latence moyenne + p95 + durée serveur, frames et masques
+  analysés, concepts reconnus, dernière erreur.
+- **`LiveProbe`** (`app/…/ihear/LiveProbe.kt`) : la brique qui relie caméra, `/live` et
+  masques. Endpoint = `samBaseUrl` des Réglages, sinon `SAM_BASE_URL` du build ; nom du GPU
+  lu une fois via `/health`.
+- **Bug des masques invisibles** (Direct compris) : un `AndroidView` est une vraie `View`,
+  dessinée par le `ViewGroup` **après** le canevas Compose — les masques composés au-dessus
+  de l'aperçu passaient *derrière* lui. Symptôme : « 6 objets » côté backend, rien à l'écran.
+  `CameraSurface` (`app/…/CameraSurface.kt`) met la `PreviewView` et la couche de masques dans
+  le même `FrameLayout` (fusion `CENTER_CROP`, même cadrage que l'aperçu) ; utilisé par la page
+  caméra d'iHear **et** par le Direct.
+- Panneau de debug : en haut de l'écran (il cachait la scène), lignes coupées à une ligne,
+  et « réveil du GPU en cours… » au lieu d'un échec sec quand le conteneur Modal dort.
+- Tests : +9 `app` (`LiveProbeTextTest`) → **348 JVM verts**, `assembleDebug` et
+  `check-kotlin-limits` verts. Détail : `docs/MASQUES-DEBUG.md`.
+## 2026-10-25 (9) — page caméra iHear : distances affichées et dites pendant le REC
+
+- **Pastilles de distance** sur l'aperçu de la page caméra (`LiveDistanceLayer`, composé
+  après l'`AndroidView` : au-dessus de l'aperçu, jamais derrière) et **distance du plus
+  proche** dans la ligne d'état : `SAM · 1,5 ips · 622 ms · 7 objets · plus proche ≈ 1,1 m`.
+- **Voix** : la phrase `PositionText` (objets + distances) est dite par ElevenLabs pendant
+  l'enregistrement, une fois par scène, jamais par-dessus la réponse du chat.
+- **`LiveProbe`** porte la mesure (`DistanceMeter` + `LensSpec.fromSettings`) et l'annonce
+  (`PositionAnnouncer`), comme le Direct : même brique, aucun appel réseau en plus.
+- **Panneau de debug inchangé** (latence moyenne/p95/serveur, frames, masques) et enrichi :
+  ligne `distances : …` et `dit : …`.
+- **Pastilles qui se chevauchaient** (`spreadLabels`) : deux objets voisins posaient deux
+  étiquettes au même endroit (« ≈ 2,6 m » caché par « ≈ 2,5 m ») ; la seconde glisse vers le
+  bas. Fonction pure, testée.
+- **404 Modal « invalid function call »** : message actionnable (« backend arrêté (404) —
+  relance-le : sam3-gpu on ») au lieu d'« erreur HTTP 404 ».
+- Tests : +5 JVM (`LiveProbeTextTest` ×4 et `LensSpec.fromSettings`) → **362 verts**
+  (292 core + 70 app). `assembleDebug` et `check-kotlin-limits` verts.
+
+## 2026-10-25 (5) — la voix dit les distances (« Personne à gauche, à 1,4 mètre »)
 ## 2026-10-25 (9) — iHear : une pastille de distance par objet sur la photo
 
 - **Le manque** : les distances n'existaient que sur l'écran Direct ; l'accueil iHear
@@ -137,24 +198,6 @@
   démarre pendant que l'on cadre, au lieu d'attendre le tap sur « Direct (vidéo) ».
 - **Un seul réveil par fenêtre de 2 min** (`shouldPrewarm`, pur et testé) : pas de carte
   rallumée à chaque navigation, et le tap garde son propre réveil patient (`wakeGpu`).
-
-## 2026-10-25 (4) — la voix dit les distances (« Personne à gauche, à 1,4 mètre »)
-
-- **Annonce vocale des distances** : `PositionText.item` ajoute la distance à l'objet et
-  `DistanceText.spoken` la met en mots français (« 85 centimètres », « 1,4 mètre »,
-  « 12 mètres »). Phrase : `Personne à gauche, à 1,4 mètre ; chien au centre, à 3 mètres.`
-  — point-virgule entre objets dès qu'une distance est connue (la virgule sépare déjà
-  position et distance), forme d'origine quand aucune distance n'est mesurée.
-- **Rien de dupliqué** : c'est l'annonce de positions existante (`PositionAnnouncer` :
-  stabilité 2 frames, non-répétition, 4 s entre deux phrases) qui porte la distance ;
-  `LiveViewModel` rapproche chaque lecture de sa boîte, sans indexation fragile.
-- **La distance arrondie au mètre entre dans la signature de scène**
-  (`PositionText.key`) : un objet qui s'approche est ré-annoncé (3 m → 2 m → 1 m), une
-  scène immobile reste muette. Bascule des Réglages renommée « Annoncer les objets et
-  leur distance » (active par défaut, il faut une clé ElevenLabs).
-- Tests : 343 JVM verts (dont `DistanceText.spoken`, phrase à distances, signature au
-  mètre près, et un scénario d'approche dans `PositionAnnouncerTest`). Détail :
-  `docs/DISTANCES.md`.
 
 ## 2026-10-25 (3) — distances : pastilles toujours visibles (bords et bandeau du haut)
 

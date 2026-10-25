@@ -1,5 +1,6 @@
 package dev.sam3vision.app
 
+import dev.sam3vision.core.live.Cadence
 import dev.sam3vision.core.live.LiveSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,8 +33,8 @@ class LiveStateTest {
 
     @Test
     fun `cadence par defaut sans session`() {
-        assertEquals(LiveSession.TARGET_MS, nextIntervalMs(null))
-        assertEquals(500L, LiveSession.TARGET_MS)
+        assertEquals(Cadence.Direct.targetMs, nextIntervalMs(null))
+        assertEquals(500L, Cadence.Direct.targetMs)
     }
 
     @Test

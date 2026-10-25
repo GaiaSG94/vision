@@ -5,6 +5,49 @@ import dev.sam3vision.core.model.ObjectLimits
 import dev.sam3vision.core.net.LiveClient
 
 /**
+ * Cadence d'envoi des frames : trois paliers déduits de la latence moyenne.
+ *
+ * - [slowMs] : le backend est lent (> [slowMs]), on espace les frames ;
+ * - [fastMs] : plancher, on n'envoie pas plus souvent ;
+ * - [targetMs] : entre les deux.
+ *
+ * Le Direct garde la cadence prudente (350/500/900 ms) ; la page caméra d'iHear
+ * part sur [Cadence.Fast] (100 ms) : le GPU répond en ~115 ms, la limite réelle est
+ * alors l'aller-retour réseau, pas la carte.
+ */
+data class Cadence(
+    val fastMs: Long,
+    val targetMs: Long,
+    val slowMs: Long,
+    /** Requêtes acceptées en même temps (1 = goutte-à-goutte historique). */
+    val concurrency: Int = 1,
+    /**
+     * Latence à ne pas dépasser (ms). Au-delà, on referme les créneaux : mieux vaut
+     * 5 ips fraîches que 6 ips en retard de 350 ms. 0 = pas de budget (Direct).
+     */
+    val latencyBudgetMs: Long = 0,
+) {
+    companion object {
+        /** Direct : prudent, une frame toutes les 350 ms au mieux. */
+        val Direct = Cadence(fastMs = 350L, targetMs = 500L, slowMs = 900L)
+
+        /**
+         * iHear : pas de plancher artificiel (on repart dès qu'un créneau se libère),
+         * deux créneaux possibles, mais **budget de 200 ms** : si le backend sérialise
+         * les requêtes (mesuré : 115 ms de GPU, 344 ms de latence à deux en vol), le
+         * régulateur referme à un créneau et la latence retombe vers 160-180 ms.
+         */
+        val Fast = Cadence(
+            fastMs = 0L,
+            targetMs = 0L,
+            slowMs = 900L,
+            concurrency = 2,
+            latencyBudgetMs = 200L,
+        )
+    }
+}
+
+/**
  * Orchestration du direct : frame → [FrameGate] → [LiveClient.live] → statistiques.
  * Une frame en vol maximum : si le créneau est pris, [runFrame] renvoie `null`
  * (frame jetée) — l'appelant caméra n'est jamais mis en attente ni bloqué.
@@ -14,16 +57,43 @@ import dev.sam3vision.core.net.LiveClient
  */
 class LiveSession(
     private val client: LiveClient,
-    private val gate: FrameGate = FrameGate(),
+    gate: FrameGate? = null,
     val stats: LiveStats = LiveStats(),
     val serverStats: LiveStats = LiveStats(),
     val prompts: List<String> = LivePrompts.Default,
     private val workEdge: Int = DEFAULT_WORK_EDGE,
     private val maxObjects: Int = DEFAULT_MAX_OBJECTS,
+    private val cadence: Cadence = Cadence.Direct,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    /** Créneaux d'envoi : 1 par défaut, [Cadence.concurrency] pour la cadence rapide. */
+    private val gate: FrameGate = gate ?: FrameGate(cadence.concurrency)
+
     /** Une frame est-elle en train d'être traitée ? */
     val inFlight: Boolean get() = gate.inFlight
+
+    /** Tous les créneaux sont-ils pris ? (la frame suivante serait jetée) */
+    val saturated: Boolean get() = gate.freeSlots == 0
+
+    /** Nombre de requêtes acceptées en même temps, à cet instant. */
+    val slots: Int get() = gate.capacity
+
+    /**
+     * Régulateur de latence : referme à un créneau dès que la moyenne dépasse le budget,
+     * ne rouvre que si elle est **franchement** en dessous ([RELAX_RATIO]). L'hystérésis
+     * évite le va-et-vient : sans elle, on rouvrirait, la latence doublerait, on
+     * refermerait — en boucle.
+     */
+    fun regulate() {
+        val budget = cadence.latencyBudgetMs
+        if (budget <= 0L || cadence.concurrency <= 1) return
+        val average = stats.averageMs
+        if (average <= 0L) return
+        when {
+            average > budget -> gate.capacity = 1
+            average < budget * RELAX_RATIO -> gate.capacity = cadence.concurrency
+        }
+    }
 
     /**
      * Traite une frame si le créneau est libre, sinon renvoie `null` immédiatement.
@@ -37,6 +107,7 @@ class LiveSession(
             val result = client.live(jpegB64, LivePrompts.normalize(prompts), workEdge, maxObjects)
             result.getOrNull()?.let { frame -> serverStats.record(frame.elapsedMs) }
             stats.record(clock() - startedAt)
+            regulate()
             return result
         } finally {
             gate.finish()
@@ -45,12 +116,12 @@ class LiveSession(
 
     /**
      * Intervalle de capture conseillé d'après la latence moyenne :
-     * > 900 ms → 900 ms (on ralentit), < 350 ms → 350 ms (on accélère), sinon 500 ms.
+     * > [Cadence.slowMs] → on ralentit, < [Cadence.fastMs] → plancher, sinon la cible.
      */
     fun intervalMsAdaptive(): Long = when {
-        stats.averageMs > HIGH_MS -> HIGH_MS
-        stats.averageMs < LOW_MS -> LOW_MS
-        else -> TARGET_MS
+        stats.averageMs > cadence.slowMs -> cadence.slowMs
+        stats.averageMs < cadence.fastMs -> cadence.fastMs
+        else -> cadence.targetMs
     }
 
     /** Relâche le créneau (test / arrêt d'urgence) ; sans effet si rien en vol. */
@@ -61,11 +132,11 @@ class LiveSession(
     }
 
     companion object {
+        /** Marge de réouverture : on ne rouvre un créneau que sous la moitié du budget. */
+        const val RELAX_RATIO = 0.5
+
         const val DEFAULT_WORK_EDGE = 640
         /** Plafond d'objets affichés en direct (voir [ObjectLimits.MAX_ON_SCREEN]). */
         const val DEFAULT_MAX_OBJECTS = ObjectLimits.DEFAULT_ON_SCREEN
-        const val HIGH_MS = 900L
-        const val LOW_MS = 350L
-        const val TARGET_MS = 500L
     }
 }

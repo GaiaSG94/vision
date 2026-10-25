@@ -61,6 +61,14 @@ internal fun httpError(code: Int, body: String): ApiError = when (code) {
     401, 403 -> ApiError.InvalidKey(if (code == 403) "accès refusé (403)" else "clé invalide (401)")
     402 -> ApiError.PaymentRequired()
     429 -> ApiError.RateLimited()
+    // Modal répond 404 « modal-http: invalid function call » quand l'app n'est pas déployée
+    // (arrêtée) : message actionnable, et surtout pas de nouvelle tentative.
+    404 -> if (body.contains("invalid function call", ignoreCase = true)) {
+        ApiError.BackendStopped()
+    } else {
+        ApiError.Http(code, body)
+    }
+
     else -> ApiError.Http(code, body)
 }
 

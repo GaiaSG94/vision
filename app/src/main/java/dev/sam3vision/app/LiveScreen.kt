@@ -12,7 +12,6 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -32,9 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -136,19 +133,6 @@ private fun LiveCameraHost(
     }
 }
 
-/** Masques colorés de la frame, superposés à l'aperçu au cadrage identique (`Crop`). */
-@Composable
-private fun LiveMaskLayer(overlays: List<Bitmap>) {
-    overlays.forEach { overlay ->
-        Image(
-            bitmap = overlay.asImageBitmap(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
 /** Scène : aperçu, masques superposés, barre haute (état + concepts) et barre basse (question). */
 @Composable
 private fun LiveStage(
@@ -171,11 +155,7 @@ private fun LiveStage(
     onToggleSam: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-        LiveMaskLayer(state.overlays)
-        LiveDistanceLayer(state.distanceLayer)
-        // Direct arrêté ou en erreur : un tap relance. Jamais pendant que le flux tourne.
-        if (!state.running || state.error != null) RecoveryTap(onRecover)
+        LiveCameraStage(state, previewView, onRecover)
         LiveTopBar(
             state = state,
             draft = draft,
@@ -199,6 +179,23 @@ private fun LiveStage(
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
+}
+
+/**
+ * Aperçu, masques et pastilles de distance : les masques vivent dans la même surface
+ * native que l'aperçu (un `AndroidView` passe au-dessus du canevas Compose), les
+ * pastilles sont composées après, donc au-dessus. Un tap relance un flux arrêté.
+ */
+@Composable
+private fun LiveCameraStage(state: LiveUiState, previewView: PreviewView, onRecover: () -> Unit) {
+    AndroidView(
+        factory = { ctx -> CameraSurface(ctx, previewView) },
+        update = { surface -> surface.setMasks(state.overlays) },
+        modifier = Modifier.fillMaxSize(),
+    )
+    LiveDistanceLayer(state.distanceLayer)
+    // Direct arrêté ou en erreur : un tap relance. Jamais pendant que le flux tourne.
+    if (!state.running || state.error != null) RecoveryTap(onRecover)
 }
 
 /** Bas de l'écran : panneau mémoire (si ouvert) au-dessus de la barre d'actions. */

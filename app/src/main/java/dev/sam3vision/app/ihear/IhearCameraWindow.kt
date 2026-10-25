@@ -14,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -42,10 +43,14 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.collectAsState
+import dev.sam3vision.app.CameraSurface
 import dev.sam3vision.app.LiveDistanceLayer
 import dev.sam3vision.app.decodeScaledExact
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +71,15 @@ fun IhearCameraWindow(
     modifier: Modifier = Modifier,
 ) {
     val glue = rememberCameraGlue(viewModel)
+    val probe by viewModel.probe.state.collectAsState()
+    // Une seule PreviewView pour toute la vie de la fenêtre : `bind()` la réclame déjà créée.
+    val context = LocalContext.current
+    val preview = remember(glue.host) { glue.host.newPreviewView(context) }
+    LaunchedEffect(glue.host, viewModel) {
+        // SAM ne voit que l'enregistrement : hors REC, aucune frame n'est même convertie.
+        glue.host.wantsFrame = { viewModel.state.value.recordingVideo && viewModel.probe.wantsFrame() }
+        glue.host.onFrame = { jpeg -> if (viewModel.state.value.recordingVideo) viewModel.probe.onFrame(jpeg) }
+    }
     val shown = state.recordingVideo || state.photoPath != null
     val windowAlpha by animateFloatAsState(
         targetValue = if (shown) 1f else 0f,
@@ -90,9 +104,7 @@ fun IhearCameraWindow(
                 .clip(RoundedCornerShape(CAM_WINDOW_CORNER.dp))
                 .background(Color.Transparent),
         ) {
-            CameraWindowBody(state, glue.granted, glue.failure) {
-                AndroidView(factory = { glue.host.newPreviewView(it) }, modifier = Modifier.fillMaxSize())
-            }
+            CameraWindowBody(state, probe, glue.granted, glue.failure, preview)
         }
         RecordingDot(
             state.recordingVideo,
@@ -136,13 +148,24 @@ private fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
 @Composable
 private fun CameraWindowBody(
     state: IhearUiState,
+    probe: LiveProbeState,
     granted: Boolean,
     failure: String?,
-    preview: @Composable () -> Unit,
+    preview: PreviewView,
 ) {
     Box(Modifier.fillMaxSize().background(Color(0xFF14161B))) {
         if (granted) {
-            preview()
+            // Aperçu et masques dans la même surface native (sinon les masques passent
+            // derrière l'aperçu) ; les pastilles, composées après, restent au-dessus.
+            AndroidView(
+                factory = { ctx -> CameraSurface(ctx, preview) },
+                update = { surface -> surface.setMasks(probe.masks) },
+                modifier = Modifier.fillMaxSize(),
+            )
+            LiveDistanceLayer(probe.distanceLayer, topInset = WindowTopInset, modifier = Modifier.fillMaxSize())
+            LiveDebugPanel(probe, Modifier.align(Alignment.TopStart), dense = true)
+            // Sans masque, on dit pourquoi : sinon l'écran semble simplement ne rien voir.
+            liveProbeNotice(probe)?.let { notice -> ProbeNotice(notice) }
         } else {
             Column(Modifier.align(Alignment.Center).padding(12.dp)) {
                 Text("iHear needs the camera.", color = Color.White, fontSize = 12.sp)
@@ -165,6 +188,22 @@ private fun CameraWindowBody(
             )
         }
     }
+}
+
+/** Message central tant qu'aucun masque n'est là : réveil du GPU, backend arrêté, attente. */
+@Composable
+private fun BoxScope.ProbeNotice(text: String) {
+    Text(
+        text,
+        color = Color.White,
+        fontSize = 13.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .align(Alignment.Center)
+            .padding(horizontal = 12.dp)
+            .background(Color(0xCC1A1F26), RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+    )
 }
 
 /** Photo du double tap : flash court, puis la photo remplit la fenêtre jusqu'à évaporation. */
@@ -202,6 +241,9 @@ private fun RecordingDot(active: Boolean, modifier: Modifier = Modifier) {
             .background(Color.White, CircleShape),
     )
 }
+
+/** Pas de bandeau de boutons dans la fenêtre : les pastilles peuvent monter haut. */
+private val WindowTopInset: Dp = 0.dp
 
 /** Part de largeur / hauteur de l'écran occupée par la fenêtre (surface < moitié). */
 private const val CAM_WINDOW_WIDTH_SHARE = 0.44f

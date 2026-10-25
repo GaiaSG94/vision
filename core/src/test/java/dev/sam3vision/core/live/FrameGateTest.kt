@@ -34,4 +34,26 @@ class FrameGateTest {
         assertFalse(gate.inFlight)
         assertTrue(gate.tryStart())
     }
+
+    @Test
+    fun `deux creneaux acceptent deux frames puis rejettent la troisieme`() {
+        val gate = FrameGate(2)
+        assertEquals(2, gate.capacity)
+        assertEquals(2, gate.freeSlots)
+        assertTrue(gate.tryStart())
+        assertTrue(gate.tryStart())
+        assertFalse("3e frame doit etre jetee", gate.tryStart())
+        assertEquals(0, gate.freeSlots)
+        gate.finish()
+        assertEquals(1, gate.freeSlots)
+        assertTrue(gate.tryStart())
+    }
+
+    @Test
+    fun `finish ne descend jamais sous zero`() {
+        val gate = FrameGate(2)
+        gate.finish()
+        gate.finish()
+        assertEquals(2, gate.freeSlots)
+    }
 }

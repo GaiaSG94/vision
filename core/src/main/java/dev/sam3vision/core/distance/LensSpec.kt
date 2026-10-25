@@ -63,6 +63,14 @@ data class LensSpec(
             return LensSpec(deg, vertical)
         }
 
+        /**
+         * Calibrage des Réglages : le champ horizontal forcé par l'utilisateur prime
+         * (`cameraFovDeg > 0`), sinon le grand-angle de repli. Un seul endroit à changer
+         * pour les deux écrans qui mesurent des distances (Direct et page caméra iHear).
+         */
+        fun fromSettings(forcedFovDeg: Float): LensSpec =
+            if (forcedFovDeg in FOV_MIN..FOV_MAX) fromHorizontalFov(forcedFovDeg) else Default
+
         /** Calibrage à partir d'une focale (mm) et d'un capteur (mm), `null` si incohérent. */
         fun fromSensor(focalMm: Float, sensorWidthMm: Float, sensorHeightMm: Float): LensSpec? {
             if (focalMm <= 0f || sensorWidthMm <= 0f || sensorHeightMm <= 0f) return null

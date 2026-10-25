@@ -1,14 +1,22 @@
 package dev.sam3vision.app.ihear
 
 import android.content.Context
+import android.util.Size
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.findViewTreeLifecycleOwner
+import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.lensSpecOf
+import dev.sam3vision.app.rotateBitmap
+import dev.sam3vision.app.scaleToEdge
 import dev.sam3vision.core.distance.LensSpec
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -19,10 +27,27 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
+ * Côté long de la frame envoyée à SAM par la page caméra (px).
+ *
+ * Le Direct envoie du 512 px : inutile ici. Le coût **serveur** ne bouge pas (mesuré :
+ * 115-122 ms de 384 à 768 px, l'inférence domine), mais l'encodage JPEG du téléphone
+ * et l'upload, eux, sont proportionnels : à 448 px on gagne ~20-30 ms par frame, ce
+ * qui est exactement la marge nécessaire pour rester sous 200 ms de latence.
+ */
+const val IHEAR_FRAME_EDGE = 448
+
+/** Qualité JPEG de la frame iHear : 55 suffit très bien à SAM, et allège l'upload. */
+const val IHEAR_FRAME_QUALITY = 55
+
+/**
  * Le vrai pilote CameraX d'iHear, derrière la fenêtre flottante : aperçu + `ImageCapture`
- * + `VideoCapture<Recorder>` tous liés en même temps, et l'implémentation
- * [IhearCameraActions] qu'appelle [IhearViewModel]. Vidéo sans piste micro (le
- * dictaphone reste libre, comme le mode tap).
+ * + `VideoCapture<Recorder>` + analyse de frames, tous liés en même temps, et
+ * l'implémentation [IhearCameraActions] qu'appelle [IhearViewModel]. Vidéo sans piste
+ * micro (le dictaphone reste libre, comme le mode tap).
+ *
+ * L'analyseur ne sert qu'à SAM : [onFrame] est branché par la fenêtre, et l'appelant
+ * décide quand envoyer (pendant l'enregistrement seulement — sinon le GPU se
+ * réveillerait pour rien).
  */
 class IhearCameraHost(private val context: Context) {
 
@@ -48,6 +73,15 @@ class IhearCameraHost(private val context: Context) {
 
     private var boundPreview: PreviewView? = null
 
+    /** Frame convertie (JPEG base64, 448 px) : branchée par la fenêtre, consommée par SAM. */
+    var onFrame: ((String) -> Unit)? = null
+
+    /**
+     * Appelé **avant** la conversion : `false` = la frame ne servirait à rien (une
+     * requête est déjà en vol), on économise le redimensionnement et le JPEG.
+     */
+    var wantsFrame: (() -> Boolean)? = null
+
     /** Caméra liée : sa caractéristique optique sert de calibrage aux distances. */
     private var boundCamera: androidx.camera.core.Camera? = null
 
@@ -65,6 +99,7 @@ class IhearCameraHost(private val context: Context) {
         val owner = view.findViewTreeLifecycleOwner() ?: return "Lifecycle unavailable"
         val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
         val image = ImageCapture.Builder().build()
+        val analysis = newAnalysis()
         val video = androidx.camera.video.VideoCapture.withOutput(
             androidx.camera.video.Recorder.Builder()
                 .setQualitySelector(
@@ -80,11 +115,41 @@ class IhearCameraHost(private val context: Context) {
                 preview,
                 image,
                 video,
+                analysis,
             )
             imageCapture = image
             videoCapture = video
             null
         }.getOrElse { "Camera binding failed: ${it.message}" }
+    }
+
+    /** Analyseur de frames 512 px, une frame à la fois (les anciennes sont jetées). */
+    private fun newAnalysis(): ImageAnalysis = ImageAnalysis.Builder()
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .setResolutionSelector(
+            ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        Size(IHEAR_FRAME_EDGE, IHEAR_FRAME_EDGE),
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                    ),
+                )
+                .build(),
+        )
+        .build()
+        .also { it.setAnalyzer(executor, ::analyse) }
+
+    /** ImageProxy → bitmap redressé → JPEG base64 ; la frame est fermée quoi qu'il arrive. */
+    private fun analyse(proxy: ImageProxy) {
+        try {
+            if (wantsFrame?.invoke() == false) return
+            val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
+            onFrame?.invoke(bitmapToJpegBase64(scaleToEdge(rotated, IHEAR_FRAME_EDGE), IHEAR_FRAME_QUALITY))
+        } catch (_: Throwable) {
+            // frame illisible : la suivante arrive tout de suite
+        } finally {
+            proxy.close()
+        }
     }
 
     /** Démarre l'enregistrement du MP4 dans [file] ; `false` si non prêt ou déjà lancé. */

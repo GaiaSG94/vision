@@ -2,6 +2,7 @@ package dev.sam3vision.app
 
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.DistanceText
+import dev.sam3vision.core.live.Cadence
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.model.SeenTrack
 import dev.sam3vision.core.settings.Settings
@@ -118,7 +119,7 @@ fun shouldKeepFrame(nowMs: Long, lastKeepAtMs: Long, intervalMs: Long = FRAME_KE
     lastKeepAtMs <= 0L || nowMs - lastKeepAtMs >= intervalMs
 
 /** Cadence du prochain tick, bornée par les constantes de [LiveSession]. */
-fun nextIntervalMs(session: LiveSession?): Long = session?.intervalMsAdaptive() ?: LiveSession.TARGET_MS
+fun nextIntervalMs(session: LiveSession?): Long = session?.intervalMsAdaptive() ?: Cadence.Direct.targetMs
 
 /** Endpoint du direct : saisie manuelle, sinon région des Réglages (EU/US), sinon build. */
 fun Settings.liveBaseUrl(): String = samEndpoint()

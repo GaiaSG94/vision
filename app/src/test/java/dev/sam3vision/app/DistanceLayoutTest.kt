@@ -114,6 +114,26 @@ class DistanceLayoutTest {
     }
 
     @Test
+    fun `deux pastilles au meme endroit sont decalees vers le bas`() {
+        val labels = listOf(
+            ScreenLabel("≈ 2,6 m", x = 300f, y = 900f, colorIndex = 0),
+            ScreenLabel("≈ 2,5 m", x = 320f, y = 906f, colorIndex = 1),
+        )
+        val spread = spreadLabels(labels)
+        assertEquals(900f, spread[0].y, 0.01f)
+        assertEquals(906f + PILL_MIN_Y_GAP, spread[1].y, 0.01f)
+    }
+
+    @Test
+    fun `des pastilles eloignees ne bougent pas`() {
+        val labels = listOf(
+            ScreenLabel("≈ 1,2 m", x = 200f, y = 400f, colorIndex = 0),
+            ScreenLabel("≈ 3,0 m", x = 900f, y = 410f, colorIndex = 1),
+        )
+        assertEquals(labels, spreadLabels(labels))
+    }
+
+    @Test
     fun `pastille prefixee du concept pour les hotes sans masque`() {
         val lecture = reading("personne", 3.2f, listOf(100f, 100f, 160f, 300f))
         assertEquals("≈ 3,2 m", labelText(lecture, withLabel = false))

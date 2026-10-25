@@ -7,13 +7,17 @@ package dev.sam3vision.core.live
 object LivePrompts {
 
     /**
-     * Concepts par défaut : **deux seulement**, les plus utiles au guidage (une personne,
-     * une issue). Mesuré sur `/live` (A100 eu-west, frame 512 px, 4 objets max) :
-     * 2 concepts = 138-140 ms serveur et 6,3 Ko de réponse, 8 concepts = 161-163 ms et
-     * 8,3 Ko. Le DETR est batché, donc chaque concept en plus coûte ~4 ms et un masque
-     * de plus à télécharger. Modifiable à chaud dans le direct (champ « Suivre »).
+     * Concepts par défaut : **huit**, les plus utiles au guidage à l'intérieur,
+     * modifiables à chaud dans le direct (champ « Suivre »).
+     *
+     * Une version antérieure les avait réduits à deux (« person », « door ») parce que
+     * chaque concept semblait coûter ~4 ms de serveur. Ce n'est plus vrai : l'app
+     * déployée batche les prompts (`/health` → `levers.batch_prompts = true`) et
+     * **mesure du 2026-10-25 sur `/live` (5 tirs par point, même image, 4 objets max) :
+     * 2 concepts = 118 ms médian, 8 concepts = 118 ms médian**. Huit concepts sont
+     * gratuits : autant tout suivre.
      */
-    val Default: List<String> = listOf("person", "door")
+    val Default: List<String> = listOf("person", "chair", "table", "laptop", "bottle", "cup", "bag", "door")
 
     /** Nombre maximal de prompts envoyés par frame. */
     const val MAX = 8

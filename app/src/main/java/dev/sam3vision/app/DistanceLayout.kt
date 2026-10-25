@@ -2,6 +2,7 @@ package dev.sam3vision.app
 
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.DistanceText
+import kotlin.math.abs
 
 /**
  * Cadrage `ContentScale.Crop` : une seule échelle, puis un décalage de centrage.
@@ -87,7 +88,7 @@ fun screenLabels(
     layer: DistanceLayer,
     transform: CropTransform,
     withLabel: Boolean = false,
-): List<ScreenLabel> =
+): List<ScreenLabel> = spreadLabels(
     layer.readings.mapIndexedNotNull { index, reading ->
         if (reading.box.size < 4) return@mapIndexedNotNull null
         val centerX = (reading.box[0] + reading.box[2]) / 2f
@@ -97,7 +98,36 @@ fun screenLabels(
             y = transform.screenY(reading.box[1]),
             colorIndex = index,
         )
+    },
+)
+
+/** Écart horizontal (px écran) en deçà duquel deux pastilles se chevauchent. */
+const val PILL_MIN_X_GAP = 150f
+
+/** Hauteur de décalage (px écran) quand une pastille en cache une autre. */
+const val PILL_MIN_Y_GAP = 76f
+
+/**
+ * Deux objets voisins donnaient deux pastilles posées au même endroit : la seconde
+ * était illisible. On décale vers le bas celles qui tombent dans la zone d'une
+ * pastille déjà posée — l'ordre des masques est conservé, la couleur suit l'objet.
+ * Fonction pure, testée en JVM.
+ */
+fun spreadLabels(labels: List<ScreenLabel>): List<ScreenLabel> {
+    val placed = ArrayList<ScreenLabel>(labels.size)
+    for (label in labels) {
+        var y = label.y
+        var guard = 0
+        while (guard++ < labels.size && placed.any { collides(it, label.x, y) }) y += PILL_MIN_Y_GAP
+        placed += label.copy(y = y)
     }
+    return placed
+}
+
+/** Vrai si une pastille de [otherX]/[y] tombe dans la zone déjà occupée par [placed]. */
+private fun collides(placed: ScreenLabel, otherX: Float, y: Float): Boolean =
+    abs(placed.x - otherX) < PILL_MIN_X_GAP && abs(placed.y - y) < PILL_MIN_Y_GAP
+
 
 /** Texte d'une pastille : la distance seule, ou le concept borné puis la distance. */
 fun labelText(reading: DistanceReading, withLabel: Boolean): String {

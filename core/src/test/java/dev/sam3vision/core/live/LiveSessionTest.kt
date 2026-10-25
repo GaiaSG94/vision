@@ -121,6 +121,20 @@ class LiveSessionTest {
     }
 
     @Test
+    fun `la cadence rapide n'impose plus de plancher, elle repart des qu'un creneau se libere`() {
+        val fast = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        fast.stats.record(220L)
+        assertEquals(0L, fast.intervalMsAdaptive())
+    }
+
+    @Test
+    fun `la cadence rapide ralentit quand le backend rame`() {
+        val fast = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        fast.stats.record(1_200L)
+        assertEquals(900L, fast.intervalMsAdaptive())
+    }
+
+    @Test
     fun `le direct plafonne a 4 objets par defaut`() = runBlocking {
         val client = FakeLiveClient()
         LiveSession(client).runFrame("QQ==")
@@ -143,5 +157,59 @@ class LiveSessionTest {
         assertEquals(0, session.stats.samples)
         assertEquals(0, session.serverStats.samples)
         assertFalse(session.inFlight)
+    }
+
+    @Test
+    fun `la cadence rapide ouvre deux creneaux d'envoi`() = runBlocking {
+        val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        assertEquals(2, session.slots)
+        assertFalse(session.saturated)
+    }
+
+    @Test
+    fun `une session de direct garde un seul creneau`() {
+        assertEquals(1, LiveSession(FakeLiveClient()).slots)
+    }
+
+    @Test
+    fun `le regulateur referme a un creneau au-dela du budget de latence`() {
+        val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        assertEquals(2, session.slots)
+        session.stats.record(344L)
+        session.regulate()
+        assertEquals(1, session.slots)
+    }
+
+    @Test
+    fun `le regulateur ne rouvre que sous la moitie du budget`() {
+        val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        session.stats.record(344L)
+        session.regulate()
+        assertEquals(1, session.slots)
+        // 180 ms : sous le budget mais pas sous la moitié -> on reste à un créneau
+        session.stats.reset()
+        session.stats.record(180L)
+        session.regulate()
+        assertEquals(1, session.slots)
+        // 80 ms : le backend respire, on rouvre
+        session.stats.reset()
+        session.stats.record(80L)
+        session.regulate()
+        assertEquals(2, session.slots)
+    }
+
+    @Test
+    fun `le Direct n_a pas de budget de latence donc garde un creneau`() {
+        val session = LiveSession(FakeLiveClient())
+        session.stats.record(50L)
+        session.regulate()
+        assertEquals(1, session.slots)
+    }
+
+    @Test
+    fun `la cadence rapide ne pose plus de plancher artificiel`() {
+        val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        session.stats.record(161L)
+        assertEquals(0L, session.intervalMsAdaptive())
     }
 }

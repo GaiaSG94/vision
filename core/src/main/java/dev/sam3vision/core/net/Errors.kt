@@ -27,6 +27,15 @@ sealed class ApiError(message: String, cause: Throwable? = null) : Exception(mes
         cause: Throwable? = null,
     ) : ApiError(message, cause)
 
+    /**
+     * 404 « invalid function call » renvoyé par le proxy Modal : l'app **n'est plus déployée**
+     * (quelqu'un l'a arrêtée), ce n'est pas une route manquante. Inutile de réessayer :
+     * il faut la redéployer. Le message parle à l'utilisateur du téléphone, pas à un shell.
+     */
+    class BackendStopped(
+        message: String = "GPU SAM éteint — demande à b de l'allumer",
+    ) : ApiError(message)
+
     class Http(val code: Int, val body: String) :
         ApiError("erreur HTTP $code" + if (body.isBlank()) "" else " : ${body.take(160)}")
 

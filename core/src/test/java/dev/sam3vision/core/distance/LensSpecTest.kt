@@ -58,4 +58,11 @@ class LensSpecTest {
         assertTrue(lens.sensorLandscape)
         assertEquals(null, LensSpec.fromSensor(0f, 5.76f, 4.32f))
     }
+
+    @Test
+    fun `calibrage des Reglages, champ force sinon repli`() {
+        assertEquals(90f, LensSpec.fromSettings(90f).horizontalFovDeg, 0.01f)
+        assertEquals(LensSpec.Default, LensSpec.fromSettings(0f))
+        assertEquals(LensSpec.Default, LensSpec.fromSettings(150f))
+    }
 }

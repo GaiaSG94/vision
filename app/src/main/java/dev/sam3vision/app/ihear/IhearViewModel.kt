@@ -8,6 +8,7 @@ import dev.sam3vision.app.IntroAudio
 import dev.sam3vision.app.SpeechPlayer
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.decodeScaledExact
+import dev.sam3vision.app.speechClient
 import dev.sam3vision.app.isIntroDisablePhrase
 import dev.sam3vision.app.seededFromBuild
 import dev.sam3vision.app.media.CacheCleanerManager
@@ -17,12 +18,8 @@ import dev.sam3vision.app.media.MediaDatabase
 import dev.sam3vision.app.media.MessageMultimedia
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Role
-import dev.sam3vision.core.net.ElevenLabsSttClient
 import dev.sam3vision.core.net.ElevenLabsTtsClient
-import dev.sam3vision.core.net.FallbackSpeechClient
 import dev.sam3vision.core.net.InferHubLlmClient
-import dev.sam3vision.core.net.MetaAsrClient
-import dev.sam3vision.core.net.SpeechClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
@@ -70,6 +67,12 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(IhearUiState())
     val state: StateFlow<IhearUiState> = _state
 
+    /** SAM pendant l'enregistrement : masques, distances, latence et phrase à dire. */
+    val probe = LiveProbe(viewModelScope)
+
+    /** Voix de proximité : dit les objets et leur distance une fois par scène. */
+    private val proximity = ProximityVoice(player) { settings }
+
     /** Vrai quand l'écran iHear est à l'écran : les gestes ne touchent que lui. */
     @Volatile
     var active: Boolean = false
@@ -88,9 +91,11 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     init {
         viewModelScope.launch {
             settings = seededFromBuild(prefs.load())
+            syncProbe()
             refreshHistory()
             playIntroIfPending()
         }
+        probe.observeSpoken(viewModelScope, proximity) { playerIdle() }
     }
 
     override fun onCleared() {
@@ -110,8 +115,12 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     /** Réglages enregistrés depuis l'écran Settings : rechargement brûlant. */
     fun refreshSettings() = viewModelScope.launch {
         settings = seededFromBuild(prefs.load())
+        syncProbe()
         refreshHistory()
     }
+
+    /** Les Réglages pilotent la sonde SAM (endpoint, voix, focale, distances). */
+    private fun syncProbe() = probe.configureFrom(settings)
 
     /** Historique Room reconstruit en bulles (après chaque écriture et chaque purge). */
     private suspend fun refreshHistory() {
@@ -274,7 +283,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun transcribeAndAnswer() {
         if (!playerIdle()) return
         _state.update { it.copy(transcribing = true) }
-        val client = speechClient()
+        val client = speechClient(settings)
         val outcome = when {
             client == null -> Result.failure(IllegalStateException("No dictation engine configured (Settings)"))
             else -> mic.stop(client)
@@ -399,6 +408,8 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(status = "Camera not ready — try again") }
             return
         }
+        probe.begin()
+        proximity.reset()
         _state.update { it.copy(recordingVideo = true, status = null) }
     }
 
@@ -430,21 +441,6 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun playerIdle(): Boolean =
         _state.value.speakingEntryId == null
-
-    /** Moteur de dictée : Meta d'abord, repli ElevenLabs Scribe dès que la clé existe. */
-    private fun speechClient(): SpeechClient? {
-        val meta = if (settings.asrConfigured) {
-            MetaAsrClient(settings.asrBaseUrl, settings.asrApiKey, settings.asrModel)
-        } else {
-            null
-        }
-        val eleven = if (settings.ttsApiKey.isNotBlank()) ElevenLabsSttClient(settings.ttsApiKey) else null
-        return when {
-            meta != null && eleven != null -> FallbackSpeechClient(primary = meta, fallback = eleven)
-            meta != null -> meta
-            else -> eleven
-        }
-    }
 
     /** La photo du dernier double tap, réencodée en base64 JPEG (contexte visuel). */
     private fun imagePathToB64(): String {
