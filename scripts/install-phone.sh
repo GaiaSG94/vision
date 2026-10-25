@@ -7,6 +7,7 @@
 #   install-phone --status                     # installé vs GitHub, sans rien toucher
 #
 #   --if-free           ne rien faire si un autre agent tient le téléphone (usage cron)
+#   --wait SECONDES     attendre le verrou jusqu'à N s avant d'abandonner (défaut : 0)
 #   --reinstall         réinstaller même si la version est identique
 #   --allow-downgrade   autoriser une build plus ancienne que l'installée (débogage)
 #   --quiet             une ligne de sortie, pour les journaux
@@ -35,6 +36,7 @@ MODE="master"
 TREE=""
 APK=""
 IF_FREE=0
+WAIT=0
 FORCE=0
 ALLOW_DOWNGRADE=0
 QUIET=0
@@ -56,6 +58,7 @@ parse_args() {
       --apk) MODE="apk"; APK="${2:?chemin manquant}"; shift 2 ;;
       --status) MODE="status"; shift ;;
       --if-free) IF_FREE=1; shift ;;
+      --wait) WAIT="${2:?durée manquante}"; shift 2 ;;
       --reinstall) FORCE=1; shift ;;
       --allow-downgrade) ALLOW_DOWNGRADE=1; shift ;;
       --quiet) QUIET=1; shift ;;
@@ -162,8 +165,16 @@ phone_busy() { "$PHONE" status 2>&1 | grep -q "OCCUPÉ" ; }
 
 # Le verrou n'est pas décoratif : sans lui, deux agents installent en même temps et
 # `adb install` peut laisser le téléphone sur une build interrompue.
+# Le téléphone est très disputé (plusieurs agents, verrous de quelques minutes) :
+# --wait évite de perdre une build déjà prête à cause d'un verrou qui tombe dans 2 min.
 take_lock() {
-  "$PHONE" take --task "install-phone $1" --ttl 10m >/dev/null 2>&1     || die "téléphone occupé par un autre agent — réessaie quand il est libre"
+  local deadline=$((SECONDS + WAIT))
+  until "$PHONE" take --task "install-phone $1" --ttl 10m >/dev/null 2>&1; do
+    [[ $SECONDS -ge $deadline ]] \
+      && die "téléphone occupé par un autre agent — réessaie, ou --wait 600"
+    say "téléphone occupé, nouvelle tentative dans 10 s"
+    sleep 10
+  done
 }
 release_lock() { "$PHONE" release >/dev/null 2>&1 || true; }
 
