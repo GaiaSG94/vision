@@ -76,7 +76,7 @@ sam-vision-kotlin/
 ├── app/src/main/java/dev/sam3vision/app/tap/       # mode tap : tap court → vidéo → SAM 3.1
 ├── app/src/main/java/dev/sam3vision/app/cleanup/    # purge horaire silencieuse (Room + WorkManager)
 ├── tools/check-kotlin-limits.py   # garde-fou < 500 lignes/fichier, < 50 lignes/fonction
-├── scripts/build.sh · install-emulator.sh · install-phone.sh (téléphone réel)
+├── scripts/build.sh · install-emulator.sh
 ├── docs/TESTING.md · MODE-TAP.md · DISTANCES.md · NETTOYAGE.md · META-ASR.md · TEST-LONGPRESS-DICTEE.md
 ├── app/schemas/             # schéma Room exporté (traced_captures, v1)
 ├── gradle/libs.versions.toml · settings.gradle.kts · local.properties (gitignoré)
@@ -99,7 +99,6 @@ export JAVA_HOME=~/.gradle/jdks/eclipse_adoptium-17-amd64-linux.2 ANDROID_HOME=$
 ./gradlew assembleDebug --offline                  # app/build/outputs/apk/debug/app-debug.apk (~21 Mo)
 bash scripts/build.sh                              # idem, environnement inclus
 EMULATOR_SERIAL=emulator-5554 bash scripts/install-emulator.sh   # install + CAMERA + lancement + screenshot
-scripts/install-phone.sh                                          # téléphone réel : dernière version de GitHub
 ```
 
 ## Brancher la clé InferHub (deux voies, jamais de clé commitée)

@@ -13,22 +13,9 @@
 - `docs/ELEVENLABS-TTS.md` — contrat voix (voix premade vs bibliothèque, 402).
 - `docs/MODE-TAP.md` — mode tap (vidéo → SAM 3.1).
 - `docs/TESTING.md` — recette émulateur, limites connues.
-- `docs/PHONE-INSTALL.md` — **la seule façon d'installer sur le téléphone** (`scripts/install-phone.sh`).
 - `docs/CI-QUEUE.md` — CI, budget, file Mergify, gate Hermes.
 - `docs/glasses-dat-spike.md` — contrat DAT lunettes Meta (lire avant de toucher à `glasses-spike/`).
 - `CHANGELOG.md` — historique des changements.
-
-## 0 bis. Téléphone : jamais `adb install` à la main (règle user 2026-10-25)
-
-Le téléphone `2c6852ac` est piloté par plusieurs agents en parallèle. Deux garde-fous :
-
-1. le `versionCode` est la **date du commit** (`app/build.gradle.kts`) : Android refuse
-   d'installer une build plus ancienne, donc un APK périmé ne peut plus écraser la version
-   présente ;
-2. l'installation passe par **`scripts/install-phone.sh`** (verrou `~/bin/phone`, comparaison
-   des versions, build de `origin/master` par défaut). Un `adb install` direct est un bug.
-
-Voir `docs/PHONE-INSTALL.md`.
 
 ## 1. C'est quoi ce dépôt
 

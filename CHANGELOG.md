@@ -1,5 +1,15 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (6) — pas de script d'installation (demande user) : seul le versionCode reste
+
+- **Retiré** : `scripts/install-phone.sh`, `docs/PHONE-INSTALL.md`, la règle « seule porte
+  d'installation » d'`AGENTS.md`, les renvois du README et de `docs/TESTING.md`, et le cron
+  du poste. L'installation reste donc `adb install -r`, sans outil maison.
+- **Gardé** : `versionCode` = date du commit HEAD (`app/build.gradle.kts`), `versionName` =
+  `1.0.<commits>-<sha>`. Android refuse par défaut une build plus ancienne
+  (`INSTALL_FAILED_VERSION_DOWNGRADE`) : un APK périmé ne peut plus écraser celui du
+  téléphone, sans une ligne de script.
+
 ## 2026-10-25 — le plafond d'objets est bien persisté (correctif)
 
 - **Bug trouvé à la recette téléphone** : le réglage « Objets à l'écran » changeait bien

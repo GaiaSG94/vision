@@ -42,11 +42,10 @@ android {
         applicationId = "dev.sam3vision.app"
         minSdk = 26
         targetSdk = 36
-        // versionCode = date du commit HEAD : Android REFUSE d'installer une build
-        // plus ancienne (INSTALL_FAILED_VERSION_DOWNGRADE), donc un APK périmé ne peut
-        // plus écraser la version du téléphone (règle user du 2026-10-25). Une PR bâtie
-        // sur un master plus vieux est rejetée, c'est voulu : scripts/install-phone.sh
-        // explique quoi faire (rebuilder sur origin/master).
+        // versionCode = date du commit HEAD : Android REFUSE d'installer une build plus
+        // ancienne (INSTALL_FAILED_VERSION_DOWNGRADE), donc un APK périmé ne peut plus
+        // écraser la version du téléphone. Une PR bâtie sur un master plus vieux est
+        // rejetée : rebâtir sur origin/master (règle user du 2026-10-25).
         versionCode = gitCommitSeconds
         versionName = "1.0.$gitCommitCount-$gitShortSha"
 
