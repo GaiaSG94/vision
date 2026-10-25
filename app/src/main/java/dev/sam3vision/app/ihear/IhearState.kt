@@ -2,7 +2,11 @@ package dev.sam3vision.app.ihear
 
 import java.io.File
 
-/** Le seul écran iHear : le chat plein écran, la caméra vit dans une fenêtre flottante. */
+/** Les deux pages d'iHear : le chat, ou la page caméra plein écran sous le chat. */
+enum class IhearPage { Chat, Camera }
+
+/** Page affichée à l'ouverture : le chat (la caméra reste vivante dessous). */
+val DEFAULT_IHEAR_PAGE = IhearPage.Chat
 
 /** Une bulle de l'écran chat : le texte du user, celui lu à voix haute, ou l'intro. */
 sealed interface ChatEntry {
@@ -19,14 +23,17 @@ sealed interface ChatEntry {
     }
 }
 
-/** État complet de l'écran iHear (chat + fenêtre caméra). */
+/** État complet de l'écran iHear (deux pages, chat + caméra toujours vivante). */
 data class IhearUiState(
     val entries: List<ChatEntry> = emptyList(),
+
+    /** Page visible ; la caméra reste composée et coule en dessous, jamais coupée. */
+    val page: IhearPage = DEFAULT_IHEAR_PAGE,
 
     /** La bulle d'intro est posée en tête du chat tant que l'audio pousse (1re ouverture). */
     val introVisible: Boolean = false,
 
-    /** Dernière photo du double tap, affichée dans la fenêtre flottante avant d'évaporer. */
+    /** Dernière photo du double tap, flashée sur la page caméra avant d'évaporer. */
     val photoPath: String? = null,
 
     val selected: Int = -1,
@@ -41,7 +48,7 @@ data class IhearUiState(
     val lastSelected: Boolean get() = selected >= entries.lastIndex
 }
 
-/** Les actions que seule la caméra de la fenêtre flottante peut exécuter. */
+/** Les actions que seule la caméra (page plein écran) peut exécuter. */
 interface IhearCameraActions {
     val ready: Boolean
     fun startRecording(file: File): Boolean

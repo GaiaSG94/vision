@@ -36,6 +36,7 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
     var onHoldEnd: (() -> Unit)? = null
     var onSingleTap: (() -> Unit)? = null
     var onDoubleTap: (() -> Unit)? = null
+    var onHorizontalSwipe: ((rightToLeft: Boolean) -> Unit)? = null
     var onVerticalDragStart: (() -> Unit)? = null
     var onVerticalSwipeEnd: ((committed: Boolean, downward: Boolean) -> Unit)? = null
 
@@ -70,7 +71,7 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         listener = object : IhearGestureBrain.Listener {
             override fun onSingleTap() = onSingleTap?.invoke() ?: Unit
             override fun onDoubleTap() = onDoubleTap?.invoke() ?: Unit
-            override fun onHorizontalSwipe(rightToLeft: Boolean) = Unit // aucune page à changer
+            override fun onHorizontalSwipe(rightToLeft: Boolean) = onHorizontalSwipe?.invoke(rightToLeft) ?: Unit
             override fun onVerticalDrag(downward: Boolean) {
                 draggingVertical = true
                 onVerticalDragStart?.invoke()
