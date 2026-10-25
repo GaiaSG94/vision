@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
@@ -72,9 +73,7 @@ internal fun IhearCameraWindow(
     modifier: Modifier = Modifier,
 ) {
     val probe by viewModel.probe.state.collectAsState()
-    // Une seule PreviewView pour toute la vie de la fenêtre : `bind()` la réclame déjà créée.
-    val context = LocalContext.current
-    val preview = remember(glue.host) { glue.host.newPreviewView(context) }
+    val preview = glue.preview
     LaunchedEffect(glue.host, viewModel) {
         // SAM ne voit que l'enregistrement : hors REC, aucune frame n'est même convertie.
         glue.host.wantsFrame = { viewModel.state.value.recordingVideo && viewModel.probe.wantsFrame() }
@@ -118,7 +117,13 @@ internal fun IhearCameraWindow(
 /** Permission + liaison caméra : un seul bloc, rappelé par le visuel. Composée en
  * permanence par le chat (caméra prête au premier geste), la vue ne vit que dans
  * la bulle média. */
-internal data class CameraGlue(val host: IhearCameraHost, val granted: Boolean, val failure: String?)
+internal data class CameraGlue(
+    val host: IhearCameraHost,
+    val granted: Boolean,
+    val failure: String?,
+    /** Aperçu créé dès la liaison : la bulle média se contente de le montrer. */
+    val preview: PreviewView,
+)
 
 @Composable
 internal fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
@@ -129,10 +134,15 @@ internal fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
         granted = it
     }
     val host = remember { IhearCameraHost(context) }
+    // L'aperçu est créé ici, **en permanence** : `bind()` exige une PreviewView déjà
+    // attachée, et la bulle média n'existe qu'une fois l'enregistrement lancé. Sans ça,
+    // le premier tap répondait « Camera not ready » (mesuré sur le téléphone).
+    val preview = remember(host) { host.newPreviewView(context) }
+    val owner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) { if (!granted) askCamera.launch(Manifest.permission.CAMERA) }
     LaunchedEffect(granted) {
         if (granted) {
-            failure = host.bind()
+            failure = host.bind(owner)
             if (failure == null) viewModel.attachCamera(host.actions)
         }
     }
@@ -143,7 +153,7 @@ internal fun rememberCameraGlue(viewModel: IhearViewModel): CameraGlue {
             viewModel.detachCamera()
         }
     }
-    return CameraGlue(host, granted, failure)
+    return CameraGlue(host, granted, failure, preview)
 }
 
 /** Corps visuel de la fenêtre : aperçu, photo flashée, pastille REC et messages. */

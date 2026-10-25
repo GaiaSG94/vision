@@ -12,7 +12,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.LifecycleOwner
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.lensSpecOf
 import dev.sam3vision.app.rotateBitmap
@@ -92,11 +92,19 @@ class IhearCameraHost(private val context: Context) {
         return created
     }
 
-    /** Lie aperçu + photo + vidéo au cycle de vie attaché à l'aperçu ; message sinon. */
-    suspend fun bind(): String? {
+    /**
+     * Lie aperçu + photo + vidéo + analyse au cycle de vie **de l'activité**.
+     *
+     * Avant, on cherchait le cycle de vie dans l'arbre de vues de l'aperçu : la bulle
+     * média n'étant composée qu'une fois l'enregistrement demandé, l'aperçu n'était pas
+     * encore à l'écran au moment du `bind()` — « Lifecycle unavailable », puis
+     * « Camera not ready » au premier tap (mesuré sur le téléphone, build 1.0.139).
+     * Lier à l'activité retire cette dépendance d'ordre ; l'aperçu se montre quand la
+     * bulle apparaît.
+     */
+    suspend fun bind(owner: LifecycleOwner): String? {
         val provider = withContext(Dispatchers.IO) { ProcessCameraProvider.getInstance(context).get() }
         val view = boundPreview ?: return "Preview not attached yet"
-        val owner = view.findViewTreeLifecycleOwner() ?: return "Lifecycle unavailable"
         val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
         val image = ImageCapture.Builder().build()
         val analysis = newAnalysis()
