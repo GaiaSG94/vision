@@ -1,5 +1,18 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — clic « Direct (vidéo) » = réveil garanti de l'A100 40 Go sur Modal
+
+- **Le réveil passait avant la fin du démarrage.** `/health` utilisait le client du direct,
+  limité à 10 s (callTimeout compris) ; un conteneur Modal froid répond en ~33 s mesuré
+  (jusqu'à ~150 s si l'image se reconstruit). Chaque essai échouait donc avant que la carte
+  soit prête, et l'écran affichait une erreur réseau au lieu du GPU. `WAKE_TIMEOUT_SECONDS`
+  (180 s) est dédié à `/health` : une seule requête monte avec le conteneur.
+- **Frames jetées tant que le GPU n'a pas répondu** (`warm`) : plus de rafale d'erreurs
+  « /live timeout » pendant le démarrage à froid ; le flux démarre dès que la carte est chaude.
+- **Libellé d'état explicite** : « Réveil du GPU A100 40 Go sur Modal… » pendant le démarrage,
+  puis la ligne de cadence avec le nom court du GPU (`shortGpu` : « NVIDIA A100-SXM4-40GB » →
+  « A100-SXM4-40GB »).
+
 ## 2026-10-25 — distances caméra→objets sur le direct (sténopé, sans GPU)
 
 - **Pastille « ≈ 3,2 m » sur chaque objet suivi** du Direct, dans la couleur de son
@@ -21,7 +34,6 @@
 - Tests : 265 JVM verts (+28 `core` : `LensSpecTest`, `KnownSizesTest`, `DistanceMeterTest`,
   `DistanceTextTest`, un cas de plus dans `LiveTimelineTest` ; +7 `app` : `DistanceLayoutTest`),
   `assembleDebug` vert, `check-kotlin-limits` vert.
-
 ## 2026-10-24 — un tap lance la vidéo, un appui long parle (les deux ensemble)
 
 - **Tap sur l'aperçu de Capture = mode vidéo, enregistrement lancé d'office.** Le bouton

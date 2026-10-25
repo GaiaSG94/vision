@@ -39,7 +39,11 @@ data class LiveUiState(
     val distanceLayer: DistanceLayer? = null,
 ) {
     val statusLine: String
-        get() = formatLiveStatus(running, fps, latencyMs, gpu, objectsCount, nearestMeters)
+        get() = if (running && starting) {
+            WAKING_LINE
+        } else {
+            formatLiveStatus(running, fps, latencyMs, gpu, objectsCount, nearestMeters)
+        }
 
     /** Distance de l'objet le plus proche de la frame, `null` si rien n'est mesuré. */
     val nearestMeters: Float?
@@ -58,6 +62,12 @@ data class DistanceLayer(
     /** Vrai si l'overlay n'a rien à poser (pas d'objet calibré, taille inconnue). */
     val empty: Boolean get() = width <= 0 || height <= 0 || readings.isEmpty()
 }
+
+/** Ligne affichée pendant le démarrage à froid du conteneur (le clic « Direct » le réveille). */
+const val WAKING_LINE: String = "Réveil du GPU A100 40 Go sur Modal…"
+
+/** Nom court du GPU pour la barre d'état : « NVIDIA A100-SXM4-40GB » → « A100-SXM4-40GB ». */
+fun shortGpu(name: String): String = name.removePrefix("NVIDIA ").trim()
 
 /**
  * Barre d'état du direct : « Direct · 1,4 ips · 780 ms · 8 objets · A100-SXM4-40GB ».

@@ -11,6 +11,14 @@ import org.json.JSONObject
 /** /live est plus court que /segment (60 s) : délai dédié de 10 s. */
 const val LIVE_TIMEOUT_SECONDS: Long = 10L
 
+/**
+ * `/health` sert aussi de bouton « démarre la GPU » : la requête qui réveille un
+ * conteneur Modal froid attend le démarrage (image + poids ≈ 30-50 s mesurés, jusqu'à
+ * ~150 s si l'image doit être reconstruite). Avec le délai de 10 s du direct, chaque
+ * réveil échouait avant la fin du démarrage : délai patient dédié.
+ */
+const val WAKE_TIMEOUT_SECONDS: Long = 180L
+
 /** User-Agent propre au flux live, identifiable côté backend. */
 internal const val LIVE_USER_AGENT = "$USER_AGENT live"
 
@@ -22,6 +30,7 @@ internal const val LIVE_USER_AGENT = "$USER_AGENT live"
 class HttpLiveClient(
     private val baseUrl: String,
     private val client: OkHttpClient = defaultHttpClient(LIVE_TIMEOUT_SECONDS),
+    private val wakeClient: OkHttpClient = defaultHttpClient(WAKE_TIMEOUT_SECONDS),
 ) : LiveClient {
 
     override suspend fun live(
@@ -52,7 +61,7 @@ class HttpLiveClient(
             .header("User-Agent", LIVE_USER_AGENT)
             .get()
             .build()
-        return client.execute(request)
+        return wakeClient.execute(request)
             .then { outcome -> outcome.requireSuccess() }
             .then { raw -> catchingResult { parseHealth(raw) } }
     }

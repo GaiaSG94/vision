@@ -45,7 +45,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     private var client: LiveClient? = null
     private var nextTickAt = 0L
     private var lastFrameAt = 0L
-    private var healthAttempts = 0
+
+    /** Le conteneur a répondu une fois : la GPU A100 est chaude, les frames peuvent partir. */
+    private var warm = false
 
     /** Journal du direct : 60 s d'objets suivis, identités stables. */
     private val timeline = LiveTimeline()
@@ -78,11 +80,11 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         distances.reset()
         distances.setLens(chosenLens())
         _state.update { it.copy(prompts = chosen) }
-        healthAttempts = 0
+        warm = false
         nextTickAt = 0L
         lastFrameAt = 0L
         _state.update { it.copy(running = true, starting = true, error = null, memory = LiveMemoryState()) }
-        viewModelScope.launch { refreshHealth() }
+        viewModelScope.launch { wakeGpu() }
     }
 
     /** Change les concepts suivis : `[promptsText]` séparé par virgules, vide = défaut. */
@@ -96,35 +98,38 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun restart(prompts: List<String>) = viewModelScope.launch { start(store.load(), prompts) }
 
-    /** Le conteneur Modal se réveille en ~30 s : on retente la santé sans afficher d'erreur. */
-    private suspend fun refreshHealth() {
+    /** Le conteneur Modal (A100 40 Go) se réveille en 30-50 s : on retente sans afficher d'erreur. */
+    private suspend fun wakeGpu() {
         val http = client ?: return
-        http.health().fold(
-            onSuccess = { info -> _state.update { it.copy(gpu = info.gpu.take(28), starting = false, error = null) } },
-            onFailure = { error ->
-                healthAttempts += 1
-                _state.update {
-                    it.copy(
-                        starting = false,
-                        error = if (healthAttempts < HEALTH_TRIES) "Réveil du GPU A100 en cours…" else error.message,
-                    )
-                }
-                if (healthAttempts < HEALTH_TRIES) {
-                    delay(HEALTH_DELAY_MS)
-                    refreshHealth()
-                }
-            },
-        )
+        for (attempt in 1..WAKE_TRIES) {
+            http.health().fold(
+                onSuccess = { info ->
+                    warm = true
+                    _state.update { it.copy(gpu = shortGpu(info.gpu).take(28), starting = false, error = null) }
+                    return
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            starting = attempt < WAKE_TRIES,
+                            error = if (attempt < WAKE_TRIES) null else error.message ?: "GPU injoignable",
+                        )
+                    }
+                    if (attempt < WAKE_TRIES) delay(WAKE_DELAY_MS)
+                },
+            )
+        }
     }
 
     /**
-     * Frame venue de l'analyseur caméra : jetée si une requête est en vol ou si la cadence
-     * adaptative n'est pas écoulée (le lien montant du téléphone sature sinon).
+     * Frame venue de l'analyseur caméra : jetée si le GPU n'est pas encore chaud, si une
+     * requête est en vol ou si la cadence adaptative n'est pas écoulée (le lien montant du
+     * téléphone sature sinon).
      */
     fun onFrame(jpegB64: String) {
         val active = session ?: return
         val now = System.currentTimeMillis()
-        if (jpegB64.isBlank() || active.inFlight || now < nextTickAt) return
+        if (!warm || jpegB64.isBlank() || active.inFlight || now < nextTickAt) return
         nextTickAt = now + active.intervalMsAdaptive()
         _state.update { it.copy(lastJpegB64 = jpegB64) }
         viewModelScope.launch {
@@ -165,7 +170,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
                 distanceLayer = if (readings.isEmpty()) null else DistanceLayer(width, height, readings),
             )
         }
-        if (_state.value.gpu.isBlank() && healthAttempts < HEALTH_TRIES) refreshHealth()
+        if (!warm) wakeGpu()
     }
 
     /** Masques colorisés de la frame (calcul hors thread principal). */
@@ -248,6 +253,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         session = null
         client = null
         distances.reset()
+        warm = false
         _state.update { LiveUiState() }
     }
 
@@ -255,8 +261,9 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     fun startFromSettings() = viewModelScope.launch { start(store.load()) }
 
     private companion object {
-        const val HEALTH_TRIES = 6
-        const val HEALTH_DELAY_MS = 6_000L
+        /** Réveil : une requête patiente couvre le démarrage, ces essais couvrent le reste. */
+        const val WAKE_TRIES = 3
+        const val WAKE_DELAY_MS = 4_000L
 
         /** Fenêtre du journal envoyée au LLM : 30 s suffisent pour « il y a 5 s ». */
         const val MEMORY_WINDOW_MS = 30_000L

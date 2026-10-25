@@ -73,4 +73,18 @@ class LiveStateTest {
         assertTrue(state.empty)
         assertEquals(0, state.focusSeconds)
     }
+
+    @Test
+    fun `le reveil du gpu se voit dans la ligne d'etat`() {
+        val state = LiveUiState(running = true, starting = true)
+        assertEquals(WAKING_LINE, state.statusLine)
+        assertTrue(WAKING_LINE.contains("A100 40"))
+    }
+
+    @Test
+    fun `nom court du gpu sans prefixe constructeur`() {
+        assertEquals("A100-SXM4-40GB", shortGpu("NVIDIA A100-SXM4-40GB"))
+        assertEquals("A100", shortGpu("A100"))
+        assertEquals("", shortGpu(""))
+    }
 }

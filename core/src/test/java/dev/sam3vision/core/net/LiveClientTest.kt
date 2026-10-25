@@ -126,4 +126,12 @@ class LiveClientTest {
         val expected = LiveFrame(0, 0, 0, emptyList())
         assertEquals(0L, expected.elapsedMs)
     }
+
+    @Test
+    fun `le reveil a un delai patient dedie`() {
+        // Un conteneur Modal froid met 30-50 s (jusqu'a ~150 s) : /health doit attendre
+        // plus longtemps que le delai court de /live, sinon chaque reveil echoue avant la fin.
+        assertTrue(WAKE_TIMEOUT_SECONDS >= 120L)
+        assertTrue(WAKE_TIMEOUT_SECONDS > LIVE_TIMEOUT_SECONDS)
+    }
 }
