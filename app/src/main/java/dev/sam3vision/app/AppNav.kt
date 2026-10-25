@@ -11,10 +11,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.sam3vision.app.ihear.IhearHome
+import dev.sam3vision.app.ihear.IhearViewModel
 import dev.sam3vision.app.tap.TapCaptureScreen
 
 /** Routes de l'app (navigation par état, sans dépendance navigation-compose). */
 sealed interface Route {
+    /** Page d'accueil iHear : chat blanc + caméra/vidéo, swipe horizontal. */
+    data object Ihear : Route
     data object Capture : Route
     data object Analysis : Route
     data object Chat : Route
@@ -30,21 +34,33 @@ sealed interface Route {
 }
 
 /**
- * Racine de navigation : pile de routes + distribution de l'état du [AppViewModel].
- * Le bandeau de dictée vit au-dessus de toutes les routes : il s'affiche depuis
- * n'importe quel écran, même après un appui long.
+ * Racine de navigation : iHear en page d'accueil (chat + caméra, swipe horizontal),
+ * puis les écrans d'origine. Les gestes racine (IhearRootLayout) pilotent le
+ * panneau affiché via [IhearViewModel] quand iHear est à l'écran.
  */
 @Composable
-fun AppNav(viewModel: AppViewModel, liveViewModel: LiveViewModel = viewModel()) {
+fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveViewModel = viewModel()) {
     val state by viewModel.state.collectAsState()
-    var stack by remember { mutableStateOf(listOf<Route>(Route.Capture)) }
+    var stack by remember { mutableStateOf(listOf<Route>(Route.Ihear)) }
     val route = stack.first()
     val push: (Route) -> Unit = { stack = listOf(it) + stack }
     val pop: () -> Unit = { if (stack.size > 1) stack = stack.drop(1) }
     BackHandler(enabled = stack.size > 1) { pop() }
 
     Box(Modifier.fillMaxSize()) {
-        RouteContent(route, state, viewModel, liveViewModel, push, pop)
+        when (route) {
+            Route.Ihear -> IhearHome(
+                viewModel = ihear,
+                onOpenSettings = { push(Route.Settings) },
+            )
+            Route.Capture -> CaptureRoute(viewModel, push)
+            Route.Analysis -> AnalysisRoute(state, viewModel, push, pop)
+            Route.Live -> LiveRoute(viewModel, liveViewModel, push, pop)
+            Route.Chat -> ChatRoute(state, viewModel, pop)
+            is Route.Tap -> TapCaptureScreen(state.settings, pop, route.autoStart)
+            Route.Settings -> SettingsRoute(viewModel, state, pop)
+        }
+
         state.dictation.overlay?.let { overlay ->
             DictationOverlay(overlay = overlay, onDismiss = viewModel::dismissOverlay)
         }
@@ -55,27 +71,7 @@ fun AppNav(viewModel: AppViewModel, liveViewModel: LiveViewModel = viewModel()) 
     }
 }
 
-/** L'écran demandé ; le bandeau de dictée est dessiné par-dessus, dans [AppNav]. */
-@Composable
-private fun RouteContent(
-    route: Route,
-    state: UiState,
-    viewModel: AppViewModel,
-    liveViewModel: LiveViewModel,
-    push: (Route) -> Unit,
-    pop: () -> Unit,
-) {
-    when (route) {
-        Route.Capture -> CaptureRoute(viewModel, push)
-        Route.Analysis -> AnalysisRoute(state, viewModel, push, pop)
-        Route.Live -> LiveRoute(viewModel, liveViewModel, push, pop)
-        Route.Chat -> ChatRoute(state, viewModel, pop)
-        is Route.Tap -> TapCaptureScreen(state.settings, pop, route.autoStart)
-        Route.Settings -> SettingsRoute(viewModel, state, pop)
-    }
-}
-
-/** Accueil : photo → analyse, ouverture des réglages, mode tap, mode direct. */
+/** Accueil classique : photo → analyse, ouverture des réglages, mode direct. */
 @Composable
 private fun CaptureRoute(viewModel: AppViewModel, push: (Route) -> Unit) {
     CaptureScreen(

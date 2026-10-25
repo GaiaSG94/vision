@@ -1,0 +1,167 @@
+package dev.sam3vision.app
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.View
+import android.widget.FrameLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import dev.sam3vision.core.gesture.IhearGestureBrain
+import dev.sam3vision.core.gesture.LongPressTrigger
+
+/**
+ * Racine de la fenêtre iHear : la seule vue qui voit **tous** les gestes de la surface
+ * de l'app (les deux pages, hors zone système du bas). Deux machines y tournent :
+ *
+ * - [LongPressTrigger] : appui maintenu ~300 ms → [onHoldStart] (micro ouvert) ; la
+ *   vue intercepte alors tout (les enfants reçoivent un ACTION_CANCEL) jusqu'au
+ *   relâchement qui émet [onHoldEnd] ;
+ * - [IhearGestureBrain] : tap simple (vidéo), double tap (photo), balayages
+ *   horizontal (page) et vertical (sélection de bulle).
+ *
+ * Les taps ne sont jamais consommés en-dehors d'une tenue : ce sont des observations
+ * posées sur les événements, les écrans iHear restent libres de leur rendu.
+ */
+class IhearRootLayout(context: Context) : FrameLayout(context) {
+
+    var onHoldStart: (() -> Unit)? = null
+    var onHoldEnd: (() -> Unit)? = null
+    var onSingleTap: (() -> Unit)? = null
+    var onDoubleTap: (() -> Unit)? = null
+    var onHorizontalSwipe: ((rightToLeft: Boolean) -> Unit)? = null
+    var onVerticalDragStart: (() -> Unit)? = null
+    var onVerticalSwipeEnd: ((committed: Boolean, downward: Boolean) -> Unit)? = null
+
+    /** Hauteur de la zone système du bas en pixels (0 = pas d'exclusion). */
+    var systemBottomPx: () -> Int = { bottomSystemInset(this) }
+
+    /** Geste actif seulement quand les panneaux iHear sont à l'écran, sinon à l'ancienne UI. */
+    var gesturesEnabled: () -> Boolean = { true }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var capturing = false
+    private var draggingVertical = false
+
+    private val trigger = LongPressTrigger(
+        scheduler = ::scheduleDelayed,
+        listener = object : LongPressTrigger.Listener {
+            override fun onHoldStart() {
+                capturing = true
+                brain.handOffToHold()
+                onHoldStart?.invoke()
+            }
+
+            override fun onHoldEnd() {
+                capturing = false
+                brain.holdReleased()
+                onHoldEnd?.invoke()
+            }
+        },
+    )
+
+    private val brain = IhearGestureBrain(
+        listener = object : IhearGestureBrain.Listener {
+            override fun onSingleTap() = onSingleTap?.invoke() ?: Unit
+            override fun onDoubleTap() = onDoubleTap?.invoke() ?: Unit
+            override fun onHorizontalSwipe(rightToLeft: Boolean) = onHorizontalSwipe?.invoke(rightToLeft) ?: Unit
+            override fun onVerticalDrag(downward: Boolean) {
+                draggingVertical = true
+                onVerticalDragStart?.invoke()
+            }
+
+            override fun onVerticalSwipe(committed: Boolean, downward: Boolean) {
+                draggingVertical = false
+                onVerticalSwipeEnd?.invoke(committed, downward)
+            }
+        },
+        scheduler = ::scheduleDelayed,
+    )
+
+    /** Reporte [action] sur le thread principal ; rend l'annulation. */
+    private fun scheduleDelayed(delayMs: Long, action: () -> Unit): () -> Unit {
+        val runnable = Runnable { action() }
+        handler.postDelayed(runnable, delayMs)
+        return {
+            handler.removeCallbacks(runnable)
+            Unit
+        }
+    }
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (!capturing) feed(ev) else feedHeld(ev)
+        return capturing
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (!capturing) return super.onTouchEvent(ev)
+        feedHeld(ev)
+        return true
+    }
+
+    /** Pendant une tenue : l'appui long fait tout arrêt/relance sur relâchement. */
+    private fun feedHeld(ev: MotionEvent) {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> trigger.onUp()
+            else -> Unit
+        }
+    }
+
+    /** Tous les gestes de la surface passent ici avant de descendre aux enfants. */
+    private fun feed(ev: MotionEvent) {
+        if (!gesturesEnabled()) {
+            trigger.reset()
+            if (draggingVertical) {
+                draggingVertical = false
+                onVerticalSwipeEnd?.invoke(false, false)
+                return
+            }
+            return
+        }
+        val now = System.currentTimeMillis()
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN ->
+                if (inSystemZone(ev)) {
+                    trigger.reset()
+                } else {
+                    trigger.onDown(ev.x, ev.y)
+                    brain.onDown(now, ev.x, ev.y)
+                }
+
+            MotionEvent.ACTION_MOVE -> {
+                trigger.onMove(ev.x, ev.y)
+                brain.onMove(now, ev.x, ev.y)
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                trigger.onPointerDown()
+                brain.onCancel()
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                trigger.onUp()
+                if (ev.actionMasked == MotionEvent.ACTION_CANCEL) brain.onCancel() else brain.onUp(now, ev.x, ev.y)
+            }
+        }
+    }
+
+    private fun inSystemZone(ev: MotionEvent): Boolean {
+        val inset = systemBottomPx()
+        return inset > 0 && ev.y >= height - inset
+    }
+
+    override fun onDetachedFromWindow() {
+        trigger.reset()
+        brain.reset()
+        handler.removeCallbacksAndMessages(null)
+        super.onDetachedFromWindow()
+    }
+
+    private fun bottomSystemInset(view: View): Int {
+        val insets = ViewCompat.getRootWindowInsets(view) ?: return 0
+        val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        val gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures())
+        return maxOf(bars.bottom, gestures.bottom)
+    }
+}

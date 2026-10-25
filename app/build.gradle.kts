@@ -90,6 +90,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation("com.google.guava:guava:33.3.1-android")
+    // Encodage MP3 pur Java (port LAME) : la voix du micro est archivée en cache.
+    implementation(libs.jump3r)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
