@@ -39,6 +39,9 @@ fun LiveMemoryPanel(
     memory: LiveMemoryState,
     onFocus: (Int) -> Unit,
     onAsk: (String) -> Unit,
+    voice: LiveVoiceState,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -55,10 +58,11 @@ fun LiveMemoryPanel(
         MemoryHeader(onClose)
         SeenChips(memory.tracks, nowMs)
         FocusChips(memory.focusSeconds, onFocus)
-        AskRow(draft, { draft = it }, memory.asking) {
+        AskRow(draft, { draft = it }, memory.asking, voice, onVoiceStart, onVoiceStop) {
             onAsk(draft)
             draft = ""
         }
+        voice.error?.let { StatusBanner(it, AppColors.danger) }
         memory.answer?.let { AnswerBlock(it) }
         memory.error?.let { StatusBanner(it, AppColors.danger) }
     }
@@ -109,9 +113,17 @@ private fun FocusChips(selected: Int, onFocus: (Int) -> Unit) {
     }
 }
 
-/** Champ de question + envoi (ou attente). */
+/** Champ de question, envoi, et voix : on peut parler au lieu de taper. */
 @Composable
-private fun AskRow(draft: String, onChange: (String) -> Unit, asking: Boolean, onSend: () -> Unit) {
+private fun AskRow(
+    draft: String,
+    onChange: (String) -> Unit,
+    asking: Boolean,
+    voice: LiveVoiceState,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
+    onSend: () -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -124,6 +136,7 @@ private fun AskRow(draft: String, onChange: (String) -> Unit, asking: Boolean, o
             placeholder = { Text("Qu'y avait-il à gauche il y a 5 s ?", color = AppColors.textMuted, fontSize = 13.sp) },
             modifier = Modifier.weight(1f),
         )
+        VoiceChip(voice, asking, onVoiceStart, onVoiceStop)
         if (asking) {
             CircularProgressIndicator(
                 strokeWidth = 3.dp,
@@ -133,6 +146,24 @@ private fun AskRow(draft: String, onChange: (String) -> Unit, asking: Boolean, o
         } else {
             Chip("Demander", AppColors.primary) { if (draft.isNotBlank()) onSend() }
         }
+    }
+}
+
+/**
+ * Pastille micro : « Parler » ouvre le micro, « Stop » le referme et envoie la question.
+ * Grisée pendant une question en cours ; indicateur pendant la transcription.
+ */
+@Composable
+private fun VoiceChip(voice: LiveVoiceState, asking: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+    when {
+        voice.working -> CircularProgressIndicator(
+            strokeWidth = 3.dp,
+            color = AppColors.primary,
+            modifier = Modifier.size(24.dp),
+        )
+        voice.listening -> Chip("Stop", AppColors.danger, onStop)
+        asking -> Chip("Parler", AppColors.surfaceHigh, null)
+        else -> Chip("Parler", AppColors.primary, onStart)
     }
 }
 

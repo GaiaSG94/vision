@@ -39,6 +39,8 @@ data class LiveUiState(
     val distanceLayer: DistanceLayer? = null,
     /** Dernière phrase dite par la voix (positions) : affichée comme sous-titre. */
     val spoken: String? = null,
+    /** Voix du direct : on parle pour poser sa question sur le flux en cours. */
+    val voice: LiveVoiceState = LiveVoiceState(),
 ) {
     val statusLine: String
         get() = if (running && starting) {
@@ -89,6 +91,16 @@ fun formatLiveStatus(
     val nearest = nearestMeters?.let { " · plus proche ${DistanceText.format(it)}" }.orEmpty()
     return "Direct · $rate · $latency · $objects objets$nearest · ${gpu.ifBlank { "GPU ?" }}"
 }
+
+/** Cadence de mémorisation de la frame pour les questions : une par seconde suffit. */
+const val FRAME_KEEP_MS = 1_000L
+
+/**
+ * Vrai si la frame courante doit être gardée pour les questions. Indépendant de SAM :
+ * même sans détecteur, la dernière image permet de demander « qu'y a-t-il devant ? ».
+ */
+fun shouldKeepFrame(nowMs: Long, lastKeepAtMs: Long, intervalMs: Long = FRAME_KEEP_MS): Boolean =
+    lastKeepAtMs <= 0L || nowMs - lastKeepAtMs >= intervalMs
 
 /** Cadence du prochain tick, bornée par les constantes de [LiveSession]. */
 fun nextIntervalMs(session: LiveSession?): Long = session?.intervalMsAdaptive() ?: LiveSession.TARGET_MS

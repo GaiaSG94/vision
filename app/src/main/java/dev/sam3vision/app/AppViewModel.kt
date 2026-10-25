@@ -14,15 +14,11 @@ import dev.sam3vision.core.model.Analysis
 import dev.sam3vision.core.model.ChatTurn
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.SegObject
-import dev.sam3vision.core.net.ElevenLabsSttClient
 import dev.sam3vision.core.net.ElevenLabsTtsClient
-import dev.sam3vision.core.net.FallbackSpeechClient
 import dev.sam3vision.core.net.HttpSamClient
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LlmClient
-import dev.sam3vision.core.net.MetaAsrClient
 import dev.sam3vision.core.net.SamClient
-import dev.sam3vision.core.net.SpeechClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
@@ -88,7 +84,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val voice = VoiceAnnouncer(app)
 
     /** Appui long + bouton « Dicter » : toute la mécanique est dans [DictationFeature]. */
-    private val dictation = DictationFeature(app, _state, viewModelScope) { settings -> speech(settings) }
+    private val dictation = DictationFeature(app, _state, viewModelScope) { settings -> speechClient(settings) }
 
     init {
         viewModelScope.launch { _state.update { it.copy(settings = seededFromBuild(store.load()), settingsReady = true) } }
@@ -115,22 +111,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun sam(settings: Settings): SamClient? =
         if (settings.samBaseUrl.isBlank()) null else HttpSamClient(settings.samBaseUrl)
-
-    /** Moteur de dictée : Meta d'abord, repli ElevenLabs Scribe dès que la clé existe. */
-    private fun speech(settings: Settings): SpeechClient? {
-        val meta = if (settings.asrConfigured) {
-            MetaAsrClient(settings.asrBaseUrl, settings.asrApiKey, settings.asrModel)
-        } else {
-            null
-        }
-        val eleven = if (settings.ttsApiKey.isNotBlank()) ElevenLabsSttClient(settings.ttsApiKey) else null
-        return when {
-            meta != null && eleven != null ->
-                FallbackSpeechClient(primary = meta, fallback = eleven)
-            meta != null -> meta
-            else -> eleven
-        }
-    }
 
     /** Une photo capturée ou choisie : on l'affiche tout de suite, puis on l'analyse. */
     fun onPhoto(file: File) = viewModelScope.launch {
@@ -330,7 +310,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Vérifie le moteur de dictée avec 1 s de silence : seule la connexion est testée. */
     fun testAsr() = viewModelScope.launch {
-        val client = speech(_state.value.settings)
+        val client = speechClient(_state.value.settings)
         if (client == null) {
             _state.update { it.copy(statusLine = "ASR KO — aucun moteur de dictée (Réglages).") }
             return@launch
