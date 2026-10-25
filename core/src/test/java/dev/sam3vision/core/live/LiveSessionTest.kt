@@ -172,8 +172,13 @@ class LiveSessionTest {
     }
 
     @Test
-    fun `le regulateur referme a un creneau au-dela du budget de latence`() {
+    fun `le regulateur attend trois mesures avant de se prononcer`() {
         val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
+        session.stats.record(344L)
+        session.regulate()
+        assertEquals(2, session.slots)
+        session.stats.record(344L)
+        session.regulate()
         assertEquals(2, session.slots)
         session.stats.record(344L)
         session.regulate()
@@ -183,17 +188,17 @@ class LiveSessionTest {
     @Test
     fun `le regulateur ne rouvre que sous la moitie du budget`() {
         val session = LiveSession(FakeLiveClient(), cadence = Cadence.Fast)
-        session.stats.record(344L)
+        (1..3).forEach { _ -> session.stats.record(344L) }
         session.regulate()
         assertEquals(1, session.slots)
         // 180 ms : sous le budget mais pas sous la moitié -> on reste à un créneau
         session.stats.reset()
-        session.stats.record(180L)
+        (1..3).forEach { _ -> session.stats.record(180L) }
         session.regulate()
         assertEquals(1, session.slots)
         // 80 ms : le backend respire, on rouvre
         session.stats.reset()
-        session.stats.record(80L)
+        (1..3).forEach { _ -> session.stats.record(80L) }
         session.regulate()
         assertEquals(2, session.slots)
     }

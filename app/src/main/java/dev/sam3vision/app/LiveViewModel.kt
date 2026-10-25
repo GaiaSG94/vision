@@ -27,6 +27,7 @@ import dev.sam3vision.core.net.LiveClient
 import dev.sam3vision.core.net.LiveLlmClient
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.net.WsLiveClient
+import dev.sam3vision.core.net.liveClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
@@ -117,7 +118,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         }
         // WebSocket uniquement : plus aucun POST /live pour les frames. Le client HTTP
         // ne sert plus qu'au /health (une requête GET, une fois par session).
-        val live = WsLiveClient(base, http = HttpLiveClient(base))
+        val live = liveClient(base)
         client = live
         session = LiveSession(live, prompts = _state.value.prompts, maxObjects = this.settings.objectsOnScreen)
         _state.update {

@@ -3,6 +3,7 @@ package dev.sam3vision.core.live
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.ObjectLimits
 import dev.sam3vision.core.net.LiveClient
+import dev.sam3vision.core.net.WsLiveClient
 
 /**
  * Cadence d'envoi des frames : trois paliers déduits de la latence moyenne.
@@ -78,6 +79,9 @@ class LiveSession(
     /** Nombre de requêtes acceptées en même temps, à cet instant. */
     val slots: Int get() = gate.capacity
 
+    /** Le socket du direct est-il ouvert ? `false` pour un client sans transport socket. */
+    val socketOpen: Boolean get() = (client as? WsLiveClient)?.isConnected ?: false
+
     /**
      * Régulateur de latence : referme à un créneau dès que la moyenne dépasse le budget,
      * ne rouvre que si elle est **franchement** en dessous ([RELAX_RATIO]). L'hystérésis
@@ -87,6 +91,10 @@ class LiveSession(
     fun regulate() {
         val budget = cadence.latencyBudgetMs
         if (budget <= 0L || cadence.concurrency <= 1) return
+        // La première frame paie le démarrage du conteneur (mesuré : 17 s en WebSocket).
+        // Réguler dessus ouvrirait/fermerait les créneaux sur un seul chiffre : on attend
+        // trois mesures pour parler de cadence.
+        if (stats.samples < REGULATE_MIN_SAMPLES) return
         val average = stats.averageMs
         if (average <= 0L) return
         when {
@@ -134,6 +142,9 @@ class LiveSession(
     companion object {
         /** Marge de réouverture : on ne rouvre un créneau que sous la moitié du budget. */
         const val RELAX_RATIO = 0.5
+
+        /** Mesures minimum avant que le régulateur se prononce. */
+        const val REGULATE_MIN_SAMPLES = 3
 
         const val DEFAULT_WORK_EDGE = 640
         /** Plafond d'objets affichés en direct (voir [ObjectLimits.MAX_ON_SCREEN]). */

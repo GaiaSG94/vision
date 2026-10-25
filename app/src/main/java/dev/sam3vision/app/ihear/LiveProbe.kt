@@ -5,10 +5,13 @@ import androidx.compose.ui.graphics.toArgb
 import dev.sam3vision.app.DistanceLayer
 import dev.sam3vision.app.MASK_ALPHA
 import dev.sam3vision.app.maskColorAt
+import dev.sam3vision.app.TRANSPORT_WS
+import dev.sam3vision.app.TRANSPORT_WS_KO
 import dev.sam3vision.core.distance.DistanceMeter
 import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.LensSpec
 import dev.sam3vision.core.live.Cadence
+import dev.sam3vision.core.live.FrameRate
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
 import dev.sam3vision.core.live.PositionAnnouncer
@@ -19,8 +22,7 @@ import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.ApiError
-import dev.sam3vision.core.net.HttpLiveClient
-import dev.sam3vision.core.net.defaultHttpClient
+import dev.sam3vision.core.net.liveClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +46,8 @@ data class LiveProbeState(
     val labels: List<String> = emptyList(),
     /** Concepts envoyés à SAM (les suivis), pas seulement ceux reconnus. */
     val conceptsSent: List<String> = emptyList(),
+    /** « ws » (WebSocket, le plus rapide) ou « http » (repli automatique). */
+    val transport: String = TRANSPORT_WS,
     val objects: Int = 0,
     val fps: Float = 0f,
     val latencyMs: Long = 0,
@@ -92,8 +96,10 @@ class LiveProbe(private val scope: CoroutineScope) {
 
     /** Une frame a-t-elle abouti depuis le début de l'enregistrement ? */
     private var warmed = false
+
+    /** Cadence affichée : moyenne sur les 8 dernières frames, pas l'écart deux frames. */
+    private val rate = FrameRate()
     private var nextTickAt = 0L
-    private var lastFrameAt = 0L
 
     /** Distances (sténopé sur hauteurs connues) : 100 % téléphone, aucun appel en plus. */
     private val distances = DistanceMeter()
@@ -121,32 +127,34 @@ class LiveProbe(private val scope: CoroutineScope) {
     ) {
         val clean = baseUrl.trim()
         session = if (clean.isBlank()) null else LiveSession(
-            HttpLiveClient(clean),
+            liveClient(clean),
             prompts = prompts,
             maxObjects = if (maxObjects > 0) maxObjects else DEFAULT_MAX_OBJECTS,
             cadence = Cadence.Fast,
         )
-        coldSession = if (clean.isBlank()) null else {
-            LiveSession(
-                HttpLiveClient(clean, client = defaultHttpClient(COLD_TIMEOUT_SECONDS)),
-                prompts = prompts,
-                maxObjects = if (maxObjects > 0) maxObjects else DEFAULT_MAX_OBJECTS,
-                cadence = Cadence.Fast,
-            )
-        }
+        // Session « froide » : même transport, délai long (60 s) — c'est le réveil du
+        // conteneur qui parle, pas la frame. Une fois la première analyse passée, on
+        // repart sur la session normale à délai court (10 s).
+        coldSession = if (clean.isBlank()) null else LiveSession(
+            liveClient(clean, timeoutSeconds = COLD_TIMEOUT_SECONDS),
+            prompts = prompts,
+            maxObjects = if (maxObjects > 0) maxObjects else DEFAULT_MAX_OBJECTS,
+            cadence = Cadence.Fast,
+        )
         warmed = false
         announcePositions = announce
         distances.enabled = distancesOn
         distances.setLens(lens)
         nextTickAt = 0L
-        lastFrameAt = 0L
         queued = null
+        rate.reset()
         announcer.reset()
         _state.update {
             LiveProbeState(
                 endpoint = clean,
                 gpu = it.gpu,
                 conceptsSent = LivePrompts.normalize(prompts),
+                transport = TRANSPORT_WS,
                 debugVisible = it.debugVisible,
                 error = if (clean.isBlank()) "aucun endpoint (Réglages)" else null,
             )
@@ -161,10 +169,10 @@ class LiveProbe(private val scope: CoroutineScope) {
         coldSession?.stats?.reset()
         coldSession?.serverStats?.reset()
         warmed = false
+        rate.reset()
         distances.reset()
         announcer.reset()
         nextTickAt = 0L
-        lastFrameAt = 0L
         queued = null
         _state.update {
             LiveProbeState(
@@ -228,8 +236,13 @@ class LiveProbe(private val scope: CoroutineScope) {
         dispatch(active, jpegB64, now)
     }
 
-    /** Envoie une frame et note l'instant, pour respecter la cadence adaptative. */
+    /**
+     * Envoie une frame et note l'instant, pour respecter la cadence adaptative.
+     * La cadence affichée se compte **à l'envoi** : deux réponses qui arrivent ensemble
+     * après un réveil ne veulent pas dire « 40 images par seconde ».
+     */
     private fun dispatch(active: LiveSession, jpegB64: String, at: Long) {
+        rate.record(at)
         nextTickAt = at + active.intervalMsAdaptive()
         scope.launch { runFrame(active, jpegB64, at) }
     }
@@ -274,10 +287,15 @@ class LiveProbe(private val scope: CoroutineScope) {
 
     /** Publie une frame analysée : masques recolorés, objets, distances, cadence et latences. */
     private suspend fun publish(active: LiveSession, frame: LiveFrame, at: Long) {
+        if (!warmed) {
+            // La première frame paie le démarrage du conteneur (mesuré : 17 s en WebSocket,
+            // 40 s en HTTP). La laisser dans la moyenne afficherait « 17 192 ms » pour un
+            // lien chaud à ~180 ms ; elle fausserait aussi le régulateur de créneaux.
+            active.stats.reset()
+            active.serverStats.reset()
+        }
         warmed = true
         val overlays = overlaysFor(frame)
-        val gap = if (lastFrameAt == 0L) 0L else at - lastFrameAt
-        lastFrameAt = at
         val readings = readingsOf(frame)
         val phrase = phraseOf(frame, readings, at)
         _state.update { current ->
@@ -291,13 +309,18 @@ class LiveProbe(private val scope: CoroutineScope) {
                 width = frame.width,
                 height = frame.height,
                 frames = current.frames + 1,
-                fps = if (gap in 1..20_000) 1000f / gap else current.fps,
+                fps = rate.rate,
                 distanceLayer = distanceLayerOf(frame, readings),
                 spoken = phrase ?: current.spoken,
+                transport = transportLabel(active),
                 error = null,
             )
         }
     }
+
+    /** Libellé de transport : ce que le socket fait vraiment, pas ce qu'on voudrait. */
+    private fun transportLabel(active: LiveSession): String =
+        if (active.socketOpen) TRANSPORT_WS else TRANSPORT_WS_KO
 
     /** Distances de la frame (sténopé) ; aucun journal de suivi ici : mesure brute. */
     private fun readingsOf(frame: LiveFrame): List<DistanceReading> {
@@ -355,14 +378,16 @@ class LiveProbe(private val scope: CoroutineScope) {
         warming = true
         _state.update { it.copy(warming = true) }
         scope.launch {
-            val http = HttpLiveClient(base)
+            val http = liveClient(base)
             var lastError: String? = null
             for (attempt in 1..WAKE_TRIES) {
                 val outcome = http.health()
                 val info = outcome.getOrNull()
                 if (info != null) {
                     warming = false
-                    _state.update { it.copy(gpu = info.gpu.take(28), warming = false, error = null) }
+                    _state.update {
+                        it.copy(gpu = info.gpu.take(28), warming = false, error = null)
+                    }
                     return@launch
                 }
                 lastError = outcome.exceptionOrNull()?.message

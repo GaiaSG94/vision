@@ -32,6 +32,7 @@ fun liveProbeDetails(state: LiveProbeState): List<String> = buildList {
     if (state.frames > 0) {
         add("latence : ${state.latencyMs} ms · p95 ${state.p95Ms} ms · serveur ${state.serverMs} ms")
         add("${state.frames} frames · ${state.masks.size} masques")
+        add("transport : ${state.transport}")
     }
     if (state.conceptsSent.isNotEmpty()) {
         add("suivis (${state.conceptsSent.size}) : ${state.conceptsSent.joinToString(", ")}")
