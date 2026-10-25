@@ -2,7 +2,6 @@ package dev.sam3vision.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,17 +42,20 @@ fun GpuRegionSettings(draft: Settings, onChange: (Settings) -> Unit) {
     }
 }
 
-/** Deux boutons, la région active en couleur pleine. */
+/**
+ * Un bouton **pleine largeur** par région, la région active en couleur pleine.
+ * Mesuré sur le téléphone : côte à côte (0,47), le libellé était coupé en
+ * « US · États- » — illisible pour un réglage qui coûte de l'argent.
+ */
 @Composable
 private fun RegionButtons(draft: Settings, onChange: (Settings) -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SamRegion.entries.forEach { region ->
             val active = draft.samRegion == region
             BigButton(
-                label = "${region.code} · ${region.label}",
+                label = region.label,
                 enabled = true,
                 color = if (active) AppColors.primary else AppColors.surfaceHigh,
-                widthFactor = 0.47f,
                 onClick = { onChange(pickRegion(draft, region)) },
             )
         }
