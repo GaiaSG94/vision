@@ -1,5 +1,19 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — nombre d'objets à l'écran réglable (Réglages)
+
+- **Réglage « Objets à l'écran »** : section dédiée dans Réglages (deux gros boutons − / +,
+  valeur affichée en gros), de 1 à 12, **4 par défaut**. Il pilote les deux modes d'un coup :
+  le direct envoie ce plafond à `/live` (`max_objects`) et la photo tronque la liste de
+  `/segment` — donc moins de masques, moins d'overlays, description LLM alignée.
+- **Une seule source de vérité** : `ObjectLimits` (`DEFAULT_ON_SCREEN = 4`, bornes 1..12,
+  `clamp`, `step`). Le réglage est borné à l'enregistrement, à la lecture du fichier de
+  réglages et à l'usage : un fichier ancien ou trafiqué ne peut pas sortir de l'intervalle.
+- **Persistance** dans les deux implémentations (`EncryptedSettingsStore`, codec du fichier
+  chiffré) ; clé absente = 4, donc aucune migration.
+- Tests : `ObjectLimitsTest` 3, `SettingsCodecTest` 4, `UseCasesTest` (+plafond réglé),
+  `LiveSessionTest` (+plafond transmis).
+
 ## 2026-10-25 — 4 objets maximum à l'écran
 
 - **Plafond unique `ObjectLimits.MAX_ON_SCREEN = 4`** (core) : le direct envoie

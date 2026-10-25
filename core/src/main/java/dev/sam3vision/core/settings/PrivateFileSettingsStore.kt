@@ -2,6 +2,7 @@ package dev.sam3vision.core.settings
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import dev.sam3vision.core.model.ObjectLimits
 import java.io.File
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -54,6 +55,7 @@ internal object SettingsCodec {
     private const val K_INTRO_PLAYED = "introPlayed"
     private const val K_DISTANCE_OVERLAY = "distanceOverlayEnabled"
     private const val K_CAMERA_FOV = "cameraFovDeg"
+    private const val K_MAX_OBJECTS = "maxObjects"
 
     fun encode(s: Settings): String = buildString {
         appendLine("$K_LLM_BASE_URL=${s.llmBaseUrl}")
@@ -71,6 +73,7 @@ internal object SettingsCodec {
         appendLine("$K_INTRO_PLAYED=${s.introPlayed}")
         appendLine("$K_DISTANCE_OVERLAY=${s.distanceOverlayEnabled}")
         appendLine("$K_CAMERA_FOV=${s.cameraFovDeg}")
+        appendLine("$K_MAX_OBJECTS=${s.objectsOnScreen}")
     }
 
     /** Tolérant : une clé absente (ancien fichier) reprend sa valeur par défaut. */
@@ -98,6 +101,9 @@ internal object SettingsCodec {
                 ?: default.distanceOverlayEnabled,
             cameraFovDeg = values[K_CAMERA_FOV]?.toFloatOrNull()?.takeIf { it > 0f }
                 ?: default.cameraFovDeg,
+            maxObjects = ObjectLimits.clamp(
+                values[K_MAX_OBJECTS]?.toIntOrNull() ?: default.maxObjects,
+            ),
         )
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import dev.sam3vision.core.model.ObjectLimits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -67,6 +68,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_LLM_API_KEY = "llm_api_key"
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_SAM_BASE_URL = "sam_base_url"
+        const val KEY_MAX_OBJECTS = "max_objects"
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_VOICE_ID = "tts_voice_id"
         const val KEY_TTS_AUTOPLAY = "tts_autoplay"

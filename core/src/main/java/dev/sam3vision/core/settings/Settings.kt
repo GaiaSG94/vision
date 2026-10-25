@@ -1,5 +1,7 @@
 package dev.sam3vision.core.settings
 
+import dev.sam3vision.core.model.ObjectLimits
+
 /**
  * Réglages de l'app. [samBaseUrl] vide = segmentation désactivée (la photo part
  * directement au LLM). Aucune valeur de clé n'est jamais écrite en dur.
@@ -34,6 +36,8 @@ data class Settings(
      * capteur. Sert quand le driver ne répond pas, ou pour affiner l'étalonnage.
      */
     val cameraFovDeg: Float = 0f,
+    /** Plafond d'objets affichés à l'écran, commun au direct et à la photo. */
+    val maxObjects: Int = ObjectLimits.DEFAULT_ON_SCREEN,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
@@ -73,6 +77,7 @@ data class Settings(
             introPlayed = false,
             distanceOverlayEnabled = true,
             cameraFovDeg = 0f,
+            maxObjects = ObjectLimits.DEFAULT_ON_SCREEN,
         )
     }
 
@@ -81,6 +86,9 @@ data class Settings(
      * l'intro n'a pas été entendue une fois et qu'elle n'est pas coupée aux Réglages.
      */
     val introPending: Boolean get() = introEnabled && !introPlayed
+
+    /** Plafond d'objets réellement appliqué (le réglage peut être hors bornes). */
+    val objectsOnScreen: Int get() = ObjectLimits.clamp(maxObjects)
 
     /** Vrai si un endpoint SAM est renseigné. */
     val segmentationEnabled: Boolean get() = samBaseUrl.isNotBlank()

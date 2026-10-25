@@ -63,7 +63,7 @@ class LiveSession(
     companion object {
         const val DEFAULT_WORK_EDGE = 640
         /** Plafond d'objets affichés en direct (voir [ObjectLimits.MAX_ON_SCREEN]). */
-        const val DEFAULT_MAX_OBJECTS = ObjectLimits.MAX_ON_SCREEN
+        const val DEFAULT_MAX_OBJECTS = ObjectLimits.DEFAULT_ON_SCREEN
         const val HIGH_MS = 900L
         const val LOW_MS = 350L
         const val TARGET_MS = 500L

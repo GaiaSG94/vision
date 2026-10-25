@@ -84,7 +84,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val http = HttpLiveClient(base)
         client = http
         val chosen = LivePrompts.normalize(prompts)
-        session = LiveSession(http, prompts = chosen)
+        session = LiveSession(http, prompts = chosen, maxObjects = settings.objectsOnScreen)
         timeline.clear()
         history = emptyList()
         distances.enabled = settings.distanceOverlayEnabled

@@ -155,7 +155,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun analyze(encoded: String) {
         val settings = _state.value.settings
-        val result = AnalyzeUseCase(llm(settings), sam(settings)).invoke(encoded)
+        val result = AnalyzeUseCase(
+            llm(settings),
+            sam(settings),
+            maxObjects = settings.objectsOnScreen,
+        ).invoke(encoded)
         result.fold(
             onSuccess = { analysis ->
                 val overlays = buildOverlays(_state.value.photo, analysis.objects)
@@ -250,7 +254,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleMasks() = _state.update { it.copy(showMasks = !it.showMasks) }
 
     fun saveSettings(next: Settings) = viewModelScope.launch {
-        val cleaned = withTtsDefaults(next)
+        val cleaned = withTtsDefaults(next).copy(maxObjects = next.objectsOnScreen)
         store.save(cleaned)
         _state.update { it.copy(settings = cleaned, statusLine = "Réglages enregistrés.") }
     }

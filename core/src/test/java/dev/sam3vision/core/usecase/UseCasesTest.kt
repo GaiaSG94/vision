@@ -54,8 +54,18 @@ class UseCasesTest {
         val many = (1..9).map { CHAIR.copy(label = "objet$it") }
         val sam = FakeSam(Result.success(SegmentResult(10, 10, many)))
         val analysis = AnalyzeUseCase(llm, sam).invoke("QUJD").getOrThrow()
-        assertEquals(ObjectLimits.MAX_ON_SCREEN, analysis.objects.size)
+        assertEquals(ObjectLimits.DEFAULT_ON_SCREEN, analysis.objects.size)
         assertEquals(listOf("objet1", "objet2", "objet3", "objet4"), llm.lastLabels)
+    }
+
+    @Test
+    fun `analyze suit le plafond regle dans les reglages`() = runBlocking {
+        val llm = FakeLlm()
+        val many = (1..9).map { CHAIR.copy(label = "objet$it") }
+        val sam = FakeSam(Result.success(SegmentResult(10, 10, many)))
+        val analysis = AnalyzeUseCase(llm, sam, maxObjects = 2).invoke("QUJD").getOrThrow()
+        assertEquals(2, analysis.objects.size)
+        assertEquals(listOf("objet1", "objet2"), llm.lastLabels)
     }
 
     @Test
