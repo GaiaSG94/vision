@@ -16,11 +16,14 @@ import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.SegObject
 import dev.sam3vision.core.net.ElevenLabsTtsClient
 import dev.sam3vision.core.net.HttpSamClient
+import kotlinx.coroutines.CoroutineScope
+import dev.sam3vision.core.net.releaseSam
 import dev.sam3vision.core.net.InferHubLlmClient
 import dev.sam3vision.core.net.LlmClient
 import dev.sam3vision.core.net.SamClient
 import dev.sam3vision.core.settings.Settings
 import dev.sam3vision.core.settings.SettingsStore
+import dev.sam3vision.core.settings.resolveSamEndpoint
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
 import dev.sam3vision.core.usecase.AnalyzeUseCase
@@ -35,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.SupervisorJob
 
 /** Étape de la vue : idle, analyse en cours, prêt, ou échec avec message lisible. */
 sealed interface Phase {
@@ -261,18 +265,66 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun prewarmGpu() {
         val settings = _state.value.settings
-        if (settings.samBaseUrl.isBlank()) return
+        // Endpoint résolu (saisie manuelle > région EU/US > build) : sans ça, un utilisateur
+        // qui a choisi une région sans saisir d'URL n'aurait aucun réveil.
+        val endpoint = settings.resolveSamEndpoint(BuildConfig.SAM_BASE_URL, BuildConfig.SAM_US_BASE_URL)
+        if (endpoint.isBlank()) return
         val now = System.currentTimeMillis()
         if (!shouldPrewarm(now, lastPrewarmAt, PREWARM_WINDOW_MS)) return
         lastPrewarmAt = now
         viewModelScope.launch {
             // Résultat ignoré : seul le démarrage du conteneur nous intéresse ici.
-            HttpSamClient(settings.samBaseUrl).health()
+            HttpSamClient(endpoint).health()
         }
     }
 
     /** Horodatage du dernier réveil préventif (0 = jamais). */
     private var lastPrewarmAt = 0L
+
+    /**
+     * Extinction volontaire du conteneur GPU à la fermeture de l'app.
+     *
+     * Hors `viewModelScope` **exprès** : à `onDestroy`, le scope du ViewModel est annulé,
+     * l'appel serait tué avant de partir. Le scope dédié survit le temps de la requête.
+     */
+    fun releaseGpu() {
+        val endpoint = _state.value.settings
+            .resolveSamEndpoint(BuildConfig.SAM_BASE_URL, BuildConfig.SAM_US_BASE_URL)
+        if (endpoint.isBlank()) return
+        releaseScope.launch {
+            releaseSam(endpoint)
+        }
+    }
+
+    /** Scope d'extinction : indépendant du cycle de vie de l'écran (voir [releaseGpu]). */
+    private val releaseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * L'app passe derrière : on n'éteint pas tout de suite (un changement d'app de 5 s ne
+     * doit pas coûter une restauration), mais on coupe après [BACKGROUND_RELEASE_MS] sans
+     * retour. Annulé par [cancelBackgroundRelease] au retour au premier plan.
+     */
+    fun scheduleBackgroundRelease() {
+        backgroundRelease?.cancel()
+        backgroundRelease = releaseScope.launch {
+            kotlinx.coroutines.delay(BACKGROUND_RELEASE_MS)
+            releaseSam(endpointOrBlank()). onFailure {
+                android.util.Log.w("sam3vision", "extinction GPU après fond : ${it.message}")
+            }
+        }
+    }
+
+    /** L'app revient : le réveil se fera tout seul au premier appel, on annule la coupure. */
+    fun cancelBackgroundRelease() {
+        backgroundRelease?.cancel()
+        backgroundRelease = null
+    }
+
+    private var backgroundRelease: Job? = null
+
+    /** Endpoint résolu (saisie manuelle > région > build), vide si rien à interroger. */
+    private fun endpointOrBlank(): String = _state.value.settings
+        .resolveSamEndpoint(BuildConfig.SAM_BASE_URL, BuildConfig.SAM_US_BASE_URL)
 
     fun testSam() = viewModelScope.launch {
         val settings = _state.value.settings
@@ -404,5 +456,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Fenêtre anti-rallumage : deux réveils rapprochés ne servent à rien. */
         const val PREWARM_WINDOW_MS = 120_000L
+
+        /** Delai sans retour avant de couper le GPU quand l'app est en arriere-plan. */
+        const val BACKGROUND_RELEASE_MS = 60_000L
     }
 }

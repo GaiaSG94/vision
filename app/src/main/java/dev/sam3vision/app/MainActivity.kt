@@ -68,6 +68,9 @@ class MainActivity : ComponentActivity() {
         setContentView(buildRoot())
         requestMicIfNeeded()
         routeIntent(intent)
+        // Ouverture de l'app : on réveille le conteneur tout de suite (snapshot restauré
+        // en 2 à 7 s), pour que la première frame du direct n'attende pas le démarrage.
+        viewModel.prewarmGpu()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -116,17 +119,24 @@ class MainActivity : ComponentActivity() {
     /** Option C : minuteur d'inactivité démarré / annulé autour de l'arrière-plan. */
     override fun onPause() {
         root.cancelGesture()
+        // Fond : le GPU sera coupé si l'app ne revient pas (voir BACKGROUND_RELEASE_MS).
+        viewModel.scheduleBackgroundRelease()
         ihear.onBackground()
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
+        viewModel.cancelBackgroundRelease()
+        viewModel.prewarmGpu()
         ihear.onForeground()
     }
 
     /** Option A : purge totale de la table Room et du cache à la fermeture. */
     override fun onDestroy() {
+        // App quittée pour de bon (pas une simple rotation) : on éteint le GPU, sinon la
+        // carte A100 reste facturée jusqu'à sa fenêtre de réduintage.
+        if (isFinishing) viewModel.releaseGpu()
         ihear.onAppClosed()
         if (isFinishing) glasses.close()
         super.onDestroy()
