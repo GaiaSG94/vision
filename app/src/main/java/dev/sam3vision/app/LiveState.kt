@@ -111,8 +111,8 @@ fun shouldKeepFrame(nowMs: Long, lastKeepAtMs: Long, intervalMs: Long = FRAME_KE
 /** Cadence du prochain tick, bornée par les constantes de [LiveSession]. */
 fun nextIntervalMs(session: LiveSession?): Long = session?.intervalMsAdaptive() ?: LiveSession.TARGET_MS
 
-/** Endpoint du direct : celui saisi dans Réglages, sinon celui injecté au build. */
-fun Settings.liveBaseUrl(): String = samBaseUrl.ifBlank { BuildConfig.SAM_BASE_URL }
+/** Endpoint du direct : saisie manuelle, sinon région des Réglages (EU/US), sinon build. */
+fun Settings.liveBaseUrl(): String = samEndpoint()
 
 /** Demi-largeur de la fenêtre demandée autour de « il y a N s » : ±2,5 s. */
 const val FOCUS_HALF_SPAN_MS = 2_500L

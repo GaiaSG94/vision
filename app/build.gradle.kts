@@ -60,6 +60,8 @@ android {
         buildConfigField("String", "SAM31_ENDPOINT", "\"${localProp("sam31.endpoint")}\"")
         // Direct : base de l'app Modal sam3-eu-a100 (/live).
         buildConfigField("String", "SAM_BASE_URL", "\"${localProp("sam.base.url")}\"")
+        // Endpoint de la région US (mode US des Réglages) : app Modal déployée en us-east.
+        buildConfigField("String", "SAM_US_BASE_URL", "\"${localProp("sam.us.base.url")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

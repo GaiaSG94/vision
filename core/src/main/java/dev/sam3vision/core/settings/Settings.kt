@@ -45,6 +45,11 @@ data class Settings(
     val cameraFovDeg: Float = 0f,
     /** Plafond d'objets affichés à l'écran, commun au direct et à la photo. */
     val maxObjects: Int = ObjectLimits.DEFAULT_ON_SCREEN,
+    /**
+     * Région de la GPU SAM 3.1 : Europe (défaut) ou **mode US** (carte aux États-Unis).
+     * Choisit l'endpoint appelé, n'allume aucune carte. Voir [resolveSamEndpoint].
+     */
+    val samRegion: SamRegion = SamRegion.Eu,
 ) {
     companion object {
         const val DEFAULT_LLM_BASE_URL = "https://api.inferhub.dev/v1"
@@ -99,8 +104,11 @@ data class Settings(
     /** Plafond d'objets réellement appliqué (le réglage peut être hors bornes). */
     val objectsOnScreen: Int get() = ObjectLimits.clamp(maxObjects)
 
-    /** Vrai si un endpoint SAM est renseigné. */
-    val segmentationEnabled: Boolean get() = samBaseUrl.isNotBlank()
+    /**
+     * Vrai si un endpoint SAM est disponible : une URL manuelle, ou le preset de la
+     * région choisie ([resolveSamEndpoint] — donc toujours vrai, sauf preset vide).
+     */
+    val segmentationEnabled: Boolean get() = resolveSamEndpoint().isNotBlank()
 
     /** Vrai si l'app peut appeler le LLM. */
     val llmConfigured: Boolean get() = llmBaseUrl.isNotBlank() && llmApiKey.isNotBlank()

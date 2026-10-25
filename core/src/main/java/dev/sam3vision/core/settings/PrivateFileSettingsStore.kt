@@ -44,6 +44,7 @@ internal object SettingsCodec {
     private const val K_LLM_API_KEY = "llmApiKey"
     private const val K_LLM_MODEL = "llmModel"
     private const val K_SAM_BASE_URL = "samBaseUrl"
+    private const val K_SAM_REGION = "samRegion"
     private const val K_TTS_API_KEY = "ttsApiKey"
     private const val K_TTS_VOICE_ID = "ttsVoiceId"
     private const val K_TTS_AUTOPLAY = "ttsAutoplay"
@@ -63,6 +64,7 @@ internal object SettingsCodec {
         appendLine("$K_LLM_API_KEY=${s.llmApiKey}")
         appendLine("$K_LLM_MODEL=${s.llmModel}")
         appendLine("$K_SAM_BASE_URL=${s.samBaseUrl}")
+        appendLine("$K_SAM_REGION=${s.samRegion.name}")
         appendLine("$K_TTS_API_KEY=${s.ttsApiKey}")
         appendLine("$K_TTS_VOICE_ID=${s.ttsVoiceId}")
         appendLine("$K_TTS_AUTOPLAY=${s.ttsAutoplay}")
@@ -89,6 +91,7 @@ internal object SettingsCodec {
             llmApiKey = values[K_LLM_API_KEY].orEmpty(),
             llmModel = values[K_LLM_MODEL].orEmpty().ifBlank { default.llmModel },
             samBaseUrl = values[K_SAM_BASE_URL].orEmpty(),
+            samRegion = SamRegion.fromName(values[K_SAM_REGION]),
             ttsApiKey = values[K_TTS_API_KEY].orEmpty(),
             ttsVoiceId = values[K_TTS_VOICE_ID].orEmpty().ifBlank { default.ttsVoiceId },
             ttsAutoplay = values[K_TTS_AUTOPLAY]?.toBooleanStrictOrNull() ?: default.ttsAutoplay,

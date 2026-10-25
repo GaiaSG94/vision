@@ -26,7 +26,8 @@ import androidx.compose.ui.unit.sp
 import dev.sam3vision.core.settings.Settings
 
 /**
- * Réglages : LLM (base URL, clé, modèle) + endpoint SAM optionnel + section
+ * Réglages : LLM (base URL, clé, modèle) + endpoint SAM + région de la GPU
+ * (mode Europe / **mode US**) + section
  * « Distances » (overlay du direct, champ de vision) + section « Voix ElevenLabs »
  * (clé, voix, lecture automatique, test) + section « Dictée Meta » (base URL, clé,
  * modèle ASR, test). Chaque moteur a son bouton de test.
@@ -65,6 +66,7 @@ fun SettingsScreen(
         ) {
             BackendFields(draft) { draft = it }
             ObjectsSettings(draft) { draft = it }
+            GpuRegionSettings(draft) { draft = it }
             DistanceSettings(draft) { draft = it }
             TtsSettings(
                 draft = draft,
@@ -87,7 +89,7 @@ private fun BackendFields(draft: Settings, onChange: (Settings) -> Unit) {
     LabeledField("Base URL LLM", draft.llmBaseUrl, false) { onChange(draft.copy(llmBaseUrl = it)) }
     LabeledField("Clé API LLM", draft.llmApiKey, true) { onChange(draft.copy(llmApiKey = it)) }
     LabeledField("Modèle LLM (vision)", draft.llmModel, false) { onChange(draft.copy(llmModel = it)) }
-    LabeledField("Base URL SAM 3.1 (vide = désactivé)", draft.samBaseUrl, false) {
+    LabeledField("Base URL SAM 3.1 (vide = région choisie ci-dessous)", draft.samBaseUrl, false) {
         onChange(draft.copy(samBaseUrl = it))
     }
 }
@@ -104,7 +106,7 @@ private fun SettingsActions(
 ) {
     BigButton("Enregistrer", true, AppColors.primary, onClick = { onSave(draft) })
     BigButton("Tester le LLM", llmConfigured, AppColors.surfaceHigh, onTestLlm)
-    BigButton("Tester SAM", draft.samBaseUrl.isNotBlank(), AppColors.surfaceHigh, onTestSam)
+    BigButton("Tester SAM", draft.samConfigured(), AppColors.surfaceHigh, onTestSam)
     BigButton("Tester la dictée Meta", draft.asrConfigured, AppColors.surfaceHigh, onTestAsr)
 }
 

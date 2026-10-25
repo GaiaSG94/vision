@@ -32,6 +32,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             llmModel = prefs.getString(KEY_LLM_MODEL, default.llmModel).orEmpty()
                 .ifBlank { default.llmModel },
             samBaseUrl = prefs.getString(KEY_SAM_BASE_URL, default.samBaseUrl).orEmpty(),
+            samRegion = SamRegion.fromName(prefs.getString(KEY_SAM_REGION, default.samRegion.name)),
             ttsApiKey = prefs.getString(KEY_TTS_API_KEY, default.ttsApiKey).orEmpty(),
             ttsVoiceId = prefs.getString(KEY_TTS_VOICE_ID, default.ttsVoiceId).orEmpty()
                 .ifBlank { default.ttsVoiceId },
@@ -59,6 +60,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putString(KEY_LLM_API_KEY, s.llmApiKey)
             .putString(KEY_LLM_MODEL, s.llmModel)
             .putString(KEY_SAM_BASE_URL, s.samBaseUrl)
+            .putString(KEY_SAM_REGION, s.samRegion.name)
             .putString(KEY_TTS_API_KEY, s.ttsApiKey)
             .putString(KEY_TTS_VOICE_ID, s.ttsVoiceId)
             .putBoolean(KEY_TTS_AUTOPLAY, s.ttsAutoplay)
@@ -79,6 +81,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_LLM_MODEL = "llm_model"
         const val KEY_SAM_BASE_URL = "sam_base_url"
         const val KEY_MAX_OBJECTS = "max_objects"
+        const val KEY_SAM_REGION = "sam_region"
         const val KEY_TTS_API_KEY = "tts_api_key"
         const val KEY_TTS_VOICE_ID = "tts_voice_id"
         const val KEY_TTS_AUTOPLAY = "tts_autoplay"

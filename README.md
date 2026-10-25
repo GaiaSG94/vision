@@ -59,7 +59,9 @@ photo part directement au LLM. Modal est fermé (0 GPU) — voir l'ancien dépô
   jamais. Coupée par la bascule **« Intro à la 1re ouverture : on/off »** des Réglages.
 - **Réglages** : titre « Réglages du backend », mention « Aucune clé n'est écrite dans le code. »,
   9 champs (Base URL LLM, Clé API LLM masquée `•••`, Modèle LLM, Base URL SAM, clé ElevenLabs
-  masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR) + interrupteurs « Lire les
+  masquée, ID de voix, base URL ASR, clé Meta masquée, modèle ASR), la section
+  **« GPU SAM 3.1 — région »** (boutons **EU** / **US** = mode US, endpoint actif affiché),
+  les interrupteurs « Lire les
   réponses automatiquement », « Annoncer la position des objets détectés » et « Intro à la
   1re ouverture », boutons « Enregistrer »,
   « Tester le LLM » (mini-image 16×16, statut « LLM OK — … »), « Tester SAM », « 🔊 Tester la
@@ -127,6 +129,14 @@ l'écran Réglages prime sur la valeur embarquée.
    comme test — renvoie `402 billing_not_configured` et l'app l'affiche tel quel.
 3. La clé est stockée chiffrée (Keystore), jamais embarquée dans l'APK ni dans le dépôt.
 
+## Mode US — GPU aux États-Unis
+
+Réglages → « GPU SAM 3.1 — région » → **US**. L'app interroge alors l'app Modal
+`sam3-us-a100` (région `us`, routage `us-east`) au lieu de `sam3-eu-a100` : même contrat
+`/live`, mêmes masques, aucun autre réglage à toucher. Une seule carte à la fois : allumer
+l'app US se fait avec `~/bin/sam3-gpu-us on --reason "…"`, après avoir éteint l'EU
+(`~/bin/sam3-gpu off`). Détail, coûts et pièges : `docs/MODE-US.md`.
+
 ## Réactiver la segmentation SAM 3.1
 
 1. Redéployer l'endpoint Modal (GPU à la demande, contrat HTTP inchangé) :
@@ -139,7 +149,8 @@ LLM_BASE_URL=https://api.inferhub.dev/v1 LLM_API_KEY=unused LLM_MODEL=unused \
 
 2. Copier l'URL rendue (`https://baptiste-faisy--sam3-vision-sam3service-web.us-east.modal.run`
    ou celle du nouveau déploiement), la coller dans « Base URL SAM 3.1 » des Réglages,
-   Enregistrer puis « Tester SAM » (`/health`). Vide = segmentation désactivée.
+   Enregistrer puis « Tester SAM » (`/health`). Vide = preset de la région choisie
+   (EU `sam3-eu-a100`, US `sam3-us-a100`).
 
 ## Voix — ElevenLabs (TTS)
 

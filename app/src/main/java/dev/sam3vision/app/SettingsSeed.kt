@@ -1,5 +1,6 @@
 package dev.sam3vision.app
 
+import dev.sam3vision.core.settings.SamRegion
 import dev.sam3vision.core.settings.Settings
 
 /**
@@ -12,7 +13,16 @@ import dev.sam3vision.core.settings.Settings
  * `AppViewModel` (chat, analyse, dictée) comme `LiveViewModel` (mode Direct) :
  * sinon le Direct serait muet alors que le chat parle.
  */
-fun seededFromBuild(loaded: Settings): Settings = withTtsDefaults(seedVoice(withLlmKey(loaded)))
+fun seededFromBuild(loaded: Settings): Settings =
+    withTtsDefaults(seedVoice(withLlmKey(dropPresetUrl(loaded))))
+
+/**
+ * Une URL SAM qui n'est que le preset d'une région (injectée par ce build, ou persistée
+ * par une version antérieure) ne doit pas figer le choix Europe/États-Unis : on l'efface
+ * et laisse la région des Réglages parler. Une URL saisie à la main est conservée.
+ */
+internal fun dropPresetUrl(loaded: Settings): Settings =
+    if (SamRegion.isPreset(loaded.samBaseUrl)) loaded.copy(samBaseUrl = "") else loaded
 
 /** Clé LLM de build : uniquement si rien n'a encore été saisi. */
 internal fun withLlmKey(loaded: Settings): Settings {
@@ -22,7 +32,6 @@ internal fun withLlmKey(loaded: Settings): Settings {
         llmApiKey = fromBuild,
         llmBaseUrl = loaded.llmBaseUrl.ifBlank { BuildConfig.LLM_BASE_URL },
         llmModel = loaded.llmModel.ifBlank { BuildConfig.LLM_MODEL },
-        samBaseUrl = loaded.samBaseUrl.ifBlank { BuildConfig.SAM_BASE_URL },
     )
 }
 

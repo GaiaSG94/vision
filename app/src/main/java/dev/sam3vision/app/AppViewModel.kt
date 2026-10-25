@@ -110,7 +110,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         InferHubLlmClient(settings.llmBaseUrl, settings.llmApiKey, settings.llmModel)
 
     private fun sam(settings: Settings): SamClient? =
-        if (settings.samBaseUrl.isBlank()) null else HttpSamClient(settings.samBaseUrl)
+        if (!settings.samConfigured()) null else HttpSamClient(settings.samEndpoint())
 
     /** Une photo capturée ou choisie : on l'affiche tout de suite, puis on l'analyse. */
     fun onPhoto(file: File) = viewModelScope.launch {
@@ -276,12 +276,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun testSam() = viewModelScope.launch {
         val settings = _state.value.settings
-        if (settings.samBaseUrl.isBlank()) {
+        val url = settings.samEndpoint()
+        if (url.isBlank()) {
             _state.update { it.copy(statusLine = "SAM KO — aucune base URL renseignée.") }
             return@launch
         }
-        _state.update { it.copy(statusLine = "Test SAM en cours…") }
-        val outcome = HttpSamClient(settings.samBaseUrl).health()
+        _state.update { it.copy(statusLine = "Test SAM en cours… (${settings.samRegion.code})") }
+        val outcome = HttpSamClient(url).health()
         _state.update {
             it.copy(statusLine = outcome.fold(
                 onSuccess = { ok -> if (ok) "SAM OK — endpoint joignable." else "SAM KO — /health a répondu faux." },

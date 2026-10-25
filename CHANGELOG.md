@@ -1,5 +1,28 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 — Réglages : mode US (GPU SAM 3.1 aux États-Unis)
+
+- **Nouveau réglage `samRegion`** (`core/settings/SamRegion.kt`) : deux régions, **EU**
+  (`sam3-eu-a100`, routage `eu-west`) et **US** (`sam3-us-a100`, routage `us-east`), chacune
+  avec son preset d'endpoint. Section des Réglages « GPU SAM 3.1 — région » : deux boutons, la
+  région active en couleur pleine, l'endpoint réellement appelé affiché dessous.
+- **Résolution unique** (`resolveSamEndpoint`) : Base URL saisie à la main > preset de la
+  région > URL injectée au build (`sam.base.url` / nouveau `sam.us.base.url`). Branchée sur le
+  le Direct (`liveBaseUrl`), l'analyse photo (`AppViewModel`) et « Tester SAM » (qui affiche la
+  région testée).
+- **Migration douce** : une URL SAM qui n'est qu'un preset (injectée par le build ou persistée
+  par une version antérieure) est effacée au chargement — sinon elle gagnerait sur la région et
+  le mode US semblerait sans effet. Une URL tapée à la main est conservée.
+- **Persistance** : `samRegion` ajouté aux deux stores (`sam_region` / `samRegion`), valeur
+  inconnue ⇒ EU.
+- **Outil** : `~/bin/sam3-gpu-us` (enrobage `SAM3_APP=sam3-us-a100 SAM3_REGION=us
+  SAM3_ROUTING=us-east` de `sam3-gpu`) — même bail, même watchdog, même règle « une seule GPU
+  à la fois ». L'app ne choisit que l'endpoint : elle n'allume aucune carte.
+- Docs : `docs/MODE-US.md` (déploiement, coût ×1,15 de la région large `us`, pièges
+  `routing_region` figé au 1er déploiement et 404 « invalid function call »).
+- Tests : +8 core (`SamRegionTest`) → **293 core + 66 app verts**, `assembleDebug` et
+  `check-kotlin-limits` OK.
+
 ## 2026-10-25 (7) — Direct : narration LLM continue des frames
 
 - **`describeFrame` + `LiveNarrator`** : une frame éligible toutes les 2 s, jamais deux en
