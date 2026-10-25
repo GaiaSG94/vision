@@ -37,6 +37,17 @@ class DistanceTextTest {
     }
 
     @Test
+    fun `distance prononcee en francais`() {
+        assertEquals("85 centimètres", DistanceText.spoken(0.85f))
+        assertEquals("1 centimètre", DistanceText.spoken(0.01f))
+        assertEquals("1,4 mètre", DistanceText.spoken(1.44f))
+        assertEquals("2 mètres", DistanceText.spoken(1.96f))
+        assertEquals("3,3 mètres", DistanceText.spoken(3.288f))
+        assertEquals("12 mètres", DistanceText.spoken(12.4f))
+        assertEquals("distance inconnue", DistanceText.spoken(0f))
+    }
+
+    @Test
     fun `objet le plus proche et ligne de barre d'etat`() {
         val readings = listOf(reading("personne", 3.2f), reading("chaise", 1.4f), reading("table", 2.0f))
         assertEquals("chaise", DistanceText.nearest(readings)!!.label)

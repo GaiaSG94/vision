@@ -23,6 +23,23 @@ object DistanceText {
     /** Étiquette avec l'approximation assumée : « ≈ 3,2 m ». */
     fun approximate(meters: Float): String = "≈ ${format(meters)}"
 
+    /**
+     * Distance **prononcée** par la voix : « 85 centimètres », « 1,4 mètre »,
+     * « 12 mètres ». Le singulier en français va jusqu'à 2 (« 1,5 mètre »), d'où la
+     * règle sur la valeur arrondie, pas sur la valeur brute.
+     */
+    fun spoken(meters: Float): String {
+        if (!meters.isFinite() || meters <= 0f) return "distance inconnue"
+        if (meters < 1f) {
+            val centimeters = (meters * 100f).roundToInt()
+            return "$centimeters ${if (centimeters < 2) "centimètre" else "centimètres"}"
+        }
+        val digits = if (meters < 10f) 1 else 0
+        val text = decimal(meters, digits).removeSuffix(",0")
+        val rounded = text.replace(',', '.').toFloatOrNull() ?: meters
+        return "$text ${if (rounded < 2f) "mètre" else "mètres"}"
+    }
+
     /** L'objet le plus proche de la frame, `null` si rien n'est mesuré. */
     fun nearest(readings: List<DistanceReading>): DistanceReading? =
         readings.minByOrNull { it.meters }

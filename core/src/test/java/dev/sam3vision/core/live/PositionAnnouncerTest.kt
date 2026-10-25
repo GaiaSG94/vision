@@ -78,6 +78,23 @@ class PositionAnnouncerTest {
     }
 
     @Test
+    fun `objet qui s'approche est reannonce au metre pres`() {
+        val announcer = PositionAnnouncer(cooldownMs = 1_000L)
+        fun personne(meters: Float) = PlacedLabel("personne", 0.5f, 0.5f, meters = meters)
+
+        assertNull(announcer.onFrame(0L, listOf(personne(3.4f))))
+        assertEquals("Personne au centre, à 3,4 mètres.", announcer.onFrame(500L, listOf(personne(3.4f))))
+        // même mètre : rien de neuf à dire
+        assertNull(announcer.onFrame(2_000L, listOf(personne(3.1f))))
+        // elle s'est rapprochée d'un mètre : stabilité d'abord, puis la phrase
+        assertNull(announcer.onFrame(2_500L, listOf(personne(2.4f))))
+        assertEquals("Personne au centre, à 2,4 mètres.", announcer.onFrame(3_000L, listOf(personne(2.4f))))
+        // encore plus près : le délai minimal repousse l'annonce d'une frame
+        assertNull(announcer.onFrame(3_500L, listOf(personne(1.4f))))
+        assertEquals("Personne au centre, à 1,4 mètre.", announcer.onFrame(4_000L, listOf(personne(1.4f))))
+    }
+
+    @Test
     fun `phrase retenue pour l affichage`() {
         val announcer = PositionAnnouncer()
 

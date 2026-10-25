@@ -90,4 +90,32 @@ class PositionTextTest {
         assertEquals(a, b)
         assertEquals("", PositionText.key(emptyList()))
     }
+
+    @Test
+    fun `la distance s'ajoute a l'objet et impose le point-virgule`() {
+        val proche = PlacedLabel("personne", 0.1f, 0.5f, meters = 1.44f)
+        val loin = PlacedLabel("chien", 0.9f, 0.5f, meters = 3.0f)
+
+        assertEquals(
+            "Personne à gauche, à 1,4 mètre ; chien à droite, à 3 mètres.",
+            PositionText.phrase(listOf(proche, loin)),
+        )
+        // un seul objet avec distance : même règle, la phrase reste courte
+        assertEquals("Personne à gauche, à 1,4 mètre.", PositionText.phrase(listOf(proche)))
+        // sans distance connue : forme d'origine, virgules
+        assertEquals("Personne à gauche, chien à droite.", PositionText.phrase(listOf(placed("personne", 0.1f), placed("chien", 0.9f))))
+    }
+
+    @Test
+    fun `la distance arrondie fait partie de la signature`() {
+        val trois = PlacedLabel("personne", 0.5f, 0.5f, meters = 3.2f)
+        val deux = PlacedLabel("personne", 0.5f, 0.5f, meters = 2.4f)
+        val troisBis = PlacedLabel("personne", 0.5f, 0.5f, meters = 3.4f)
+
+        assertTrue(PositionText.key(listOf(trois)) != PositionText.key(listOf(deux)))
+        // même mètre près : pas de nouvelle annonce (le lissage suffit)
+        assertEquals(PositionText.key(listOf(trois)), PositionText.key(listOf(troisBis)))
+        assertEquals("personne|au centre|2", PositionText.key(listOf(deux)))
+        assertEquals("personne|au centre|?", PositionText.key(listOf(PlacedLabel("personne", 0.5f))))
+    }
 }

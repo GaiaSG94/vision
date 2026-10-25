@@ -70,13 +70,14 @@ private fun VoiceSwitches(draft: Settings, onChange: (Settings) -> Unit) {
         fontSize = 11.sp,
     )
     SwitchRow(
-        label = "Annoncer la position des objets détectés",
+        label = "Annoncer les objets et leur distance",
         checked = draft.ttsAnnouncePositions,
     ) { onChange(draft.copy(ttsAnnouncePositions = it)) }
     Text(
         "Activé : en mode Direct (et après l'analyse d'une photo), la voix dit où sont les " +
-            "objets dès qu'ils apparaissent — « Personne à gauche, chien au centre ». " +
-            "Une annonce toutes les 4 s au plus, et seulement si la scène change.",
+            "objets et à quelle distance — « Personne à gauche, à 1,4 mètre ; chien au " +
+            "centre, à 3 mètres ». Une annonce toutes les 4 s au plus, et seulement si la " +
+            "scène change : un objet qui s'approche d'un mètre est ré-annoncé.",
         color = AppColors.textMuted,
         fontSize = 11.sp,
     )

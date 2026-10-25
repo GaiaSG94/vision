@@ -1,5 +1,23 @@
 # CHANGELOG — sam-vision-kotlin
 
+## 2026-10-25 (4) — la voix dit les distances (« Personne à gauche, à 1,4 mètre »)
+
+- **Annonce vocale des distances** : `PositionText.item` ajoute la distance à l'objet et
+  `DistanceText.spoken` la met en mots français (« 85 centimètres », « 1,4 mètre »,
+  « 12 mètres »). Phrase : `Personne à gauche, à 1,4 mètre ; chien au centre, à 3 mètres.`
+  — point-virgule entre objets dès qu'une distance est connue (la virgule sépare déjà
+  position et distance), forme d'origine quand aucune distance n'est mesurée.
+- **Rien de dupliqué** : c'est l'annonce de positions existante (`PositionAnnouncer` :
+  stabilité 2 frames, non-répétition, 4 s entre deux phrases) qui porte la distance ;
+  `LiveViewModel` rapproche chaque lecture de sa boîte, sans indexation fragile.
+- **La distance arrondie au mètre entre dans la signature de scène**
+  (`PositionText.key`) : un objet qui s'approche est ré-annoncé (3 m → 2 m → 1 m), une
+  scène immobile reste muette. Bascule des Réglages renommée « Annoncer les objets et
+  leur distance » (active par défaut, il faut une clé ElevenLabs).
+- Tests : 343 JVM verts (dont `DistanceText.spoken`, phrase à distances, signature au
+  mètre près, et un scénario d'approche dans `PositionAnnouncerTest`). Détail :
+  `docs/DISTANCES.md`.
+
 ## 2026-10-25 (3) — distances : pastilles toujours visibles (bords et bandeau du haut)
 
 - **Recette v2 sur le téléphone** (même A100, déjà chaude) : `Direct · 2,6 ips · 54 ms ·

@@ -1,10 +1,20 @@
 package dev.sam3vision.core.live
 
+import dev.sam3vision.core.distance.DistanceText
 import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.SeenObject
+import kotlin.math.roundToInt
 
-/** Un objet nommé à une position **normalisée** (0..1) : ce que la voix met en mots. */
-data class PlacedLabel(val label: String, val centerX: Float, val centerY: Float = 0.5f) {
+/**
+ * Un objet nommé à une position **normalisée** (0..1), avec sa distance estimée
+ * quand elle est connue : ce que la voix met en mots.
+ */
+data class PlacedLabel(
+    val label: String,
+    val centerX: Float,
+    val centerY: Float = 0.5f,
+    val meters: Float? = null,
+) {
     /** Repère lisible : « en haut à gauche », « au centre », « à droite ». */
     val position: String get() = PositionText.positionLabel(centerX, centerY)
 }
@@ -17,6 +27,8 @@ data class PlacedLabel(val label: String, val centerX: Float, val centerY: Float
  *
  * Forme produite : `Personne à gauche, chien en bas à droite.` — sans article, donc
  * sans faute de genre sur des labels libres (« table », « livre », « personne »…).
+ * Quand la distance est connue, elle s'ajoute à l'objet et les objets sont séparés
+ * par des points-virgules : `Personne à gauche, à 1,4 mètre ; chien au centre, à 3 mètres.`
  */
 object PositionText {
 
@@ -73,19 +85,38 @@ object PositionText {
             .sortedWith(compareBy({ it.centerX }, { it.label }))
         if (cleaned.isEmpty()) return null
         val shown = cleaned.take(maxObjects.coerceAtLeast(1))
-        val body = shown.joinToString(", ") { "${it.label} ${it.position}" }
+        // Des distances dans la phrase imposent le point-virgule : la virgule sert
+        // déjà à séparer la position de la distance (« à gauche, à 1,4 mètre »).
+        val separator = if (shown.any { it.meters != null }) " ; " else ", "
+        val body = shown.joinToString(separator, transform = ::item)
         val hidden = cleaned.size - shown.size
         val text = if (hidden > 0) "$body, ${others(hidden)}." else "$body."
         return text.replaceFirstChar { it.uppercaseChar() }
     }
 
-    /** Signature de scène (labels + secteurs), insensible à l'ordre : sert à ne pas répéter. */
+    /** Un objet en mots : « personne à gauche » puis, si on la connaît, « , à 1,4 mètre ». */
+    fun item(label: PlacedLabel): String {
+        val place = "${label.label} ${label.position}"
+        val meters = label.meters ?: return place
+        return "$place, à ${DistanceText.spoken(meters)}"
+    }
+
+    /**
+     * Signature de scène (labels + secteurs + distance **arrondie au mètre**),
+     * insensible à l'ordre : sert à ne pas répéter la même scène. Arrondir est ce
+     * qui fait parler un objet qui s'approche (3 m → 2 m → 1 m) sans le faire
+     * bavarder à chaque frame.
+     */
     fun key(labels: List<PlacedLabel>): String = labels
         .filter { it.label.isNotBlank() }
-        .map { "${it.label.trim().lowercase()}|${it.position}" }
+        .map { "${it.label.trim().lowercase()}|${it.position}|${bucket(it.meters)}" }
         .distinct()
         .sorted()
         .joinToString(";")
+
+    /** Distance au mètre près pour la signature ; « ? » quand elle est inconnue. */
+    private fun bucket(meters: Float?): String =
+        if (meters == null || !meters.isFinite()) "?" else meters.roundToInt().toString()
 
     /** « et 1 autre objet » / « et 3 autres objets ». */
     private fun others(count: Int): String =

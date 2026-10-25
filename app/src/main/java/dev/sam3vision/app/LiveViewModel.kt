@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.sam3vision.core.distance.DistanceMeter
+import dev.sam3vision.core.distance.DistanceReading
 import dev.sam3vision.core.distance.LensSpec
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
@@ -163,7 +164,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
         val detections = frame.objects.toDetections(width, height)
         val seen = timeline.record(now, detections)
         val readings = distances.measure(width, height, detections, seen.map { it?.id })
-        announcePositions(frame, width, height, now)
+        announcePositions(frame, width, height, now, readings)
         val overlays = overlaysFor(frame)
         val gap = if (lastFrameAt == 0L) 0L else now - lastFrameAt
         lastFrameAt = now
@@ -208,14 +209,23 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Voix ElevenLabs : dit où sont les objets dès que la scène change
-     * (« Personne à gauche, chien au centre »). Silencieux sans clé, pendant une
-     * question sur la mémoire, ou si la bascule des Réglages est coupée.
+     * Voix ElevenLabs : dit où sont les objets **et à quelle distance** dès que la
+     * scène change (« Personne à gauche, à 1,4 mètre »). Silencieux sans clé, pendant
+     * une question sur la mémoire, ou si la bascule des Réglages est coupée.
      */
-    private fun announcePositions(frame: LiveFrame, width: Int, height: Int, now: Long) {
+    private fun announcePositions(
+        frame: LiveFrame,
+        width: Int,
+        height: Int,
+        now: Long,
+        readings: List<DistanceReading>,
+    ) {
         if (!settings.announcePositions || _state.value.memory.asking) return
-        val placed = frame.objects.mapNotNull {
-            PositionText.fromDetection(Detection(it.label, it.score, it.box, width, height))
+        // la distance suit la boîte qui l'a produite : aucune indexation fragile
+        val metersByBox = readings.associate { it.box to it.meters }
+        val placed = frame.objects.mapNotNull { obj ->
+            PositionText.fromDetection(Detection(obj.label, obj.score, obj.box, width, height))
+                ?.copy(meters = metersByBox[obj.box])
         }
         val phrase = announcer.onFrame(now, placed) ?: return
         _state.update { it.copy(spoken = phrase) }

@@ -62,6 +62,22 @@ le cadre** (`pillTranslationX`) et **hors du bandeau du haut** (`pillTranslation
 collé au bord droit sortait à moitié de l'écran et un objet dans le haut de l'image
 voyait sa distance cachée derrière les boutons (constaté le 25/10, corrigé).
 
+## À voix haute
+
+La voix du direct (ElevenLabs, bascule « Annoncer les objets et leur distance »)
+dit la scène **avec les distances** :
+
+```
+Personne à gauche, à 1,4 mètre ; chien au centre, à 3 mètres.
+```
+
+Pas de duplication : c'est l'annonce de positions existante (`PositionAnnouncer` :
+stabilité 2 frames, pas de répétition, 4 s entre deux phrases) qui porte désormais
+la distance dans `PositionText.item`, et **la distance arrondie au mètre entre dans
+la signature de scène** (`PositionText.key`) — c'est ce qui fait reparler un objet
+qui s'approche (3 m → 2 m → 1 m) sans bavarder à chaque frame. `DistanceText.spoken`
+met les mètres en mots français (« 85 centimètres », « 1,4 mètre », « 12 mètres »).
+
 ## Réglages
 
 - **Distances sur le direct** (bascule, activée par défaut) : coupe l'overlay et
