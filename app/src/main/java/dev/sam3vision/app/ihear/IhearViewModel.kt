@@ -4,9 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.sam3vision.app.IhearHaptics
+import dev.sam3vision.app.IntroAudio
 import dev.sam3vision.app.SpeechPlayer
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.decodeScaledExact
+import dev.sam3vision.app.isIntroDisablePhrase
 import dev.sam3vision.app.media.CacheCleanerManager
 import dev.sam3vision.app.media.HoldTranscript
 import dev.sam3vision.app.media.MediaCacheStore
@@ -25,53 +27,21 @@ import dev.sam3vision.core.settings.SettingsStore
 import dev.sam3vision.core.settings.SettingsStoreFactory
 import dev.sam3vision.core.usecase.AskUseCase
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-/** Les deux pages d'iHear, côte à côte. */
-enum class IhearPage { Chat, Camera }
-
-/** Une bulle de l'écran chat : le texte du user, ou celui lu à voix haute. */
-sealed interface ChatEntry {
-    val id: Long
-    val text: String
-    val audioPath: String?
-
-    data class UserBubble(override val id: Long, override val text: String, override val audioPath: String?) : ChatEntry
-    data class AiBubble(override val id: Long, override val text: String, override val audioPath: String?) : ChatEntry
-}
-
-/** État complet des deux panneaux iHear. */
-data class IhearUiState(
-    val page: IhearPage = IhearPage.Camera,
-    val entries: List<ChatEntry> = emptyList(),
-    val selected: Int = -1,
-    val firstSwipeDownDone: Boolean = false,
-    val holding: Boolean = false,
-    val transcribing: Boolean = false,
-    val thinking: Boolean = false,
-    val speakingEntryId: Long? = null,
-    val recordingVideo: Boolean = false,
-    val status: String? = null,
-) {
-    val lastSelected: Boolean get() = selected >= entries.lastIndex
-}
-
-/** Les gestes que la caméra du panneau vidéo est la seule à pouvoir exécuter. */
-interface IhearCameraActions {
-    val ready: Boolean
-    fun startRecording(file: File): Boolean
-    suspend fun stopRecording(): File?
-    fun takePhoto(target: File): Boolean
-}
+import kotlinx.coroutines.withContext
 
 /**
- * Toute la mécanique iHear : deux pages (chat + caméra), appui long vocal transcrit
- * par Muse, historique Room `MessageMultimedia`, MP3 de chaque côté en cache, purge
- * A/B/C, voix ElevenLabs. Les écrans existants restent intacts : iHear est un écran
- * d'accueil de plus.
+ * Toute la mécanique iHear : le chat devant, la page caméra plein écran dessous
+ * (jamais coupée par un changement de page) — vidéo du tap, photo du double tap.
+ * Appui long vocal transcrit par Muse, historique Room `MessageMultimedia`, MP3 de
+ * chaque côté en cache, purge A/B/C, voix ElevenLabs. L'intro embarquée est jouée à
+ * l'ouverture et posée comme premier message du chat tant qu'elle est active.
  */
 class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -84,22 +54,27 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     private val player = SpeechPlayer(
         dir = File(app.cacheDir, "ihear-play"),
-        onComplete = { _state.update { st -> st.copy(speakingEntryId = null) } },
-        onPlaybackError = { _state.update { st -> st.copy(speakingEntryId = null, status = "audio playback failed: $it") } },
+        onComplete = {
+            _state.update { st -> st.copy(speakingEntryId = null, introVisible = false) }
+        },
+        onPlaybackError = { _state.update { st -> st.copy(speakingEntryId = null) } },
     )
 
     private val _state = MutableStateFlow(IhearUiState())
     val state: StateFlow<IhearUiState> = _state
 
-    /** Vrai quand les panneaux iHear sont à l'écran : les gestes ne touchent qu'eux. */
+    /** Vrai quand l'écran iHear est à l'écran : les gestes ne touchent que lui. */
     @Volatile
     var active: Boolean = false
 
-    /** Caméra du panneau vidéo, câblée par le composable à l'attachement. */
+    /** Caméra de la page [IhearCameraPane], câblée par le composable à l'attachement. */
     var camera: IhearCameraActions? = null
 
     /** Dernière photo du double tap : contexte image de la question suivante. */
     private var photoContext: File? = null
+
+    /** Minuteur d'évaporation de la photo (relancé à chaque photo en rafale). */
+    private var photoEvaporation: Job? = null
 
     private var settings: Settings = Settings.Default
 
@@ -107,6 +82,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             settings = prefs.load()
             refreshHistory()
+            playIntroIfPending()
         }
     }
 
@@ -147,6 +123,35 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ————— Intro vocale (1re ouverture) : le premier message du chat —————
+
+    /** Intro dûe ? MP3 embarqué joué à l'ouverture, phrase posée en tête du chat. */
+    private suspend fun playIntroIfPending() {
+        if (!settings.introPending) return
+        // Persisté AVANT la lecture : un arrêt en cours de route ne rejoue pas l'intro.
+        settings = settings.copy(introPlayed = true)
+        prefs.save(settings)
+        val file = withContext(Dispatchers.IO) { IntroAudio.ensure(getApplication()) }
+        _state.update {
+            it.copy(introVisible = true, speakingEntryId = INTRO_BUBBLE_ID, status = null)
+        }
+        player.playFile(file).onFailure { cause ->
+            _state.update { st ->
+                st.copy(speakingEntryId = if (st.speakingEntryId == INTRO_BUBBLE_ID) null else st.speakingEntryId)
+            }
+            _state.update { it.copy(status = "Intro: $cause") }
+        }
+    }
+
+    /** La dictée coupe l'intro : bascule persistée ouverte, bulle déposée sur le champ. */
+    private suspend fun disableIntro() {
+        if (!settings.introEnabled) return
+        settings = settings.copy(introEnabled = false)
+        prefs.save(settings)
+        player.stop()
+        _state.update { it.copy(introVisible = false, speakingEntryId = null, status = "Intro disabled") }
+    }
+
     // ————— Gestes —————
 
     /** Appui long maintenu : le micro s'ouvre (dictée Muse), salve haptique dédiée. */
@@ -166,12 +171,6 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         if (!_state.value.holding) return
         _state.update { it.copy(holding = false) }
         viewModelScope.launch { transcribeAndAnswer() }
-    }
-
-    /** Balayage horizontal : passage chat ⇄ caméra (le doigt va vers la gauche = caméra). */
-    fun onHorizontalSwipe(rightToLeft: Boolean) {
-        if (!active) return
-        _state.update { it.copy(page = if (rightToLeft) IhearPage.Camera else IhearPage.Chat) }
     }
 
     /** Balayage vertical commencé : vibration distincte tant que le doigt glisse. */
@@ -213,15 +212,40 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.recordingVideo) stopVideo() else startVideo()
     }
 
-    /** Double tap rapide : photo immédiate en cache (contexte visuel du prochain échange). */
+    /** Balayage horizontal : bascule chat ⇄ page caméra, sans jamais couper la caméra.
+     * La vidéo continue sous le chat si elle est en cours (consigne d'origine). */
+    fun onHorizontalSwipe(rightToLeft: Boolean) {
+        if (!active) return
+        _state.update {
+            it.copy(page = if (rightToLeft) IhearPage.Camera else IhearPage.Chat)
+        }
+    }
+
+    /** Double tap rapide : photo immédiate (texture, flash, évaporation en fenêtre). */
     fun onDoubleTap() {
         if (!active || _state.value.recordingVideo) return
         val target = media.newPhotoFile()
-        if (camera?.takePhoto(target) == true) photoContext = target
+        val asked = camera?.takePhoto(target) { saved -> onPhotoSaved(target, saved) }
+        if (asked != true) _state.update { it.copy(status = "Camera not ready — try again") }
+    }
+
+    /** Photo écrite : elle se montre dans la fenêtre, puis s'évapore (en rafale : remplace). */
+    private fun onPhotoSaved(target: File, saved: Boolean) {
+        if (!saved) return
+        photoContext = target
+        photoEvaporation?.cancel()
+        _state.update { it.copy(photoPath = target.path, status = null) }
+        photoEvaporation = viewModelScope.launch {
+            delay(PHOTO_SHOW_MS)
+            if (_state.value.photoPath == target.path) {
+                _state.update { it.copy(photoPath = null) }
+            }
+        }
     }
 
     // ————— Appui long : micro → texte → réponse parlée —————
 
+    /** Fin de la tenue : transcription, coupe d'intro éventuelle, puis réponse IA. */
     private suspend fun transcribeAndAnswer() {
         if (!playerIdle()) return
         _state.update { it.copy(transcribing = true) }
@@ -239,10 +263,15 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
                 return
             },
         )
+        if (isIntroDisablePhrase(text)) {
+            mic.abort()
+            disableIntro()
+            return
+        }
         handleDictated(text, pcm)
     }
 
-    /** Texte transcrit : ligne Room + MP3, puis la question part au LLM avec la photo. */
+    /** Texte transcrit : coupe d'intro possible, ligne Room + MP3, puis question au LLM. */
     private suspend fun handleDictated(text: String, pcm: ByteArray) {
         if (text.isBlank()) {
             mic.abort()
@@ -336,7 +365,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ————— Vidéo (tap) —————
+    // ————— Vidéo du tap (page caméra plein écran) —————
 
     private fun startVideo() {
         val file = media.newVideoFile()
@@ -426,5 +455,8 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         /** Les bulles (2 possibles par ligne) sont distinguées par un décalage sûr. */
         const val BUBBLE_STRIDE = 1_000_000L
         const val CHAT_HISTORY = 20
+
+        /** Une photo du double tap reste à l'écran avant de s'évaporer. */
+        const val PHOTO_SHOW_MS = 2_600L
     }
 }

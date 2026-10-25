@@ -1,6 +1,7 @@
 package dev.sam3vision.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,11 +42,26 @@ class UiLogicTest {
     }
 
     @Test
-    fun `l'ecran de garde ne s'affiche qu'avant la premiere ecoute`() {
-        assertTrue(introGateVisible(settingsReady = true, introEnabled = true, introPlayed = false))
-        assertTrue(!introGateVisible(settingsReady = false, introEnabled = true, introPlayed = false))
-        assertTrue(!introGateVisible(settingsReady = true, introEnabled = true, introPlayed = true))
-        assertTrue(!introGateVisible(settingsReady = true, introEnabled = false, introPlayed = false))
+    fun `la bulle d'intro reste posee seulement avant la premiere ecoute`() {
+        assertTrue(introBubbleVisible(settingsReady = true, introEnabled = true, introPlayed = false))
+        assertTrue(!introBubbleVisible(settingsReady = false, introEnabled = true, introPlayed = false))
+        assertTrue(!introBubbleVisible(settingsReady = true, introEnabled = true, introPlayed = true))
+        assertTrue(!introBubbleVisible(settingsReady = true, introEnabled = false, introPlayed = false))
+    }
+
+    @Test
+    fun `la phrase Disable iHear intro coupe l'intro et rien d'autre`() {
+        assertTrue(isIntroDisablePhrase("Please disable iHear intro"))
+        assertTrue(isIntroDisablePhrase("  DISABLE IHEAR INTRO. "))
+        assertFalse(isIntroDisablePhrase("What does iHear intro say?"))
+        assertFalse(isIntroDisablePhrase(""))
+    }
+
+    @Test
+    fun `le texte de l'intro est celui que la voix dit`() {
+        assertTrue(IHEAR_INTRO_TEXT.startsWith("Welcome to iHear."))
+        assertTrue(IHEAR_INTRO_TEXT.contains("tap again to stop"))
+        assertTrue(IHEAR_INTRO_TEXT.contains("Disable iHear intro"))
     }
 
     @Test

@@ -17,7 +17,7 @@ import dev.sam3vision.app.tap.TapCaptureScreen
 
 /** Routes de l'app (navigation par état, sans dépendance navigation-compose). */
 sealed interface Route {
-    /** Page d'accueil iHear : chat blanc + caméra/vidéo, swipe horizontal. */
+    /** Page d'accueil iHear : chat plein écran + fenêtre caméra flottante. */
     data object Ihear : Route
     data object Capture : Route
     data object Analysis : Route
@@ -34,9 +34,9 @@ sealed interface Route {
 }
 
 /**
- * Racine de navigation : iHear en page d'accueil (chat + caméra, swipe horizontal),
- * puis les écrans d'origine. Les gestes racine (IhearRootLayout) pilotent le
- * panneau affiché via [IhearViewModel] quand iHear est à l'écran.
+ * Racine de navigation : iHear en page d'accueil (chat + fenêtre caméra),
+ * puis les écrans d'origine. Les gestes racine (IhearRootLayout) pilotent la
+ * caméra et le chat via [IhearViewModel] quand iHear est à l'écran.
  */
 @Composable
 fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveViewModel = viewModel()) {
@@ -69,10 +69,6 @@ fun AppNav(viewModel: AppViewModel, ihear: IhearViewModel, liveViewModel: LiveVi
 
         state.dictation.overlay?.let { overlay ->
             DictationOverlay(overlay = overlay, onDismiss = viewModel::dismissOverlay)
-        }
-        // Premier lancement seulement : l'app attend un appui avant de parler (intro).
-        if (introGateVisible(state.settingsReady, state.settings.introEnabled, state.settings.introPlayed)) {
-            IntroGate(onTap = viewModel::onIntroTap)
         }
     }
 }

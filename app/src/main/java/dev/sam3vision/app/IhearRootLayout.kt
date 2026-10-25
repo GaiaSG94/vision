@@ -1,11 +1,14 @@
 package dev.sam3vision.app
 
 import android.content.Context
+import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import androidx.annotation.RequiresApi
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dev.sam3vision.core.gesture.IhearGestureBrain
@@ -18,11 +21,14 @@ import dev.sam3vision.core.gesture.LongPressTrigger
  * - [LongPressTrigger] : appui maintenu ~300 ms → [onHoldStart] (micro ouvert) ; la
  *   vue intercepte alors tout (les enfants reçoivent un ACTION_CANCEL) jusqu'au
  *   relâchement qui émet [onHoldEnd] ;
- * - [IhearGestureBrain] : tap simple (vidéo), double tap (photo), balayages
- *   horizontal (page) et vertical (sélection de bulle).
+ * - [IhearGestureBrain] : tap simple (vidéo), double tap (photo) et balayage vertical
+ *   (sélection de bulle). L'ancien balayage horizontal n'est plus écouté : iHear
+ *   n'a plus qu'une page.
  *
  * Les taps ne sont jamais consommés en-dehors d'une tenue : ce sont des observations
- * posées sur les événements, les écrans iHear restent libres de leur rendu.
+ * posées sur les événements, les écrans iHear restent libres de leur rendu. Les deux
+ * bords latéraux sont exclus des gestes système (repli haut/bas restent hors de
+ * portée : ils appartiennent à Android, aucune app ne peut les empêcher).
  */
 class IhearRootLayout(context: Context) : FrameLayout(context) {
 
@@ -146,6 +152,23 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         }
     }
 
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) excludeSideGestures()
+    }
+
+    /** Les deux bords latéraux sont retirés du geste « retour » du système. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun excludeSideGestures() {
+        if (width <= 0 || height <= 0) return
+        val dp = resources.displayMetrics.density
+        val side = minOf(EXCLUSION_SIDE_DP * dp, 200f * dp).toInt()
+        systemGestureExclusionRects = listOf(
+            Rect(0, 0, side, height),
+            Rect(width - side, 0, width, height),
+        )
+    }
+
     private fun inSystemZone(ev: MotionEvent): Boolean {
         val inset = systemBottomPx()
         return inset > 0 && ev.y >= height - inset
@@ -156,6 +179,11 @@ class IhearRootLayout(context: Context) : FrameLayout(context) {
         brain.reset()
         handler.removeCallbacksAndMessages(null)
         super.onDetachedFromWindow()
+    }
+
+    companion object {
+        /** Bande latérale exclue du geste système (retour) : moindre que le plafond 200dp. */
+        private const val EXCLUSION_SIDE_DP = 48f
     }
 
     private fun bottomSystemInset(view: View): Int {

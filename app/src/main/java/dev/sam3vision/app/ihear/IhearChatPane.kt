@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import dev.sam3vision.app.IHEAR_INTRO_TEXT
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.sp
 object IhearPalette {
     val page = Color.White
     val text = Color(0xFF1B1F24)
+    val title = Color.Black
     val textMuted = Color(0xFF6B7280)
     val userBubble = Color(0xFFD7E9FF)
     val aiBubble = Color(0xFFF1F3F6)
@@ -42,13 +44,17 @@ object IhearPalette {
  * La page chat d'iHear : fond blanc, bulles user / IA aux angles bien ronds, une
  * seule bulle sélectionnée à la fois (bordure noire + ombre portée), une icône par
  * bulle — deux barres verticales (❚❚) quand elle parle, rectangle (⏹) sinon.
- * Aucune interaction tactile : tout passe par les gestes de [IhearRootLayout].
+ * Aucune interaction tactile : tout passe par les gestes de [IhearRootLayout]. Les
+ * bulles anciennes sont en haut, les plus récentes en bas (le fil suit l'écriture),
+ * et la bulle d'intro pose en premier message tant que l'audio est en cours.
  */
 @Composable
 fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
-    LaunchedEffect(state.entries.size) {
-        if (state.entries.isNotEmpty()) listState.scrollToItem(state.entries.lastIndex)
+    // La bulle d'intro décale d'une ligne : le bas du fil reste l'item le plus récent.
+    val bottomIndex = state.entries.lastIndex + if (state.introVisible) 1 else 0
+    LaunchedEffect(bottomIndex) {
+        if (bottomIndex >= 0) listState.scrollToItem(bottomIndex)
     }
     Column(
         modifier
@@ -57,25 +63,21 @@ fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
-            Text("iHear", color = IhearPalette.textMuted, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-        state.status?.let {
-            Text(
-                it,
-                color = IhearPalette.textMuted,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 6.dp),
-            )
-        }
+        ChatHeader(state.status)
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (state.entries.isEmpty() && !state.holding && !state.thinking) {
-                item { EmptyHint() }
+        if (state.introVisible) {
+            item {
+                ChatBubble(
+                    entry = ChatEntry.IntroBubble(INTRO_BUBBLE_ID, IHEAR_INTRO_TEXT),
+                    selected = false,
+                    speaking = state.speakingEntryId == INTRO_BUBBLE_ID,
+                )
             }
+        }
         itemsIndexed(state.entries) { index, entry ->
             ChatBubble(
                 entry,
@@ -89,15 +91,24 @@ fun IhearChatPane(state: IhearUiState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Hint de démarrage, discret et gris. */
+/** En-tête du chat : titre « iHear » en noir, plus un éventuel message d'état. */
 @Composable
-private fun EmptyHint() {
+private fun ChatHeader(status: String?) {
     Text(
-        "Hold anywhere to talk to iHear.",
-        color = IhearPalette.textMuted,
-        fontSize = 14.sp,
-        modifier = Modifier.padding(vertical = 24.dp),
+        "iHear",
+        color = IhearPalette.title,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
     )
+    status?.let {
+        Text(
+            it,
+            color = IhearPalette.textMuted,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 6.dp),
+        )
+    }
 }
 
 /** Zone basse : indicateur d'écoute / transcription, sans champ de saisie. */

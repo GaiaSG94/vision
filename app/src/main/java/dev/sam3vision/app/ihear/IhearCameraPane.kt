@@ -117,9 +117,10 @@ fun cameraGranted(context: Context): Boolean {
 }
 
 /**
- * Le vrai pilote CameraX de la page : aperçu + `ImageCapture` + `VideoCapture<Recorder>`
- * tous liés en même temps, et l'implémentation [IhearCameraActions] qu'appelle
- * [IhearViewModel]. Vidéo sans piste micro (le dictaphone reste libre, comme le mode tap).
+ * Le vrai pilote CameraX d'iHear, au fond de [IhearHome] : aperçu + `ImageCapture`
+ * + `VideoCapture<Recorder>` tous liés en même temps, et l'implémentation
+ * [IhearCameraActions] qu'appelle [IhearViewModel]. Vidéo sans piste micro (le
+ * dictaphone reste libre, comme le mode tap).
  */
 class IhearCameraHost(private val context: Context) {
 
@@ -137,12 +138,13 @@ class IhearCameraHost(private val context: Context) {
 
         override suspend fun stopRecording(): File? = stopVideo()
 
-        override fun takePhoto(target: File): Boolean = takePhotoNow(target)
+        override fun takePhoto(target: File, onSaved: (Boolean) -> Unit): Boolean =
+            takePhotoNow(target, onSaved)
     }
 
     private var boundPreview: PreviewView? = null
 
-    /** Fabrique la `PreviewView` du panneau (une seule fois, conservée côté host). */
+    /** Fabrique la `PreviewView` de la page (une seule fois, conservée côté host). */
     fun newPreviewView(context: Context): PreviewView {
         val created = PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
         boundPreview = created
@@ -202,8 +204,11 @@ class IhearCameraHost(private val context: Context) {
         return saved?.takeIf { it.isFile && it.length() > 0L }
     }
 
-    /** Photo immédiate du double tap ; `true` = demande acceptée (écriture asynchrone). */
-    fun takePhotoNow(target: File): Boolean {
+    /**
+     * Photo immédiate du double tap ; `true` = demande acceptée (écriture asynchrone).
+     * [onSaved] est rappelé plus tard : `true` si la photo est écrite, `false` sinon.
+     */
+    fun takePhotoNow(target: File, onSaved: (Boolean) -> Unit): Boolean {
         val capture = imageCapture ?: return false
         val options = ImageCapture.OutputFileOptions.Builder(target).build()
         return runCatching {
@@ -211,10 +216,13 @@ class IhearCameraHost(private val context: Context) {
                 options,
                 executor,
                 object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {}
+                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                        onSaved(target.isFile && target.length() > 0L)
+                    }
 
                     override fun onError(error: ImageCaptureException) {
                         target.delete()
+                        onSaved(false)
                     }
                 },
             )
