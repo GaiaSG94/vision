@@ -19,6 +19,20 @@
 - **Doc** : `docs/META-GLASSES.md` mis à jour (accueil iHear, gestes réels, minSdk 29, fonctions
   du téléphone sans lunettes) ; `docs/glasses-dat-spike.md` renvoie désormais à cette doc.
 
+## 2026-10-25 — Réglages : la clé InferHub embarquée se relit (bouton « Afficher »)
+
+- **Constat** : la clé InferHub entre bien dans l'app au build (`local.properties` → `BuildConfig`
+  → `seededFromBuild`), mais le champ « Clé API LLM » était masqué **sans moyen de la relire** :
+  impossible de vérifier sur le téléphone que la bonne clé est en place, ni de la copier.
+- **`LabeledField`** : les champs secrets (clé LLM, clé ElevenLabs, clé Meta) sont toujours
+  masqués par défaut — capture d'écran, voisin — mais portent un bouton **Afficher / Masquer**.
+- **Bug corrigé au passage** : `IhearViewModel` chargeait `prefs.load()` **sans**
+  `seededFromBuild`, là où `AppViewModel` et `LiveViewModel` le faisaient. Conséquence : avant
+  le premier « Enregistrer », l'accueil iHear (chat, photo) pouvait répondre « LLM non
+  configuré » alors que les Réglages affichaient une clé. Les deux chemins sèment maintenant.
+- Rien n'est écrit dans le dépôt : la clé reste dans `local.properties` (gitignoré) et dans le
+  store chiffré de l'app. Couche 0 refuse de toute façon une clé `sk-…` dans le diff.
+
 ## 2026-10-25 — Réglages : mode US (GPU SAM 3.1 aux États-Unis)
 
 - **Nouveau réglage `samRegion`** (`core/settings/SamRegion.kt`) : deux régions, **EU**

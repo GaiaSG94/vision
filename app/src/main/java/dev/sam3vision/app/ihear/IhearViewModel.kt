@@ -9,6 +9,7 @@ import dev.sam3vision.app.SpeechPlayer
 import dev.sam3vision.app.bitmapToJpegBase64
 import dev.sam3vision.app.decodeScaledExact
 import dev.sam3vision.app.isIntroDisablePhrase
+import dev.sam3vision.app.seededFromBuild
 import dev.sam3vision.app.media.CacheCleanerManager
 import dev.sam3vision.app.media.HoldTranscript
 import dev.sam3vision.app.media.MediaCacheStore
@@ -83,7 +84,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            settings = prefs.load()
+            settings = seededFromBuild(prefs.load())
             refreshHistory()
             playIntroIfPending()
         }
@@ -104,7 +105,7 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Réglages enregistrés depuis l'écran Settings : rechargement brûlant. */
     fun refreshSettings() = viewModelScope.launch {
-        settings = prefs.load()
+        settings = seededFromBuild(prefs.load())
         refreshHistory()
     }
 

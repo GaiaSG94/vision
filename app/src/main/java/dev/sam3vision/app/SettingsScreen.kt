@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.sam3vision.app.glasses.GlassesController
@@ -184,16 +186,34 @@ private fun DictationSettings(draft: Settings, onChange: (Settings) -> Unit) {
     }
 }
 
-/** Champ libellé réutilisé par les réglages backend et la section voix. */
+/**
+ * Champ libellé réutilisé par les réglages backend et la section voix.
+ *
+ * Les champs secrets sont masqués par défaut (clé sous les yeux d'un voisin,
+ * capture d'écran) et **révélables** d'un appui : la clé InferHub ou ElevenLabs
+ * embarquée au build doit pouvoir être relue et copiée depuis les Réglages.
+ */
 @Composable
 internal fun LabeledField(label: String, value: String, secret: Boolean, onChange: (String) -> Unit) {
+    var shown by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Text(label, color = AppColors.textMuted, fontSize = 12.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
             singleLine = !secret,
-            visualTransformation = if (secret) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+            visualTransformation = if (secret && !shown) {
+                PasswordVisualTransformation()
+            } else {
+                VisualTransformation.None
+            },
+            trailingIcon = if (!secret) null else {
+                {
+                    TextButton(onClick = { shown = !shown }) {
+                        Text(if (shown) "Masquer" else "Afficher", fontSize = 11.sp)
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
         )
     }
