@@ -56,6 +56,10 @@ class MainActivity : ComponentActivity() {
         if (!granted) viewModel.onMicDenied()
     }
 
+    /** Géolocalisation demandée au premier lancement (suivi parent) ; optionnelle. */
+    private val locationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         glasses = GlassesController(applicationContext).also {
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
         applyDarkSystemBars()
         setContentView(buildRoot())
         requestMicIfNeeded()
+        requestLocationIfNeeded()
         routeIntent(intent)
         // Ouverture de l'app : on réveille le conteneur tout de suite (snapshot restauré
         // en 2 à 7 s), pour que la première frame du direct n'attende pas le démarrage.
@@ -147,6 +152,21 @@ class MainActivity : ComponentActivity() {
         val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
         if (!granted) micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    private fun requestLocationIfNeeded() {
+        val fine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!fine || !coarse) {
+            locationPermission.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+        }
     }
 }
 

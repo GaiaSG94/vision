@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ fun LiveTopBar(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onToggleSam: () -> Unit,
+    onShareParent: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxWidth().statusBarsPadding().padding(12.dp)) {
@@ -41,6 +43,8 @@ fun LiveTopBar(
             Chip("Réglages", AppColors.surfaceHigh, onOpenSettings)
             SamModeChip(state.samEnabled, onToggleSam)
             TransportChip(state.transport)
+            Spacer(Modifier.weight(1f))
+            Chip("📤 Partager", AppColors.success, onShareParent)
         }
         LiveStatusLines(state)
         state.spoken?.let { phrase ->

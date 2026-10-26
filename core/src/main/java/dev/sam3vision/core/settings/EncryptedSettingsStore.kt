@@ -52,6 +52,8 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             introEnabled = prefs.getBoolean(KEY_INTRO_ENABLED, default.introEnabled),
             introPlayed = prefs.getBoolean(KEY_INTRO_PLAYED, default.introPlayed),
             liveSamEnabled = prefs.getBoolean(KEY_LIVE_SAM, default.liveSamEnabled),
+            parentSiteUrl = prefs.getString(KEY_PARENT_SITE_URL, default.parentSiteUrl).orEmpty()
+                .ifBlank { default.parentSiteUrl },
             maxObjects = ObjectLimits.clamp(
                 prefs.getInt(KEY_MAX_OBJECTS, default.maxObjects),
             ),
@@ -76,6 +78,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
             .putBoolean(KEY_INTRO_ENABLED, s.introEnabled)
             .putBoolean(KEY_INTRO_PLAYED, s.introPlayed)
             .putBoolean(KEY_LIVE_SAM, s.liveSamEnabled)
+            .putString(KEY_PARENT_SITE_URL, s.parentSiteUrl)
             .putInt(KEY_MAX_OBJECTS, s.objectsOnScreen)
             .apply()
     }
@@ -98,6 +101,7 @@ class EncryptedSettingsStore(context: Context) : SettingsStore {
         const val KEY_INTRO_ENABLED = "intro_enabled"
         const val KEY_INTRO_PLAYED = "intro_played"
         const val KEY_LIVE_SAM = "live_sam"
+        const val KEY_PARENT_SITE_URL = "parent_site_url"
 
         /** Lève si le Keystore est indisponible : le factory retombe alors sur un fichier chiffré. */
         internal fun createPrefs(context: Context): SharedPreferences {
