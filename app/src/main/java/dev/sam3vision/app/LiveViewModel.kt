@@ -320,7 +320,7 @@ class LiveViewModel(app: Application) : AndroidViewModel(app) {
                 fps = if (gap in 1..20_000) 1000f / gap else current.fps,
                 error = null,
                 memory = current.memory.copy(tracks = recent.tracks),
-                distanceLayer = if (readings.isEmpty()) null else DistanceLayer(width, height, readings),
+                distanceLayer = if (readings.isEmpty()) null else DistanceLayer(width, height, readings, distances.lensSpec.widthFovDeg(width, height)),
             )
         }
         if (!warm) wakeGpu()
