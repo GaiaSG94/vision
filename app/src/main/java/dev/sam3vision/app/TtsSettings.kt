@@ -75,10 +75,11 @@ private fun VoiceSwitches(draft: Settings, onChange: (Settings) -> Unit) {
         checked = draft.ttsAnnouncePositions,
     ) { onChange(draft.copy(ttsAnnouncePositions = it)) }
     Text(
-        "Activé : en mode Direct (et après l'analyse d'une photo), la voix dit où sont les " +
-            "objets et à quelle distance — « Personne à gauche, à 1,4 mètre ; chien au " +
-            "centre, à 3 mètres ». Une annonce toutes les 4 s au plus, et seulement si la " +
-            "scène change : un objet qui s'approche d'un mètre est ré-annoncé.",
+        "Activé : en iSee, la voix guide au lieu de décrire — « tout droit, c'est " +
+            "libre », « chaise devant, à 2 mètres, décale à gauche de 50 centimètres », " +
+            "« stop ». En Direct et après une photo, elle annonce toujours où sont les " +
+            "objets et à quelle distance. Une instruction toutes les 1,5 s au plus, et " +
+            "seulement si elle change.",
         color = AppColors.textMuted,
         fontSize = 11.sp,
     )

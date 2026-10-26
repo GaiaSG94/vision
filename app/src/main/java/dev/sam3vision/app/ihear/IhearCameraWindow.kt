@@ -52,9 +52,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.collectAsState
 import dev.sam3vision.app.CameraSurface
+import dev.sam3vision.app.DistanceLayer
 import dev.sam3vision.app.LiveDistanceLayer
 import dev.sam3vision.app.FirstPixelWatcher
-import dev.sam3vision.app.decodeScaledExact
+import dev.sam3vision.app.decodeForScreen
+import dev.sam3vision.app.rotatedClockwise
+import dev.sam3vision.app.screenAlignDegrees
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -197,11 +200,8 @@ private fun CameraWindowBody(
                 Text("iSee needs the camera.", color = Color.White, fontSize = 12.sp)
             }
         }
-        state.photoPath?.let {
-            PhotoFlash(it)
-            // Une pastille par objet mesuré, posée sur la photo le temps qu'elle reste.
-            LiveDistanceLayer(state.distanceLayer, topInset = 0.dp, withLabel = true)
-        }
+        // La photo du double tap porte ses propres pastilles : elles doivent tourner avec elle.
+        state.photoPath?.let { PhotoFlash(it, state.distanceLayer) }
         failure?.let {
             Text(
                 it,
@@ -232,16 +232,24 @@ private fun BoxScope.ProbeNotice(text: String) {
     )
 }
 
-/** Photo du double tap : flash court, puis la photo remplit la fenêtre jusqu'à évaporation. */
+/**
+ * Photo du double tap : flash court, puis la photo remplit la fenêtre jusqu'à évaporation.
+ *
+ * Elle est **redressée deux fois** : par l'EXIF (le capteur écrit en paysage, le tag dit
+ * comment la remettre droite) puis, si besoin, d'un quart de tour pour prendre
+ * l'orientation de l'écran. Les pastilles subissent la même rotation, sinon elles
+ * désigneraient le mauvais objet.
+ */
 @Composable
-private fun PhotoFlash(path: String) {
+private fun PhotoFlash(path: String, layer: DistanceLayer?) {
+    val screenPortrait = LocalConfiguration.current.let { it.screenWidthDp <= it.screenHeightDp }
     val flash = remember { Animatable(1f) }
     LaunchedEffect(path) {
         flash.snapTo(1f)
         flash.animateTo(0f, tween(durationMillis = PHOTO_FLASH_MS, easing = LinearEasing))
     }
-    val bitmap by produceState<Bitmap?>(initialValue = null, path) {
-        value = withContext(Dispatchers.IO) { decodeScaledExact(java.io.File(path)) }
+    val bitmap by produceState<Bitmap?>(initialValue = null, path, screenPortrait) {
+        value = withContext(Dispatchers.IO) { decodeForScreen(java.io.File(path), screenPortrait) }
     }
     Box(Modifier.fillMaxSize()) {
         bitmap?.let {
@@ -253,7 +261,15 @@ private fun PhotoFlash(path: String) {
             )
         }
         Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = flash.value)))
+        LiveDistanceLayer(alignedTo(layer, screenPortrait), topInset = 0.dp, withLabel = true)
     }
+}
+
+/** La couche de pastilles tournée comme la photo affichée (identité si rien à tourner). */
+private fun alignedTo(layer: DistanceLayer?, screenPortrait: Boolean): DistanceLayer? {
+    if (layer == null) return null
+    val turn = screenAlignDegrees(layer.width, layer.height, screenPortrait) == 90
+    return if (turn) layer.rotatedClockwise() else layer
 }
 
 /** Point blanc d'enregistrement, à cheval sur l'angle haut-droit de la fenêtre. */

@@ -14,7 +14,8 @@
 - `docs/META-ASR.md` — contrat dictée Meta Muse (facturation 402, pièges).
 - `docs/ELEVENLABS-TTS.md` — contrat voix (voix premade vs bibliothèque, 402).
 - `docs/MODE-TAP.md` — mode tap (vidéo → SAM 3.1) · `docs/MODE-US.md` — région US.
-- `docs/DISTANCES.md` — distances sténopé sur le téléphone.
+- `docs/DISTANCES.md` — distances sténopé sur le téléphone · `docs/GUIDAGE.md` — voix de
+  guidage post-SAM (couloir, chiffres figés, limites).
 - `docs/TESTING.md` — recette émulateur, limites connues.
 - `docs/META-GLASSES.md` + `docs/glasses-dat-spike.md` — lunettes Ray-Ban Meta (lire avant de
   toucher `app/glasses/` ou `glasses-spike/`).
@@ -37,7 +38,7 @@ là, atteignables par « Autres écrans » des Réglages (`app/AppNav.kt:63-81`)
 | `:app` | Compose + CameraX : écrans, ViewModels, `dev.sam3vision.app`, minSdk **29** (`app/build.gradle.kts:43`) |
 | `:glasses-spike` | prototype DAT lunettes, `include` dans le build, **non production** |
 | Direct | **WebSocket `/live/ws`** : `core/net/WsLiveClient.kt` sur `WsTransport` (`OkHttpWsTransport` en prod, faux JVM en test) |
-| Tests JVM | `@Test` comptés : **359 `:core` + 109 `:app` = 468** ; 6 instrumentés (`androidTest`) |
+| Tests JVM | `@Test` comptés le 2026-10-26 : **469 `:core` + 159 `:app` = 628** ; 6 instrumentés (`androidTest`) |
 | Versions | JDK Temurin 17 · Gradle 8.14.1 · AGP 8.11.1 · Kotlin 2.2.21 · compileSdk/targetSdk 36 |
 
 ## 2. Commandes de vérification (à passer avant chaque push)

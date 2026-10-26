@@ -382,13 +382,12 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         playFromRow(row, preferAi = entry is ChatEntry.AiBubble)
     }
 
-    /** Décide du fichier à lire : audio du user, réponse ElevenLabs, ou synthèse. */
+    /** Lit la bulle : audio de la personne (amplifié) ou voix de l'IA, sinon synthèse. */
     private suspend fun playFromRow(row: MessageMultimedia, preferAi: Boolean) {
-        val existing = when {
-            preferAi -> media.replyAudioFile(row) ?: row.cheminAudioUtilisateur?.let(::existingFile)
-            else -> row.cheminAudioUtilisateur?.let(::existingFile) ?: media.replyAudioFile(row)
-        }
-        if (existing != null) return playAudio(existing, row, preferAi)
+        val user = row.cheminAudioUtilisateur?.let(::existingFile)
+        val ai = media.replyAudioFile(row)
+        val file = if (preferAi) ai ?: user else user ?: ai
+        if (file != null) return playAudio(file, row, preferAi, fromUser = file == user)
         val raw = if (preferAi) row.texteIA else row.texteUtilisateur
         val text = raw?.takeIf { it.isNotBlank() } ?: return
         val bytes = synthesize(text)
@@ -396,14 +395,14 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
         val updated = dao.byId(row.id) ?: row
         media.saveReplyAudio(updated, bytes)
         val saved = media.replyAudioFile(dao.byId(row.id) ?: updated) ?: return
-        playAudio(saved, updated, preferAi)
+        playAudio(saved, updated, preferAi, fromUser = false)
     }
 
-    /** Une seule source sonore à la fois : l'ID de la bulle en cours porte les icônes. */
-    private suspend fun playAudio(file: File, row: MessageMultimedia, preferAi: Boolean) {
+    /** Une seule source sonore : l'ID de la bulle porte les icônes (audio user amplifié). */
+    private suspend fun playAudio(file: File, row: MessageMultimedia, preferAi: Boolean, fromUser: Boolean) {
         val bubbleId = bubbleId(row.id, preferAi)
         _state.update { it.copy(speakingEntryId = bubbleId, status = null) }
-        player.playFile(file).onFailure { cause ->
+        player.playFile(file, if (fromUser) SpeechPlayer.USER_AUDIO_BOOST_MB else 0).onFailure { cause ->
             _state.update { st ->
                 st.copy(
                     speakingEntryId = if (st.speakingEntryId == bubbleId) null else st.speakingEntryId,
@@ -423,7 +422,6 @@ class IhearViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         probe.begin()
-        proximity.reset()
         _state.update { it.copy(recordingVideo = true, status = null) }
     }
 

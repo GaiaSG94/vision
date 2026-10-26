@@ -16,8 +16,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Applique les Réglages à la sonde : endpoint résolu (saisie manuelle > région
- * EU/US > URL du build), annonce vocale des objets et de leur distance, focale de
- * la caméra, distances on/off, plafond d'objets.
+ * EU/US > URL du build), voix (guidage : voir [LiveGuidance]), focale de la caméra,
+ * distances on/off, plafond d'objets.
  */
 internal fun LiveProbe.configureFrom(settings: Settings) {
     configure(
@@ -31,8 +31,8 @@ internal fun LiveProbe.configureFrom(settings: Settings) {
 }
 
 /**
- * Chaque nouvelle phrase de la sonde est confiée à la voix (une seule fois par
- * scène). [playerIdle] vrai = aucune bulle du chat en cours de lecture.
+ * Chaque nouvelle instruction de la sonde est confiée à la voix (une seule fois par
+ * instruction). [playerIdle] vrai = aucune bulle du chat en cours de lecture.
  */
 internal fun LiveProbe.observeSpoken(
     scope: CoroutineScope,

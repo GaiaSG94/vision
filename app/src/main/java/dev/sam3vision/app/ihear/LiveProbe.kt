@@ -17,9 +17,6 @@ import dev.sam3vision.core.live.Cadence
 import dev.sam3vision.core.live.FrameRate
 import dev.sam3vision.core.live.LivePrompts
 import dev.sam3vision.core.live.LiveSession
-import dev.sam3vision.core.live.PositionAnnouncer
-import dev.sam3vision.core.live.PositionText
-import dev.sam3vision.core.model.Detection
 import dev.sam3vision.core.model.LiveFrame
 import dev.sam3vision.core.model.toDetections
 import dev.sam3vision.core.net.ApiError
@@ -38,9 +35,9 @@ import kotlinx.coroutines.withContext
  * les concepts reconnus, les distances mesurées, et les chiffres qui disent si ça
  * rame (cadence, latence moyenne et p95, durée serveur, taille de frame, GPU).
  *
- * [spoken] est la phrase que la voix doit dire (« Personne à gauche, à 1,4 mètre ») :
- * elle reste dans l'état (rien ne se perd si l'écran se recompose) et change de
- * valeur une seule fois par nouvelle scène.
+ * [spoken] est l'instruction que la voix doit dire (« Chaise devant, à 2 mètres.
+ * Décale à gauche de 50 centimètres. ») : elle reste dans l'état (rien ne se perd si
+ * l'écran se recompose) et change de valeur une seule fois par nouvelle instruction.
  */
 data class LiveProbeState(
     val endpoint: String = "",
@@ -80,9 +77,9 @@ data class LiveProbeState(
  * `/live` (une à la fois, cadence adaptative) et revient en masques, distances et
  * statistiques.
  *
- * Même brique que le Direct ([LiveSession], [HttpLiveClient], [DistanceMeter],
- * [PositionAnnouncer]) : une seule implémentation de l'appel SAM et de la mesure par
- * frame, deux écrans qui la montrent.
+ * Même brique que le Direct ([LiveSession], [HttpLiveClient], [DistanceMeter]) : une
+ * seule implémentation de l'appel SAM et de la mesure par frame, deux écrans qui la
+ * montrent. La voix, elle, ne décrit plus la scène : elle guide ([LiveGuidance]).
  */
 class LiveProbe(private val scope: CoroutineScope) {
 
@@ -111,8 +108,8 @@ class LiveProbe(private val scope: CoroutineScope) {
     /** Distances (sténopé sur hauteurs connues) : 100 % téléphone, aucun appel en plus. */
     private val distances = DistanceMeter()
 
-    /** Déclencheur des annonces vocales : stabilité, non-répétition, 4 s d'écart. */
-    private val announcer = PositionAnnouncer()
+    /** Guidage vocal : corridor, instruction, anti-répétition (voir [LiveGuidance]). */
+    private val guidance = LiveGuidance()
 
 /** Chronologie de la frame courante : capture du capteur → pixel affiché. */
     private val chronology = ScreenTimings { SystemClock.elapsedRealtimeNanos() }
@@ -125,8 +122,11 @@ class LiveProbe(private val scope: CoroutineScope) {
      */
     private val painter = MaskPainter({ maskColorAt(it).toArgb() }, MASK_ALPHA)
 
-    /** Vrai si les Réglages autorisent l'annonce (« Annoncer les objets et leur distance »). */
+    /** Vrai si les Réglages autorisent la voix (« Annoncer les objets et leur distance »). */
     private var announcePositions = false
+
+    /** Pastilles de distance à l'écran : la voix, elle, garde ses mesures même sans pastilles. */
+    private var overlayOn = true
 
     /** Langue de la voix (Réglages) : le français reste le défaut des fonctions pures. */
     private var speechLanguage: SpeechLanguage = SpeechLanguage.Fr
@@ -166,13 +166,15 @@ class LiveProbe(private val scope: CoroutineScope) {
         warmed = false
         announcePositions = announce
         speechLanguage = language
-        distances.enabled = distancesOn
+        overlayOn = distancesOn
+        // La mesure sert aux pastilles **et** au guidage : c'est l'affichage qu'on coupe.
+        distances.enabled = distancesOn || announce
         distances.setLens(lens)
         nextTickAt = 0L
         queued = null
         chronology.reset()
         rate.reset()
-        announcer.reset()
+        guidance.reset()
         _state.update {
             LiveProbeState(
                 endpoint = clean,
@@ -195,7 +197,7 @@ class LiveProbe(private val scope: CoroutineScope) {
         warmed = false
         rate.reset()
         distances.reset()
-        announcer.reset()
+        guidance.reset()
         nextTickAt = 0L
         queued = null
         chronology.reset()
@@ -354,7 +356,7 @@ class LiveProbe(private val scope: CoroutineScope) {
                 height = frame.height,
                 frames = current.frames + 1,
                 fps = rate.rate,
-                distanceLayer = distanceLayerOf(frame, readings),
+                distanceLayer = if (overlayOn) distanceLayerOf(frame, readings) else null,
                 spoken = phrase ?: current.spoken,
                 transport = transportLabel(active),
                 error = null,
@@ -390,17 +392,14 @@ class LiveProbe(private val scope: CoroutineScope) {
         else DistanceLayer(frame.width, frame.height, readings)
 
     /**
-     * Phrase à dire, ou `null` pour rester muet : bascule des Réglages coupée, ou scène
-     * déjà annoncée. La distance suit la boîte qui l'a produite (aucune indexation fragile).
+     * Instruction à dire, ou `null` pour rester muet : bascule des Réglages coupée, rien
+     * de mesuré, ou instruction déjà dite. La décision vit dans [LiveGuidance] : ici, on ne
+     * fait que lui passer la frame, les distances et la focale de l'image analysée.
      */
     private fun phraseOf(frame: LiveFrame, readings: List<DistanceReading>, at: Long): String? {
         if (!announcePositions) return null
-        val metersByBox = readings.associate { it.box to it.meters }
-        val placed = frame.objects.mapNotNull { obj ->
-            PositionText.fromDetection(Detection(obj.label, obj.score, obj.box, frame.width, frame.height))
-                ?.copy(meters = metersByBox[obj.box])
-        }
-        return announcer.onFrame(at, placed, speechLanguage)
+        val focalPx = distances.lensSpec.focalPx(frame.width, frame.height)
+        return guidance.phrase(frame, readings, focalPx, at, speechLanguage)
     }
 
     /**

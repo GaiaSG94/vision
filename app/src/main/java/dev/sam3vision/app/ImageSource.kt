@@ -39,18 +39,63 @@ fun decodeScaled(file: File, maxEdge: Int = MAX_IMAGE_EDGE): Bitmap? = runCatchi
     BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = sample })
 }.getOrNull()
 
-/** Décode un fichier image, puis le ramène exactement sous [maxEdge] (puissance de 2 insuffisante). */
+/**
+ * Décode un fichier image, le ramène sous [maxEdge] **et applique l'orientation EXIF**.
+ *
+ * Une photo CameraX est écrite dans le sens du capteur (paysage) avec un tag EXIF qui dit
+ * comment la redresser : sans ce redressement, une photo prise en portrait s'affichait
+ * couchée. Le même décodage sert à l'affichage, à SAM et au LLM, donc les boîtes restent
+ * dans le repère de l'image montrée.
+ */
 fun decodeScaledExact(file: File, maxEdge: Int = MAX_IMAGE_EDGE): Bitmap? {
     val decoded = decodeScaled(file, maxEdge) ?: return null
     val longest = max(decoded.width, decoded.height)
-    if (longest <= maxEdge) return decoded
-    val ratio = maxEdge.toFloat() / longest
-    return Bitmap.createScaledBitmap(
-        decoded,
-        max(1, (decoded.width * ratio).toInt()),
-        max(1, (decoded.height * ratio).toInt()),
-        true,
-    )
+    val scaled = if (longest <= maxEdge) {
+        decoded
+    } else {
+        val ratio = maxEdge.toFloat() / longest
+        Bitmap.createScaledBitmap(
+            decoded,
+            max(1, (decoded.width * ratio).toInt()),
+            max(1, (decoded.height * ratio).toInt()),
+            true,
+        )
+    }
+    return uprightScaled(scaled, exifDegrees(file), maxEdge)
+}
+
+/**
+ * Rotation EXIF d'un fichier photo, en degrés (0, 90, 180, 270). `0` si le fichier n'en
+ * porte pas (PNG, image déjà redressée) ou si le tag est illisible.
+ */
+fun exifDegrees(file: File): Int = runCatching {
+    val orientation = android.media.ExifInterface(file.absolutePath)
+        .getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL)
+    when (orientation) {
+        android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+        android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+        android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+        else -> 0
+    }
+}.getOrDefault(0)
+
+/**
+ * Quart de tour à ajouter pour que l'image prenne l'orientation de l'écran : une photo
+ * portrait dans un écran paysage (et inversement) est tournée de 90°. Pure, testée en JVM.
+ */
+fun screenAlignDegrees(width: Int, height: Int, screenPortrait: Boolean): Int {
+    if (width <= 0 || height <= 0) return 0
+    return if ((height > width) == screenPortrait) 0 else 90
+}
+
+/**
+ * Décode la photo redressée (EXIF) puis alignée sur l'orientation de l'écran. Une seule
+ * photo à la fois : deux passes de matrice ne coûtent rien ici (ce n'est pas une frame).
+ */
+fun decodeForScreen(file: File, screenPortrait: Boolean, maxEdge: Int = MAX_IMAGE_EDGE): Bitmap? {
+    val upright = decodeScaledExact(file, maxEdge) ?: return null
+    val align = screenAlignDegrees(upright.width, upright.height, screenPortrait)
+    return if (align == 0) upright else uprightScaled(upright, align, maxEdge)
 }
 
 /** Bitmap → base64 JPEG sans préfixe `data:`. */

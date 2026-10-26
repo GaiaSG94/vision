@@ -65,9 +65,10 @@ Délais réellement câblés : frame 10 s (`core/net/HttpLiveClient.kt:11`), ré
 - **Pendant l'enregistrement iSee** : chaque frame part au direct SAM et revient en **masques
   colorisés** dans la même surface que l'aperçu (`app/CameraSurface.kt`), avec un **panneau de
   latence** dense (cadence, latence moyenne, p95, durée serveur, taille de frame, frames/masques,
-  concepts, erreur — `app/ihear/LiveDebugPanel.kt:21-30`) et la **voix** qui annonce objet,
-  position et distance, une fois par nouvelle phrase (`app/ihear/ProximityVoice.kt:8-16`).
-  Frame iSee mesurée dans le code : **448 px, JPEG q55** (`ihear/IhearCameraPane.kt:37,40`).
+  concepts, erreur — `app/ihear/LiveDebugPanel.kt:21-30`) et la **voix** qui **guide** :
+  « tout droit, c'est libre », « chaise à 2 mètres, décale à gauche de 50 centimètres »,
+  « stop » (`app/ihear/LiveGuidance.kt`, chiffres et limites dans `docs/GUIDAGE.md`).
+  Frame iSee mesurée dans le code : **320 px, JPEG q55** (`ihear/IhearCameraPane.kt:37,40`).
 - **Capture** : titre « SAM Vision », aperçu caméra, quatre boutons — « Photographier »,
   « Vidéo (tap) » (vert), « Galerie », « Réglages » (`CaptureScreen.kt:232-238`) ; un tap sur
   l'aperçu lance le mode vidéo avec `autoStart` (`AppNav.kt:113`).
