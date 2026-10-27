@@ -55,7 +55,6 @@ fun LiveScreen(
     onBack: () -> Unit,
     onAsk: () -> Unit,
     onOpenSettings: () -> Unit,
-    onShareParent: () -> Unit,
 ) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsState()
@@ -81,7 +80,6 @@ fun LiveScreen(
         onBack = onBack,
         onAsk = onAsk,
         onOpenSettings = onOpenSettings,
-        onShareParent = onShareParent,
         onApplyPrompts = { viewModel.restartWith(draft) },
         onRecover = { viewModel.restartActive() },
         memoryOpen = memoryOpen,
@@ -148,7 +146,6 @@ private fun LiveStage(
     onBack: () -> Unit,
     onAsk: () -> Unit,
     onOpenSettings: () -> Unit,
-    onShareParent: () -> Unit,
     onApplyPrompts: () -> Unit,
     onRecover: () -> Unit,
     memoryOpen: Boolean,
@@ -170,7 +167,6 @@ private fun LiveStage(
             onBack = onBack,
             onOpenSettings = onOpenSettings,
             onToggleSam = onToggleSam,
-            onShareParent = onShareParent,
             modifier = Modifier.align(Alignment.TopCenter),
         )
         LiveFooter(
