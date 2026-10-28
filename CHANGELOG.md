@@ -3,6 +3,22 @@
 Le journal part du 2026-10-26 après 19 h : le commit de départ, puis une entrée par fait
 livré et ses preuves (tâche, fichiers, chiffres) dans l'arbre.
 
+## 2026-10-28 — bulle : reflets aux couleurs du liquide
+
+- `IseePortraitOrb.kt` (`app/.../isee/`) : `film()` ne simule plus une lumière
+  blanche fixe (roses/verts) mais cycle sur les palettes actives du liquide,
+  mêmes dosages — jaune/bleu au repos, bleu à l'écoute, ambre quand iSee
+  parle ; shader WebGL de la page du proche régénéré
+  (`suivi-parent/orb-shader.mjs` via `tools/export-caregiver-orb.py`) :
+  reflets bleu-vert, les couleurs de sa boule ; baseline refigée
+  (`tools/orb-frozen-baseline.json`, seul le hash du fichier boule change).
+- Preuves : `OrbShaderTest` +1 (`les reflets du verre suivent les palettes du
+  liquide`, rouge avant / vert après), `:app:testDebugUnitTest` 820/820,
+  `:app:assembleDebug` vert, `check-isee-design` OK, `check-kotlin-limits` OK ;
+  `:core:testDebugUnitTest` 1548/1553, 5 échecs préexistants
+  `PrivateFileSettingsStoreTest` (permissions POSIX sous Windows, identiques
+  sur arbre non modifié).
+
 ## 2026-10-28 — traversée : veto TTC sur boîtes SAM suivies
 
 - `VehicleApproach` (`core/.../traverse/`) : association IoU inter-frames,

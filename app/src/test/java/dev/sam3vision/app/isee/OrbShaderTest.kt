@@ -1,6 +1,7 @@
 package dev.sam3vision.app.isee
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -51,6 +52,26 @@ class OrbShaderTest {
             "crochet inattendu dans le shader, étendre ce test avant de l'autoriser",
             '[' !in sansPalettes && ']' !in sansPalettes,
         )
+    }
+
+    /**
+     * Les reflets du verre suivent les couleurs du liquide (les palettes actives),
+     * pas une lumière blanche fixe qui teintait la bulle en rose/vert.
+     */
+    @Test
+    fun `les reflets du verre suivent les palettes du liquide`() {
+        assertFalse(
+            "film() utilise encore les longueurs d'onde fixes (reflets roses/verts)",
+            "650.0, 540.0, 450.0" in ORB_AGSL,
+        )
+        val film = Regex("""film\(.*?\) \{(.*?)\n\}""", RegexOption.DOT_MATCHES_ALL)
+            .find(ORB_AGSL)?.groupValues?.get(1).orEmpty()
+        listOf("cycIdle", "cycYou", "cycSee").forEach { cyc ->
+            assertTrue(
+                "film() ne cycle plus sur $cyc : les reflets ne suivent plus le liquide",
+                cyc in film,
+            )
+        }
     }
 
     private fun corpsDuShader(): String = ORB_AGSL.lineSequence()

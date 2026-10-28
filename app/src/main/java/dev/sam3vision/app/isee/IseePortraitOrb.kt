@@ -17,7 +17,7 @@ import dev.sam3vision.core.iseedesign.IseePortrait
 
 /**
  * La boule iSee du design « Portrait » : une sphère de verre (reflet de boîte à lumière,
- * irisation de bulle de savon au bord, liseré) qui tient un liquide marbré Amber. Aucun
+ * irisation au bord aux couleurs du liquide, liseré) qui tient un liquide marbré Amber. Aucun
  * pixel : verre et liquide seulement. Le liquide passe au bleu quand le user parle, à l'ambre
  * quand iSee parle, et ondule avec la voix.
  *
@@ -71,10 +71,10 @@ half3 cyc(half4 c0, half4 c1, half4 c2, half4 c3, half4 c4, float s) {
 half3 cycIdle(float s) { return cyc(uIdle[0], uIdle[1], uIdle[2], uIdle[3], uIdle[4], s); }
 half3 cycYou(float s) { return cyc(uPalYou[0], uPalYou[1], uPalYou[2], uPalYou[3], uPalYou[4], s); }
 half3 cycSee(float s) { return cyc(uPalSee[0], uPalSee[1], uPalSee[2], uPalSee[3], uPalSee[4], s); }
-half3 film(float d) {
-  float3 I = 0.5 - 0.5 * cos(4.0 * 3.14159 * 1.33 * d / float3(650.0, 540.0, 450.0));
-  float m = (I.r + I.g + I.b) / 3.0;
-  return half3(clamp(m + (I - m) * 1.15, 0.0, 1.0));
+half3 film(float s, float y, float ee) {
+  // Les reflets suivent le liquide : mêmes palettes, mêmes dosages.
+  half3 c = cycIdle(s) * half(1.0 - y - ee) + cycYou(s) * half(y) + cycSee(s) * half(ee);
+  return mix(half3(1.0), c, half(0.85));
 }
 float sdBox(float2 p, float2 b, float r) { float2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
 
@@ -106,9 +106,10 @@ half4 main(float2 fc) {
     col = mix(col, c, half(a));
   }
   col *= half(mix(1.0, 0.88, pow(1.0 - z, 3.0)));
-  // Le verre : irisation au bord, boîte à lumière, point chaud, liseré.
+  // Le verre : irisation au bord (couleurs du liquide), boîte à lumière, point chaud, liseré.
   float fres = pow(1.0 - z, 2.6);
-  half3 fcol = film(300.0 + 620.0 * fbm(q * 1.6 + float2(0.0, uTime * 0.05) + z) + 180.0 * (0.5 - 0.5 * q.y));
+  float y = clamp(uYou, 0.0, 1.0); float ee = clamp(uSee, 0.0, 1.0) * (1.0 - y);
+  half3 fcol = film(fbm(q * 1.6 + float2(0.0, uTime * 0.05) + z) + 0.29 * (0.5 - 0.5 * q.y), y, ee);
   col = mix(col, fcol, half((0.03 + 0.7 * fres) * 0.45)) + fcol * half(fres * 0.08);
   float2 r = 2.0 * z * q;
   float box = smoothstep(0.035, -0.02, sdBox(r - float2(-0.43, 0.5), float2(0.2, 0.085), 0.07));

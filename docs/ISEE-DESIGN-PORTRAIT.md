@@ -92,6 +92,13 @@ tout nouvel écran iSee reprend ce design. En cas de doute : le code
 
 ## 6. Boule gelée : le rendu ne change plus sans le user
 
+Modification explicitement demandée le 2026-10-28 : les reflets du verre
+(irisation au bord) suivent les couleurs du liquide au lieu des roses/verts
+fixes de la lumière blanche — jaune/bleu au repos, bleu à l'écoute, ambre
+quand iSee parle. Côté page du proche, même shader régénéré
+(`suivi-parent/orb-shader.mjs` via `tools/export-caregiver-orb.py`) : reflets
+bleu-vert, les couleurs de sa boule.
+
 Modification explicitement demandée le 2026-10-27 : caméra adaptative, boule
 sous l'image et ombre plus réaliste. L'ombre à trois niveaux de `master` est
 conservée et reste visible sous la caméra. Seule l'unité `OrbLayer` du rendu
