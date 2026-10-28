@@ -59,7 +59,7 @@ fun SettingsScreen(
     onOpenClassic: () -> Unit,
     onOpenGestures: () -> Unit,
     onPickRole: (Settings) -> Unit,
-    onStartTracking: (siteUrl: String, shareId: String) -> Unit,
+    onStartTracking: (Settings) -> Unit,
     onStopTracking: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -204,7 +204,7 @@ private fun BackendFields(draft: Settings, onChange: (Settings) -> Unit) {
 @Composable
 private fun ParentShareSettings(
     draft: Settings,
-    onStartTracking: (siteUrl: String, shareId: String) -> Unit,
+    onStartTracking: (Settings) -> Unit,
     onStopTracking: () -> Unit,
     onChange: (Settings) -> Unit,
 ) {
@@ -234,7 +234,7 @@ private fun ParentShareSettings(
         if (trackingActive) {
             BigButton("Arrêter le suivi", true, AppColors.danger, onStopTracking)
         } else {
-            BigButton("📤 Partager le suivi", true, AppColors.primary, onClick = { onStartTracking(draft.parentSiteUrl, draft.shareId) })
+            BigButton("📤 Partager le suivi", true, AppColors.primary, onClick = { onStartTracking(draft) })
         }
         Text(
             "En poche (écran éteint), la position seule continue d'être envoyée toutes les " +

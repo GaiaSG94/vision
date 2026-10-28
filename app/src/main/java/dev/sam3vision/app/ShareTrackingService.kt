@@ -106,14 +106,15 @@ class ShareTrackingService : Service() {
 
     /** Un envoi ; `false` = le partage doit s'arrêter (canal manquant). */
     private suspend fun sendOnce(settings: Settings): Boolean {
-        if (settings.shareId.isBlank()) return false
+        val id = normalizeShareId(settings.shareId)
+        if (id.isBlank()) return false
         if (ShareGate.screenPublishing) return true // le Direct publie déjà son état complet
         val fix = positions.lastFix ?: return true // pas encore de position : on patiente
-        val url = settings.parentSiteUrl.trim().trimEnd('/') + "/api/share"
+        val url = relayUrl(settings.parentSiteUrl)
         reporter.maybeSend(
             System.currentTimeMillis(),
             url,
-            shareJson(settings.shareId, settings.shareWriteKey, fix, emptyList()),
+            shareJson(id, settings.shareWriteKey, fix, emptyList()),
         )
         return true
     }

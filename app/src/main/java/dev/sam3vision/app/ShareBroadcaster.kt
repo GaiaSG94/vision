@@ -31,17 +31,31 @@ class ShareBroadcaster(context: Context) {
         reporter.reset()
     }
 
-    /** Envoie l'état courant si complet, sinon ne fait rien. */
+    /**
+     * Envoie l'état courant si complet, sinon ne fait rien. Quand la frame ne
+     * porte aucun objet mesuré (calibrage inconnu, SAM coupé, scène vide), la
+     * position part quand même : sinon la carte restait OFFLINE alors que le
+     * téléphone partageait — le cas le plus courant sur le terrain.
+     */
     suspend fun publish(nowMs: Long, settings: Settings, layer: DistanceLayer) {
-        if (settings.shareId.isBlank()) return
+        val id = normalizeShareId(settings.shareId)
+        if (id.isBlank()) return
         val fix = positions.lastFix ?: return
-        val objects = sharedObjectsOf(layer.readings, layer.width, layer.height, layer.fovDeg, fix.headingDeg)
-        val url = settings.parentSiteUrl.trim().trimEnd('/') + SHARE_PATH
-        reporter.maybeSend(nowMs, url, shareJson(settings.shareId, settings.shareWriteKey, fix, objects))
+        val objects = if (layer.empty) {
+            emptyList()
+        } else {
+            sharedObjectsOf(layer.readings, layer.width, layer.height, layer.fovDeg, fix.headingDeg)
+        }
+        val url = relayUrl(settings.parentSiteUrl)
+        reporter.maybeSend(nowMs, url, shareJson(id, settings.shareWriteKey, fix, objects))
     }
 
-    private companion object {
-        /** Chemin du relais sur le site parent (même origine, pas de CORS). */
-        const val SHARE_PATH = "/api/share"
+    /** Position seule (couche vide ou Direct sans détecteur) : objets vides. */
+    suspend fun publishFix(nowMs: Long, settings: Settings) {
+        val id = normalizeShareId(settings.shareId)
+        if (id.isBlank()) return
+        val fix = positions.lastFix ?: return
+        val url = relayUrl(settings.parentSiteUrl)
+        reporter.maybeSend(nowMs, url, shareJson(id, settings.shareWriteKey, fix, emptyList()))
     }
 }

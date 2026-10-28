@@ -13,10 +13,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.sam3vision.core.share.SHARE_INTERVAL_MS
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import dev.sam3vision.app.glasses.GlassesController
 import dev.sam3vision.core.settings.CaregiverRole
 import dev.sam3vision.core.settings.Settings
@@ -246,12 +250,17 @@ private fun LiveRoute(
 
 /**
  * Relais GPS+objets vers le site parent pendant le Direct : écoute active tant
- * que l'écran est affiché, envoi à chaque couche de distances (throttle 2 s).
- * [ShareGate] dit au service de suivi de patienter, pour ne pas doubler l'envoi.
+ * que l'écran est affiché, envoi à cadence fixe ([SHARE_INTERVAL_MS]). Sans
+ * objet mesuré, la position part quand même : avant, l'envoi ne partait qu'à
+ * chaque couche non vide, donc la carte restait OFFLINE dès que la scène était
+ * vide ou le détecteur coupé. [ShareGate] dit au service de suivi de patienter,
+ * pour ne pas doubler l'envoi.
  */
 @Composable
 private fun ShareRelay(layer: DistanceLayer?, settings: Settings, context: Context) {
     val broadcaster = remember(context) { ShareBroadcaster(context) }
+    val latestLayer by rememberUpdatedState(layer)
+    val latestSettings by rememberUpdatedState(settings)
     LaunchedEffect(settings.shareEnabled) {
         ShareGate.screenPublishing = settings.shareEnabled
         broadcaster.start(settings.shareEnabled)
@@ -262,9 +271,17 @@ private fun ShareRelay(layer: DistanceLayer?, settings: Settings, context: Conte
             broadcaster.stop()
         }
     }
-    LaunchedEffect(layer) {
-        if (layer != null && !layer.empty) {
-            broadcaster.publish(System.currentTimeMillis(), settings, layer)
+    LaunchedEffect(settings.shareEnabled) {
+        while (isActive) {
+            if (latestSettings.shareEnabled) {
+                val current = latestLayer
+                if (current != null && !current.empty) {
+                    broadcaster.publish(System.currentTimeMillis(), latestSettings, current)
+                } else {
+                    broadcaster.publishFix(System.currentTimeMillis(), latestSettings)
+                }
+            }
+            delay(SHARE_INTERVAL_MS)
         }
     }
 }
@@ -341,12 +358,12 @@ private fun SettingsRoute(
         onOpenLive = onOpenLive,
         onOpenClassic = onOpenClassic,
         onOpenGestures = onOpenGestures,
-        onPickRole = onPickRole,
-        onStartTracking = { siteUrl, shareId ->
-            (context as? MainActivity)?.ensureSharePermissions()
-            ShareTrackingService.start(context)
-            shareParentSite(context, siteUrl, shareId)
-        },
+        onPickRole = onPickRole,            onStartTracking = { draft ->
+                viewModel.saveSettings(draft)
+                (context as? MainActivity)?.ensureSharePermissions()
+                ShareTrackingService.start(context)
+                shareParentSite(context, draft.parentSiteUrl, draft.shareId)
+            },
         onStopTracking = {
             context.stopService(Intent(context, ShareTrackingService::class.java))
         },
